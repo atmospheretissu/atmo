@@ -240,7 +240,7 @@ export default function CaissePage() {
               </div>
               {client ? (
                 <div className="flex items-center gap-2.5 p-2 rounded-lg bg-canvas-2/50">
-                  <LetterAvatar initial={client.initial} tone="violet" size="sm" />
+                  <LetterAvatar initial={client.initial} tone="purple" size="sm" />
                   <p className="flex-1 text-[12.5px] font-medium text-ink truncate">
                     {client.name}
                   </p>

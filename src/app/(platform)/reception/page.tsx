@@ -140,7 +140,7 @@ export default function ReceptionPage() {
                           {p.label}
                         </p>
                         <p className="text-[11.5px] text-muted mt-0.5 truncate">
-                          <span className="font-mono">{p.qr}</span>
+                          <span className="font-mono">{p.qrCode}</span>
                           <span className="text-muted-2 mx-1.5">·</span>
                           {p.supplier}
                         </p>
