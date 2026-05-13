@@ -1,0 +1,11 @@
+import pgmod from 'pg';
+const { Client } = pgmod;
+const c = new Client({ connectionString: process.env.SUPABASE_DB_URL });
+await c.connect();
+const r = await c.query("select table_name from information_schema.tables where table_schema='public' order by table_name");
+console.log('Tables (' + r.rows.length + '):', r.rows.map(r => r.table_name).join(', '));
+const c2 = await c.query("select count(*)::int as n from public.sms_templates");
+console.log('SMS templates seeded:', c2.rows[0].n);
+const c3 = await c.query("select count(*)::int as n from pg_policies where schemaname = 'public'");
+console.log('RLS policies:', c3.rows[0].n);
+await c.end();
