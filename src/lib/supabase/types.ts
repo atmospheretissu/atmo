@@ -43,6 +43,7 @@ export interface Database {
           resolved_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       audit_log: {
         Row: {
@@ -78,6 +79,7 @@ export interface Database {
           user_agent?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       bc_lines: {
         Row: {
@@ -116,6 +118,7 @@ export interface Database {
           unit_price_ht?: number;
           total_ht?: number | null;
         };
+        Relationships: [];
       };
       bons_commande: {
         Row: {
@@ -172,6 +175,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       caisse_closures: {
         Row: {
@@ -216,6 +220,7 @@ export interface Database {
           exported_to_pennylane?: boolean;
           notes?: string | null;
         };
+        Relationships: [];
       };
       caisse_ticket_lines: {
         Row: {
@@ -254,6 +259,7 @@ export interface Database {
           total_ht?: number | null;
           position?: number;
         };
+        Relationships: [];
       };
       caisse_tickets: {
         Row: {
@@ -304,6 +310,7 @@ export interface Database {
           closure_id?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       catalog_products: {
         Row: {
@@ -357,12 +364,13 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       clients: {
         Row: {
           id: string;
           display_name: string;
-          email: unknown | null;
+          email: string | null;
           phone: string | null;
           address_pose: string | null;
           city: string | null;
@@ -378,7 +386,7 @@ export interface Database {
         Insert: {
           id?: string;
           display_name: string;
-          email?: unknown | null;
+          email?: string | null;
           phone?: string | null;
           address_pose?: string | null;
           city?: string | null;
@@ -394,7 +402,7 @@ export interface Database {
         Update: {
           id?: string;
           display_name?: string;
-          email?: unknown | null;
+          email?: string | null;
           phone?: string | null;
           address_pose?: string | null;
           city?: string | null;
@@ -407,6 +415,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       couturieres: {
         Row: {
@@ -436,6 +445,7 @@ export interface Database {
           active?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       devis: {
         Row: {
@@ -507,6 +517,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       devis_lines: {
         Row: {
@@ -551,6 +562,7 @@ export interface Database {
           catalog_product_id?: string | null;
           meta?: Json;
         };
+        Relationships: [];
       };
       devis_versions: {
         Row: {
@@ -586,6 +598,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       dossier_items: {
         Row: {
@@ -645,6 +658,7 @@ export interface Database {
           position?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       dossiers: {
         Row: {
@@ -698,6 +712,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       lm_leads: {
         Row: {
@@ -748,6 +763,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       notifications: {
         Row: {
@@ -783,6 +799,7 @@ export interface Database {
           read_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       payments: {
         Row: {
@@ -839,6 +856,7 @@ export interface Database {
           paid_at?: string;
           recorded_by?: string | null;
         };
+        Relationships: [];
       };
       poses: {
         Row: {
@@ -895,15 +913,16 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       profiles: {
         Row: {
           id: string;
-          email: unknown;
+          email: string;
           full_name: string;
           role: Database["public"]["Enums"]["user_role"];
           phone: string | null;
-          avatar_initial: unknown | null;
+          avatar_initial: string | null;
           active: boolean;
           last_seen_at: string | null;
           created_at: string;
@@ -911,11 +930,11 @@ export interface Database {
         };
         Insert: {
           id: string;
-          email: unknown;
+          email: string;
           full_name: string;
           role?: Database["public"]["Enums"]["user_role"];
           phone?: string | null;
-          avatar_initial?: unknown | null;
+          avatar_initial?: string | null;
           active?: boolean;
           last_seen_at?: string | null;
           created_at?: string;
@@ -923,16 +942,17 @@ export interface Database {
         };
         Update: {
           id?: string;
-          email?: unknown;
+          email?: string;
           full_name?: string;
           role?: Database["public"]["Enums"]["user_role"];
           phone?: string | null;
-          avatar_initial?: unknown | null;
+          avatar_initial?: string | null;
           active?: boolean;
           last_seen_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       sms_log: {
         Row: {
@@ -974,6 +994,7 @@ export interface Database {
           delivered_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       sms_templates: {
         Row: {
@@ -1003,6 +1024,7 @@ export interface Database {
           active?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       suppliers: {
         Row: {
@@ -1011,7 +1033,7 @@ export interface Database {
           type: Database["public"]["Enums"]["supplier_type"];
           country: string;
           language: Database["public"]["Enums"]["lang"];
-          contact_email: unknown | null;
+          contact_email: string | null;
           contact_phone: string | null;
           franco_ht: number;
           notes: string | null;
@@ -1025,7 +1047,7 @@ export interface Database {
           type: Database["public"]["Enums"]["supplier_type"];
           country: string;
           language?: Database["public"]["Enums"]["lang"];
-          contact_email?: unknown | null;
+          contact_email?: string | null;
           contact_phone?: string | null;
           franco_ht?: number;
           notes?: string | null;
@@ -1039,7 +1061,7 @@ export interface Database {
           type?: Database["public"]["Enums"]["supplier_type"];
           country?: string;
           language?: Database["public"]["Enums"]["lang"];
-          contact_email?: unknown | null;
+          contact_email?: string | null;
           contact_phone?: string | null;
           franco_ht?: number;
           notes?: string | null;
@@ -1047,10 +1069,11 @@ export interface Database {
           active?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
-    Views: Record<string, { Row: Record<string, unknown> }>;
-    Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;
+    Views: {};
+    Functions: {};
     Enums: {
       bc_status: "brouillon" | "envoye" | "confirme" | "expedie" | "recu" | "probleme";
       channel: "magasin" | "leroy_merlin" | "ecommerce" | "decoratrice" | "visio";

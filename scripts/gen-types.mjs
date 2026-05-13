@@ -38,9 +38,14 @@ const mapType = (col) => {
   if (col.data_type === 'USER-DEFINED' && enumsByName[col.udt_name]) {
     return `Database["public"]["Enums"]["${col.udt_name}"]`;
   }
+  // USER-DEFINED non-enum types (extension types like citext, inet)
+  if (col.data_type === 'USER-DEFINED') {
+    return 'string';
+  }
   const m = {
     'uuid': 'string',
     'text': 'string',
+    'character': 'string',
     'character varying': 'string',
     'citext': 'string',
     'integer': 'number',
@@ -59,7 +64,7 @@ const mapType = (col) => {
     'ARRAY': 'string[]',
     'inet': 'string',
   };
-  return m[col.data_type] ?? 'unknown';
+  return m[col.data_type] ?? 'string';
 };
 
 let out = `// Auto-generated from Supabase schema. Do not edit by hand.\n`;
@@ -88,10 +93,10 @@ for (const [name, cols] of Object.entries(tablesByName).sort()) {
     const nullable = c.is_nullable === 'YES';
     out += `          ${c.column_name}?: ${t}${nullable ? ' | null' : ''};\n`;
   }
-  out += `        };\n      };\n`;
+  out += `        };\n        Relationships: [];\n      };\n`;
 }
 
-out += `    };\n    Views: Record<string, { Row: Record<string, unknown> }>;\n    Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;\n    Enums: {\n`;
+out += `    };\n    Views: {};\n    Functions: {};\n    Enums: {\n`;
 for (const [name, vals] of Object.entries(enumsByName).sort()) {
   out += `      ${name}: ${vals.map(v => `"${v}"`).join(' | ')};\n`;
 }

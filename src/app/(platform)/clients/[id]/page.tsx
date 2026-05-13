@@ -7,9 +7,6 @@ import {
   Calendar,
   TrendingUp,
   FileText,
-  Scissors,
-  Wrench,
-  Receipt,
   MoreHorizontal,
   Edit3,
   Send,
@@ -24,22 +21,36 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
-import {
-  devisList,
-  channelLabels,
-  statusLabels,
-  statusTones,
-  dossiers,
-  poses,
-} from "@/lib/mock-data";
+import { getClientWithDevis } from "@/lib/db/clients";
+import { channelLabels, type Channel } from "@/lib/validation/client";
 import { eur, shortDate, time } from "@/lib/formatters";
 
-const channelTones = {
-  magasin: "violet" as const,
-  leroy_merlin: "orange" as const,
-  ecommerce: "blue" as const,
-  decoratrice: "pink" as const,
-  visio: "emerald" as const,
+export const dynamic = "force-dynamic";
+
+const channelTones: Record<Channel, "violet" | "orange" | "blue" | "pink" | "emerald"> = {
+  magasin: "violet",
+  leroy_merlin: "orange",
+  ecommerce: "blue",
+  decoratrice: "pink",
+  visio: "emerald",
+};
+
+const devisStatusLabels: Record<string, string> = {
+  brouillon: "Brouillon",
+  envoye: "Envoyé",
+  valide: "Validé",
+  acompte_recu: "Acompte reçu",
+  refuse: "Refusé",
+  expire: "Expiré",
+};
+
+const devisStatusTones: Record<string, "muted" | "info" | "violet" | "emerald" | "danger" | "warning"> = {
+  brouillon: "muted",
+  envoye: "info",
+  valide: "violet",
+  acompte_recu: "emerald",
+  refuse: "danger",
+  expire: "warning",
 };
 
 export default async function ClientDetailPage({
@@ -48,64 +59,22 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  // Map id to a client name from devisList (used as slug). Fallback: id is the name encoded.
-  const devis = devisList.find((d) => d.id === id);
-  if (!devis) notFound();
+  const result = await getClientWithDevis(id);
+  if (!result) notFound();
+  const { client, devis } = result;
 
-  const clientName = devis.client.name;
-  const initial = clientName.includes(",")
-    ? (clientName.split(",")[1].trim()[0] ?? clientName[0])
-    : clientName[0];
+  const initial = client.display_name.includes(",")
+    ? (client.display_name.split(",")[1].trim()[0] ?? client.display_name[0])
+    : client.display_name[0];
 
-  // Build client data from devisList
-  const clientDevis = devisList.filter((d) => d.client.name === clientName);
-  const clientDossiers = dossiers.filter((d) => d.client === clientName);
-  const clientPoses = poses.filter((p) => p.client === clientName);
-
-  const totalSpent = clientDevis
+  const totalSpent = devis
     .filter((d) => d.status === "valide" || d.status === "acompte_recu")
-    .reduce((acc, d) => acc + d.totalTTC, 0);
-  const commandesCount = clientDevis.filter(
+    .reduce((acc, d) => acc + Number(d.total_ttc ?? 0), 0);
+  const commandesCount = devis.filter(
     (d) => d.status === "valide" || d.status === "acompte_recu"
   ).length;
 
-  // Build aggregated timeline
-  const timeline = [
-    ...clientDevis.map((d) => ({
-      type: "devis" as const,
-      title: `Devis ${d.number} créé`,
-      detail: `${d.product} · ${eur(d.totalTTC, true)}`,
-      date: d.createdAt,
-      tone: "violet" as const,
-      icon: FileText,
-    })),
-    ...clientDevis
-      .filter((d) => d.status === "acompte_recu")
-      .map((d) => ({
-        type: "payment" as const,
-        title: `Acompte Stripe encaissé`,
-        detail: `${eur(d.acompte)} · ${d.number}`,
-        date: new Date(d.updatedAt.getTime()),
-        tone: "emerald" as const,
-        icon: Receipt,
-      })),
-    ...clientDossiers.map((d) => ({
-      type: "dossier" as const,
-      title: `Dossier ${d.number} ouvert`,
-      detail: `${d.itemsTotal} éléments · ${d.status}`,
-      date: new Date(d.scheduledFor ? d.scheduledFor.getTime() - 7 * 86400000 : Date.now() - 5 * 86400000),
-      tone: "orange" as const,
-      icon: Scissors,
-    })),
-    ...clientPoses.map((p) => ({
-      type: "pose" as const,
-      title: p.status === "pose" ? "Pose effectuée" : "Pose planifiée",
-      detail: `${p.poseur} · ${p.duration}min`,
-      date: p.date,
-      tone: p.status === "pose" ? ("emerald" as const) : ("blue" as const),
-      icon: Wrench,
-    })),
-  ].sort((a, b) => b.date.getTime() - a.date.getTime());
+  const channel = client.channel as Channel;
 
   return (
     <>
@@ -113,16 +82,18 @@ export default async function ClientDetailPage({
         breadcrumb={[
           { label: "Atmosphère" },
           { label: "Clients", href: "/clients" },
-          { label: clientName },
+          { label: client.display_name },
         ]}
         actions={
           <>
             <Button variant="ghost" size="sm">
               <Send className="h-3.5 w-3.5" strokeWidth={2.2} /> Envoyer SMS
             </Button>
-            <Button variant="secondary" size="sm">
-              <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
-            </Button>
+            <Link href={`/clients/${client.id}/edit`}>
+              <Button variant="secondary" size="sm">
+                <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
+              </Button>
+            </Link>
             <Link href="/devis/nouveau">
               <Button variant="primary" size="sm">
                 <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau devis
@@ -138,20 +109,30 @@ export default async function ClientDetailPage({
           <div className="flex items-center gap-2 mb-3">
             <p className="eyebrow">Fiche client</p>
             <span className="text-muted-2">·</span>
-            <StatusPill tone={channelTones[devis.channel]} dot={false}>
-              {channelLabels[devis.channel]}
+            <StatusPill tone={channelTones[channel]} dot={false}>
+              {channelLabels[channel]}
             </StatusPill>
-            <StatusPill tone="muted">Client depuis 2023</StatusPill>
+            {client.created_at && (
+              <StatusPill tone="muted">
+                Client depuis {new Date(client.created_at).getFullYear()}
+              </StatusPill>
+            )}
           </div>
 
           <div className="flex items-center gap-5 flex-wrap">
-            <LetterAvatar initial={initial} tone={toneFor(clientName)} size="lg" className="!h-14 !w-14 !text-[18px]" />
+            <LetterAvatar
+              initial={initial}
+              tone={toneFor(client.display_name)}
+              size="lg"
+              className="!h-14 !w-14 !text-[18px]"
+            />
             <div>
               <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
-                {clientName}
+                {client.display_name}
               </h1>
               <p className="text-[13.5px] text-muted mt-1">
-                {devis.client.city} <span className="text-muted-2 mx-1">·</span> {clientDevis.length} interactions
+                {client.city ?? "Ville non renseignée"} · {devis.length}{" "}
+                interaction{devis.length > 1 ? "s" : ""}
               </p>
             </div>
           </div>
@@ -160,10 +141,34 @@ export default async function ClientDetailPage({
         {/* Stats row */}
         <section className="px-8 pb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MiniStat label="CA cumulé" value={eur(totalSpent, true)} sub={`${commandesCount} commandes`} tone="emerald" icon={TrendingUp} />
-            <MiniStat label="Devis envoyés" value={String(clientDevis.length)} sub={`${clientDevis.filter((d) => d.status === "acompte_recu" || d.status === "valide").length} validés`} tone="violet" icon={FileText} />
-            <MiniStat label="Dossiers" value={String(clientDossiers.length)} sub={clientDossiers.length > 0 ? `${clientDossiers.filter((d) => d.status === "pose").length} posés` : "aucun"} tone="orange" icon={Scissors} />
-            <MiniStat label="Poses" value={String(clientPoses.length)} sub={clientPoses.length > 0 ? `dernière ${shortDate(clientPoses[0].date)}` : "aucune"} tone="pink" icon={Wrench} />
+            <MiniStat
+              label="CA cumulé"
+              value={totalSpent > 0 ? eur(totalSpent, true) : "—"}
+              sub={`${commandesCount} commande${commandesCount > 1 ? "s" : ""}`}
+              tone="emerald"
+              icon={TrendingUp}
+            />
+            <MiniStat
+              label="Devis"
+              value={String(devis.length)}
+              sub={`${devis.filter((d) => d.status === "acompte_recu" || d.status === "valide").length} validés`}
+              tone="violet"
+              icon={FileText}
+            />
+            <MiniStat
+              label="Source"
+              value={channelLabels[channel]}
+              sub="lead origine"
+              tone={channelTones[channel]}
+              icon={Globe}
+            />
+            <MiniStat
+              label="Dernière activité"
+              value={client.updated_at ? shortDate(new Date(client.updated_at)) : "—"}
+              sub="modification fiche"
+              tone="pink"
+              icon={Calendar}
+            />
           </div>
         </section>
 
@@ -177,176 +182,105 @@ export default async function ClientDetailPage({
                   <p className="eyebrow mb-1">Historique commercial</p>
                   <h3 className="text-[15px] font-semibold text-ink">Devis & commandes</h3>
                 </div>
-                <span className="font-mono text-[11.5px] text-muted-2">{clientDevis.length}</span>
+                <span className="font-mono text-[11.5px] text-muted-2">{devis.length}</span>
               </div>
-              <div className="divide-y divide-line">
-                {clientDevis.map((d) => (
-                  <Link
-                    key={d.id}
-                    href={`/devis/${d.id}`}
-                    className="px-5 py-3.5 flex items-center gap-3 hover:bg-canvas-2/30 transition-colors group"
-                  >
-                    <ColorChip tone="violet" size="md">
-                      <FileText className="h-4 w-4" strokeWidth={2.2} />
-                    </ColorChip>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="text-[13.5px] font-semibold text-ink">{d.number}</p>
-                        <span className="ref">v{d.version}</span>
-                      </div>
-                      <p className="text-[12px] text-muted truncate">
-                        {d.product} <span className="text-muted-2">·</span> {d.productDetail}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-semibold text-ink tabular-nums">{eur(d.totalTTC, true)}</p>
-                      <p className="ref">{shortDate(d.createdAt)}</p>
-                    </div>
-                    <StatusPill tone={statusTones[d.status]}>{statusLabels[d.status]}</StatusPill>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-2 group-hover:text-ink transition-colors" />
+              {devis.length === 0 ? (
+                <div className="px-5 py-10 text-center">
+                  <p className="text-[13px] text-muted-2 mb-3">Aucun devis pour ce client.</p>
+                  <Link href="/devis/nouveau">
+                    <Button variant="primary" size="sm">
+                      <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                      Démarrer un devis
+                    </Button>
                   </Link>
-                ))}
-              </div>
-            </Card>
-
-            {/* Dossiers */}
-            {clientDossiers.length > 0 && (
-              <Card className="overflow-hidden">
-                <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-line">
-                  <div>
-                    <p className="eyebrow mb-1">Atelier</p>
-                    <h3 className="text-[15px] font-semibold text-ink">Dossiers en cours</h3>
-                  </div>
-                  <span className="font-mono text-[11.5px] text-muted-2">{clientDossiers.length}</span>
                 </div>
+              ) : (
                 <div className="divide-y divide-line">
-                  {clientDossiers.map((d) => (
+                  {devis.map((d) => (
                     <Link
                       key={d.id}
-                      href={`/confections/${d.id}`}
+                      href={`/devis/${d.id}`}
                       className="px-5 py-3.5 flex items-center gap-3 hover:bg-canvas-2/30 transition-colors group"
                     >
-                      <ColorChip tone="orange" size="md">
-                        <Scissors className="h-4 w-4" strokeWidth={2.2} />
+                      <ColorChip tone="violet" size="md">
+                        <FileText className="h-4 w-4" strokeWidth={2.2} />
                       </ColorChip>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13.5px] font-semibold text-ink">{d.number}</p>
-                        {d.itemsTotal > 0 && (
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[11px] text-muted tabular-nums">
-                              {d.itemsReceived}/{d.itemsTotal} éléments
-                            </span>
-                            <div className="flex gap-0.5 h-1 flex-1 max-w-[120px]">
-                              {Array.from({ length: d.itemsTotal }).map((_, i) => (
-                                <span
-                                  key={i}
-                                  className={
-                                    "flex-1 rounded-full " +
-                                    (i < d.itemsReceived ? "bg-emerald" : "bg-canvas-2 border border-line")
-                                  }
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-[13.5px] font-semibold text-ink">{d.number}</p>
+                          <span className="ref">v{d.version ?? 1}</span>
+                        </div>
+                        <p className="text-[12px] text-muted truncate">
+                          {d.product_summary} <span className="text-muted-2">·</span>{" "}
+                          {d.product_detail ?? ""}
+                        </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-semibold text-ink tabular-nums text-[13px]">{eur(d.totalTTC, true)}</p>
+                        <p className="font-semibold text-ink tabular-nums">
+                          {eur(Number(d.total_ttc ?? 0), true)}
+                        </p>
+                        <p className="ref">{shortDate(new Date(d.created_at ?? Date.now()))}</p>
                       </div>
+                      <StatusPill tone={devisStatusTones[d.status as string] ?? "muted"}>
+                        {devisStatusLabels[d.status as string] ?? d.status}
+                      </StatusPill>
                       <ChevronRight className="h-3.5 w-3.5 text-muted-2 group-hover:text-ink transition-colors" />
                     </Link>
                   ))}
                 </div>
-              </Card>
-            )}
-
-            {/* Activity timeline */}
-            <Card>
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-line">
-                <div>
-                  <p className="eyebrow mb-1">Chronologie</p>
-                  <h3 className="text-[15px] font-semibold text-ink">Activité récente</h3>
-                </div>
-              </div>
-              <div className="px-5 pt-4 pb-5">
-                <ol className="relative pl-7 space-y-4">
-                  <span className="absolute left-2.5 top-2 bottom-2 w-px bg-line" />
-                  {timeline.slice(0, 8).map((t, i) => (
-                    <li key={i} className="relative">
-                      <span
-                        className={
-                          "absolute -left-[26px] top-0.5 h-5 w-5 rounded-full ring-2 ring-white flex items-center justify-center " +
-                          (t.tone === "emerald"
-                            ? "bg-emerald text-white"
-                            : t.tone === "violet"
-                            ? "bg-violet text-white"
-                            : t.tone === "orange"
-                            ? "bg-orange text-white"
-                            : "bg-blue text-white")
-                        }
-                      >
-                        <t.icon className="h-2.5 w-2.5" strokeWidth={2.5} />
-                      </span>
-                      <div>
-                        <p className="text-[13px] text-ink font-medium leading-tight">{t.title}</p>
-                        <p className="ref mt-0.5">{t.detail} · {shortDate(t.date)} {time(t.date)}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+              )}
             </Card>
           </div>
 
           {/* SIDE */}
           <div className="space-y-4">
+            {/* Coordonnées */}
             <Card className="p-5">
               <p className="eyebrow mb-3">Coordonnées</p>
               <div className="space-y-2.5">
-                <ClientField icon={Mail} value={devis.client.email} tone="blue" />
-                <ClientField icon={Phone} value="06 12 34 56 78" tone="emerald" />
-                <ClientField icon={MapPin} value={`42 cours Foch · ${devis.client.city}`} tone="pink" />
-                <ClientField icon={Globe} value={`Source · ${channelLabels[devis.channel]}`} tone="orange" />
+                {client.email && <ContactField icon={Mail} value={client.email} tone="blue" />}
+                {client.phone && <ContactField icon={Phone} value={client.phone} tone="emerald" />}
+                {(client.address_pose || client.city) && (
+                  <ContactField
+                    icon={MapPin}
+                    value={[client.address_pose, client.city].filter(Boolean).join(" · ")}
+                    tone="pink"
+                  />
+                )}
+                <ContactField icon={Globe} value={`Source · ${channelLabels[channel]}`} tone="orange" />
               </div>
               <div className="mt-4 pt-4 border-t border-line flex items-center gap-2">
-                <Button variant="secondary" size="sm" className="flex-1">
+                <Button variant="secondary" size="sm" className="flex-1" disabled={!client.phone}>
                   <Phone className="h-3.5 w-3.5" strokeWidth={2.2} /> Appeler
                 </Button>
-                <Button variant="secondary" size="sm" className="flex-1">
+                <Button variant="secondary" size="sm" className="flex-1" disabled={!client.phone}>
                   <Send className="h-3.5 w-3.5" strokeWidth={2.2} /> SMS
                 </Button>
               </div>
             </Card>
 
             {/* Préférences */}
-            <Card className="p-5">
-              <p className="eyebrow mb-3">Préférences notées</p>
-              <ul className="space-y-2 text-[12.5px] text-ink-2">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-3 w-3 text-emerald mt-1 shrink-0" strokeWidth={2.4} />
-                  <span>Couleurs chaudes · ocre, saumon, terracotta</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-3 w-3 text-emerald mt-1 shrink-0" strokeWidth={2.4} />
-                  <span>Plis flamand 10cm uniquement</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-3 w-3 text-emerald mt-1 shrink-0" strokeWidth={2.4} />
-                  <span>Préfère rendez-vous en matinée</span>
-                </li>
-              </ul>
-            </Card>
+            {client.preferences && (
+              <Card className="p-5">
+                <p className="eyebrow mb-3">Préférences notées</p>
+                <p className="text-[12.5px] text-ink-2 leading-relaxed whitespace-pre-line">
+                  {client.preferences}
+                </p>
+              </Card>
+            )}
 
             {/* Notes internes */}
-            <Card className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="eyebrow">Notes internes</p>
-                <Sparkles className="h-3.5 w-3.5 text-violet" />
-              </div>
-              <p className="text-[12.5px] text-ink-2 leading-relaxed">
-                Cliente fidèle introduite par sa voisine. Sensible au délai. Toujours rappeler à H-30 pour confirmer pose. Mari sourd — privilégier SMS.
-              </p>
-            </Card>
+            {client.internal_notes && (
+              <Card className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="eyebrow">Notes internes</p>
+                  <Sparkles className="h-3.5 w-3.5 text-violet" />
+                </div>
+                <p className="text-[12.5px] text-ink-2 leading-relaxed whitespace-pre-line">
+                  {client.internal_notes}
+                </p>
+              </Card>
+            )}
           </div>
         </section>
       </div>
@@ -374,14 +308,16 @@ function MiniStat({
       </ColorChip>
       <div className="flex-1 min-w-0">
         <p className="text-[11.5px] text-muted-2 font-medium uppercase tracking-wider">{label}</p>
-        <p className="text-[22px] font-semibold text-ink leading-tight tabular-nums mt-0.5">{value}</p>
+        <p className="text-[20px] font-semibold text-ink leading-tight tabular-nums mt-0.5 truncate">
+          {value}
+        </p>
         {sub && <p className="text-[11px] text-muted mt-0.5">{sub}</p>}
       </div>
     </Card>
   );
 }
 
-function ClientField({
+function ContactField({
   icon: Icon,
   value,
   tone,
