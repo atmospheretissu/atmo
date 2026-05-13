@@ -134,10 +134,13 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
     setPieces(pieces.filter((_, i) => i !== idx));
   };
 
-  const handleAddArticle = (pieceIdx: number, article: BoutiquePieceArticle) => {
+  const handleAddArticles = (pieceIdx: number, articles: BoutiquePieceArticle[]) => {
     setPieces((p) => {
       const next = [...p];
-      next[pieceIdx] = { ...next[pieceIdx], articles: [...next[pieceIdx].articles, article] };
+      next[pieceIdx] = {
+        ...next[pieceIdx],
+        articles: [...next[pieceIdx].articles, ...articles],
+      };
       return next;
     });
     setArticleModalPieceIdx(null);
@@ -503,7 +506,7 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
           {articleModalPieceIdx !== null && (
             <AddArticleModal
               onClose={() => setArticleModalPieceIdx(null)}
-              onAdd={(article) => handleAddArticle(articleModalPieceIdx, article)}
+              onAdd={(articles) => handleAddArticles(articleModalPieceIdx, articles)}
             />
           )}
         </div>

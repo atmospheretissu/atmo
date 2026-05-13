@@ -9,6 +9,7 @@ import { ColorChip } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { searchCatalogProductsAction } from "@/app/(platform)/boutique/actions";
+import { RideauForm } from "@/components/boutique/article-rideau-form";
 
 type ArticleType = "rideau" | "store" | "produit" | "rideau_serie";
 
@@ -31,10 +32,10 @@ const TYPES: {
   {
     key: "rideau",
     label: "Rideau sur mesure",
-    description: "Plis simples · Vague · Œillets",
+    description: "Plis simples · Vague · Œillets — calcul temps réel",
     tone: "violet",
     icon: Scissors,
-    available: false,
+    available: true,
   },
   {
     key: "store",
@@ -59,7 +60,7 @@ export function AddArticleModal({
   onAdd,
 }: {
   onClose: () => void;
-  onAdd: (article: BoutiquePieceArticle) => void;
+  onAdd: (articles: BoutiquePieceArticle[]) => void;
 }) {
   const [selectedType, setSelectedType] = useState<ArticleType | null>(null);
 
@@ -71,15 +72,31 @@ export function AddArticleModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Larger modal for rideau form (needs space for split layout)
+  const isWide = selectedType === "rideau" || selectedType === "store";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh] px-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[6vh] px-4">
       <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-[680px] bg-white rounded-2xl shadow-pop border border-line overflow-hidden animate-fade-up">
+      <div
+        className={cn(
+          "relative w-full bg-white rounded-2xl shadow-pop border border-line overflow-hidden animate-fade-up",
+          isWide ? "max-w-[1080px]" : "max-w-[680px]"
+        )}
+      >
         <div className="flex items-center justify-between px-5 py-4 border-b border-line">
           <div>
             <p className="eyebrow">Ajouter un article</p>
             <h3 className="text-[15px] font-semibold text-ink mt-0.5">
-              {selectedType === null ? "Choisis le type d'article" : "Saisis les infos"}
+              {selectedType === null
+                ? "Choisis le type d'article"
+                : selectedType === "produit"
+                ? "Catalogue produits"
+                : selectedType === "rideau"
+                ? "Rideau sur mesure"
+                : selectedType === "store"
+                ? "Store sur mesure"
+                : "Rideau en série"}
             </h3>
           </div>
           <button
@@ -96,11 +113,15 @@ export function AddArticleModal({
         {selectedType === "produit" && (
           <ProduitCatalogueForm
             onCancel={() => setSelectedType(null)}
-            onAdd={(a) => onAdd(a)}
+            onAdd={(a) => onAdd([a])}
           />
         )}
 
-        {(selectedType === "rideau" || selectedType === "store" || selectedType === "rideau_serie") && (
+        {selectedType === "rideau" && (
+          <RideauForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
+        {(selectedType === "store" || selectedType === "rideau_serie") && (
           <PartTwoPlaceholder type={selectedType} onBack={() => setSelectedType(null)} />
         )}
       </div>
@@ -132,7 +153,7 @@ function TypePicker({ onPick }: { onPick: (t: ArticleType) => void }) {
               <p className="text-[13.5px] font-semibold text-ink">{t.label}</p>
               {!t.available && (
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-amber-soft text-amber">
-                  Part 2
+                  Part 3
                 </span>
               )}
             </div>
@@ -167,7 +188,6 @@ function ProduitCatalogueForm({
   const [overridePrice, setOverridePrice] = useState<number | "">("");
   const [searching, startSearch] = useTransition();
 
-  // Debounced search
   useEffect(() => {
     if (!query || query.length < 2 || selectedProduct) return;
     const t = setTimeout(() => {
@@ -272,7 +292,6 @@ function ProduitCatalogueForm({
         </>
       ) : (
         <>
-          {/* Produit sélectionné */}
           <Card className="p-3 bg-canvas-2/30 mb-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -363,11 +382,10 @@ function PartTwoPlaceholder({
   type,
   onBack,
 }: {
-  type: "rideau" | "store" | "rideau_serie";
+  type: "store" | "rideau_serie";
   onBack: () => void;
 }) {
   const labels = {
-    rideau: "Rideau sur mesure",
     store: "Store sur mesure",
     rideau_serie: "Rideau en série",
   };
@@ -377,11 +395,11 @@ function PartTwoPlaceholder({
         <AlertCircle className="h-5 w-5" strokeWidth={2.2} />
       </div>
       <h3 className="text-[15px] font-semibold text-ink mb-1">
-        {labels[type]} — disponible en Part 2
+        {labels[type]} — disponible en Part 3
       </h3>
       <p className="text-[12.5px] text-muted max-w-md mx-auto mb-5">
-        La logique de chiffrage est déjà portée côté serveur (calcRideau / calcStore avec tarifs
-        confection, rails, mécanismes, accessoires, pose…). Reste à brancher l'UI du formulaire.
+        La logique de chiffrage est déjà portée côté serveur (calculateStore avec mécanisme,
+        chaînette, accessoires, pose…). Reste à brancher l'UI du formulaire.
       </p>
       <Button variant="secondary" size="md" type="button" onClick={onBack}>
         Retour au choix

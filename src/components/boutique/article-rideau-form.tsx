@@ -1,0 +1,536 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input, Label, Hint, Select } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { ColorChip } from "@/components/ui/status-pill";
+import { Sparkles } from "lucide-react";
+import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
+import { CONFIG, type TypeRideau, type TypeRail, type TypePose } from "@/lib/boutique/data";
+import { calculateRideau } from "@/lib/boutique/pricing/helpers";
+
+const eurFmt = new Intl.NumberFormat("fr-FR", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+});
+
+const TYPES_RIDEAU: { value: TypeRideau; label: string; sub: string }[] = [
+  { value: "Plis simples", label: "Plis simples", sub: `coef ${CONFIG.coefficients["Plis simples"]}` },
+  { value: "Vague", label: "Vague", sub: `coef ${CONFIG.coefficients["Vague"]}` },
+  { value: "À œillets", label: "À œillets", sub: `coef ${CONFIG.coefficients["À œillets"]}` },
+];
+
+const RAILS: { value: TypeRail; label: string }[] = [
+  { value: "DS", label: "DS — droit standard" },
+  { value: "DV", label: "DV — droit vague" },
+  { value: "CS", label: "CS — courbe standard" },
+  { value: "CV", label: "CV — courbe vague" },
+  { value: "Tringle", label: "Tringle (pas de rail)" },
+];
+
+type Inputs = {
+  typeRideau: TypeRideau;
+  panneau: number;
+  referenceTissu: string;
+  largeurFinie: number;
+  hauteurFinie: number;
+  laizeTissu: number;
+  raccordTissu: number;
+  prixTissu: number;
+  double: boolean;
+  casseSol: number;
+  rail: TypeRail;
+  poseRail: TypePose;
+  couleurRail: string;
+  nombreCoudes: number;
+  avecPose: boolean;
+};
+
+const initial: Inputs = {
+  typeRideau: "Plis simples",
+  panneau: 1,
+  referenceTissu: "",
+  largeurFinie: 240,
+  hauteurFinie: 250,
+  laizeTissu: 140,
+  raccordTissu: 0,
+  prixTissu: 60,
+  double: false,
+  casseSol: 0,
+  rail: "DS",
+  poseRail: "plafond",
+  couleurRail: "",
+  nombreCoudes: 0,
+  avecPose: true,
+};
+
+export function RideauForm({
+  onAdd,
+  onCancel,
+}: {
+  onAdd: (articles: BoutiquePieceArticle[]) => void;
+  onCancel: () => void;
+}) {
+  const [v, setV] = useState<Inputs>(initial);
+
+  const calc = useMemo(() => {
+    if (
+      !v.largeurFinie ||
+      !v.hauteurFinie ||
+      !v.laizeTissu ||
+      v.prixTissu === undefined ||
+      v.prixTissu < 0
+    ) {
+      return null;
+    }
+    try {
+      return calculateRideau({
+        typeRideau: v.typeRideau,
+        largeurFinie: v.largeurFinie,
+        hauteurFinie: v.hauteurFinie + (v.casseSol || 0),
+        laizeTissu: v.laizeTissu,
+        raccordTissu: v.raccordTissu || 0,
+        prixTissuMetre: v.prixTissu,
+        double: v.double,
+        rail: v.rail,
+        poseRail: v.poseRail,
+        nombreCoudes: v.nombreCoudes || 0,
+        avecPose: v.avecPose,
+      });
+    } catch {
+      return null;
+    }
+  }, [v]);
+
+  const update = (patch: Partial<Inputs>) => setV((s) => ({ ...s, ...patch }));
+
+  const handleAdd = () => {
+    if (!calc) return;
+    const articles: BoutiquePieceArticle[] = [];
+    const baseDetail = `${v.typeRideau} · ${v.largeurFinie}×${v.hauteurFinie}cm · laize ${v.laizeTissu}cm`;
+    const refSlug = v.referenceTissu ? ` · ${v.referenceTissu}` : "";
+
+    // ARTICLE 1 — Tissu + Confection + Accessoires (+ doublure)
+    const prixArticle1 =
+      calc.prixTissu + calc.prixDoublure + calc.prixConfection + calc.prixAccessoires;
+    articles.push({
+      type: "rideau",
+      designation: `Rideau ${v.typeRideau} — Tissu & Confection`,
+      ref: v.referenceTissu || undefined,
+      detail:
+        `${baseDetail}${refSlug}` +
+        ` · métrage ${calc.metrageTotal.toFixed(2)}m (${calc.details.sensConfection}, ${calc.details.nombreLes} lé${calc.details.nombreLes > 1 ? "s" : ""})` +
+        (v.double ? " · doublure occultante" : ""),
+      qty: 1,
+      unitLabel: "u",
+      unitPriceHt: Math.round(prixArticle1 * 100) / 100,
+      meta: {
+        typeArticle: "rideau_tissu_confection",
+        typeRideau: v.typeRideau,
+        panneau: v.panneau,
+        referenceTissu: v.referenceTissu,
+        largeurFinie: v.largeurFinie,
+        hauteurFinie: v.hauteurFinie,
+        casseSol: v.casseSol,
+        laizeTissu: v.laizeTissu,
+        raccordTissu: v.raccordTissu,
+        prixTissuMetre: v.prixTissu,
+        double: v.double,
+        metrageTotal: calc.metrageTotal,
+        sensConfection: calc.details.sensConfection,
+        nombreLes: calc.details.nombreLes,
+        coefficient: calc.details.coefficient,
+        prixTissu: calc.prixTissu,
+        prixDoublure: calc.prixDoublure,
+        prixConfection: calc.prixConfection,
+        prixAccessoires: calc.prixAccessoires,
+      },
+    });
+
+    // ARTICLE 2 — Rail (sauf si "Tringle" — option sans rail)
+    if (v.rail !== "Tringle") {
+      const prixArticle2 = calc.prixRail + calc.prixCoudes;
+      articles.push({
+        type: "rideau",
+        designation: `Rail ${v.rail} — pose ${v.poseRail}${v.couleurRail ? ` · ${v.couleurRail}` : ""}`,
+        ref: `RAIL-${v.rail}`,
+        detail:
+          `${v.largeurFinie} cm linéaire` +
+          (v.nombreCoudes > 0 ? ` · ${v.nombreCoudes} coude${v.nombreCoudes > 1 ? "s" : ""}` : ""),
+        qty: 1,
+        unitLabel: "u",
+        unitPriceHt: Math.round(prixArticle2 * 100) / 100,
+        meta: {
+          typeArticle: "rail",
+          rail: v.rail,
+          poseRail: v.poseRail,
+          couleurRail: v.couleurRail,
+          nombreCoudes: v.nombreCoudes,
+          prixRail: calc.prixRail,
+          prixCoudes: calc.prixCoudes,
+        },
+      });
+    }
+
+    // ARTICLE 3 — Pose
+    if (v.avecPose && calc.prixPose > 0) {
+      articles.push({
+        type: "rideau",
+        designation: "Pose rideau à domicile",
+        ref: "POSE-RID",
+        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · forfait déplacement inclus`,
+        qty: 1,
+        unitLabel: "forfait",
+        unitPriceHt: Math.round(calc.prixPose * 100) / 100,
+        meta: {
+          typeArticle: "pose_rideau",
+          forfaitDeplacement: CONFIG.forfaits.deplacement,
+        },
+      });
+    }
+
+    onAdd(articles);
+  };
+
+  const totalGlobal = calc
+    ? calc.prixTissu +
+      calc.prixDoublure +
+      calc.prixConfection +
+      calc.prixAccessoires +
+      calc.prixRail +
+      calc.prixCoudes +
+      calc.prixPose
+    : 0;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] max-h-[75vh]">
+      {/* LEFT — form */}
+      <div className="p-5 overflow-y-auto space-y-5">
+        {/* Type de rideau */}
+        <section>
+          <Label>Type de confection *</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {TYPES_RIDEAU.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => update({ typeRideau: t.value })}
+                className={
+                  "p-2.5 rounded-lg border text-left transition-all " +
+                  (v.typeRideau === t.value
+                    ? "border-ink bg-canvas-2/60 shadow-sm"
+                    : "border-line hover:border-line-strong bg-white")
+                }
+              >
+                <p className="text-[12.5px] font-semibold text-ink">{t.label}</p>
+                <p className="text-[10.5px] text-muted font-mono mt-0.5">{t.sub}</p>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Dimensions */}
+        <section>
+          <p className="eyebrow mb-2">Dimensions</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Largeur tringle (cm) *</Label>
+              <Input
+                type="number"
+                min={1}
+                value={v.largeurFinie}
+                onChange={(e) => update({ largeurFinie: Number(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <Label>Hauteur finie (cm) *</Label>
+              <Input
+                type="number"
+                min={1}
+                value={v.hauteurFinie}
+                onChange={(e) => update({ hauteurFinie: Number(e.target.value) || 0 })}
+              />
+            </div>
+            <div>
+              <Label>Cassé au sol (cm)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={v.casseSol}
+                onChange={(e) => update({ casseSol: Number(e.target.value) || 0 })}
+              />
+              <Hint>Ajouté à la hauteur pour le calcul de métrage</Hint>
+            </div>
+            <div>
+              <Label>Nombre de panneaux</Label>
+              <Input
+                type="number"
+                min={1}
+                value={v.panneau}
+                onChange={(e) => update({ panneau: Number(e.target.value) || 1 })}
+              />
+              <Hint>Info atelier — n'impacte pas le prix</Hint>
+            </div>
+          </div>
+        </section>
+
+        {/* Tissu */}
+        <section>
+          <p className="eyebrow mb-2">Tissu</p>
+          <div className="space-y-3">
+            <div>
+              <Label>Référence tissu</Label>
+              <Input
+                value={v.referenceTissu}
+                onChange={(e) => update({ referenceTissu: e.target.value })}
+                placeholder="ex: Casamance Saumon · 204"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Laize (cm) *</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={v.laizeTissu}
+                  onChange={(e) => update({ laizeTissu: Number(e.target.value) || 0 })}
+                />
+              </div>
+              <div>
+                <Label>Raccord (cm)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.raccordTissu}
+                  onChange={(e) => update({ raccordTissu: Number(e.target.value) || 0 })}
+                />
+              </div>
+              <div>
+                <Label>Prix tissu (€/m) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={v.prixTissu}
+                  onChange={(e) => update({ prixTissu: Number(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="inline-flex items-center gap-2 text-[13px]">
+                <input
+                  type="checkbox"
+                  checked={v.double}
+                  onChange={(e) => update({ double: e.target.checked })}
+                  className="h-4 w-4 rounded border-line-strong"
+                />
+                <span className="text-ink-2">
+                  Doublure occultante (+ {CONFIG.doublureOccultante.prixParMetre} €/m · laize {CONFIG.doublureOccultante.laize} cm)
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        {/* Rail */}
+        <section>
+          <p className="eyebrow mb-2">Rail / tringle</p>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Type</Label>
+                <Select
+                  value={v.rail}
+                  onChange={(e) => update({ rail: e.target.value as TypeRail })}
+                >
+                  {RAILS.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label>Type de pose</Label>
+                <Select
+                  value={v.poseRail}
+                  onChange={(e) => update({ poseRail: e.target.value as TypePose })}
+                >
+                  <option value="plafond">Plafond</option>
+                  <option value="face">Face mur</option>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Couleur rail</Label>
+                <Input
+                  value={v.couleurRail}
+                  onChange={(e) => update({ couleurRail: e.target.value })}
+                  placeholder="blanc, alu, noir mat…"
+                />
+              </div>
+              <div>
+                <Label>Nombre de coudes</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.nombreCoudes}
+                  onChange={(e) => update({ nombreCoudes: Number(e.target.value) || 0 })}
+                />
+                <Hint>{CONFIG.coutCoude} € par coude</Hint>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Pose */}
+        <section>
+          <p className="eyebrow mb-2">Pose à domicile</p>
+          <label className="inline-flex items-center gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              checked={v.avecPose}
+              onChange={(e) => update({ avecPose: e.target.checked })}
+              className="h-4 w-4 rounded border-line-strong"
+            />
+            <span className="text-ink-2">
+              Inclure la pose (forfait déplacement {CONFIG.forfaits.deplacement} € inclus)
+            </span>
+          </label>
+        </section>
+
+        {/* Action bar */}
+        <div className="pt-3 border-t border-line flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+          <Button variant="secondary" size="md" type="button" onClick={onCancel}>
+            Retour
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            type="button"
+            onClick={handleAdd}
+            disabled={!calc || totalGlobal <= 0}
+          >
+            Ajouter à la pièce ·{" "}
+            {totalGlobal > 0 ? eurFmt.format(totalGlobal) : "—"}
+          </Button>
+        </div>
+      </div>
+
+      {/* RIGHT — live preview */}
+      <div className="border-l border-line bg-canvas-2/30 p-4 overflow-y-auto">
+        <div className="flex items-center gap-1.5 mb-3">
+          <ColorChip tone="violet" size="sm">
+            <Sparkles className="h-3.5 w-3.5" strokeWidth={2.4} />
+          </ColorChip>
+          <p className="eyebrow">Calcul temps réel</p>
+        </div>
+
+        {!calc ? (
+          <p className="text-[12px] text-muted-2">Remplis les champs requis pour voir le calcul…</p>
+        ) : (
+          <div className="space-y-3 text-[12px]">
+            <Card className="p-3 bg-white">
+              <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 mb-1.5">
+                Sens de confection
+              </p>
+              <p className="text-[12.5px] text-ink-2">{calc.details.sensConfection}</p>
+              <p className="text-[11px] text-muted mt-0.5">
+                {calc.details.nombreLes} lé{calc.details.nombreLes > 1 ? "s" : ""} · hauteur lé{" "}
+                {calc.details.hauteurLe} cm · coef {calc.details.coefficient}
+              </p>
+              <p className="text-[11.5px] text-violet font-semibold mt-1.5">
+                Métrage tissu : {calc.metrageTotal.toFixed(2)} m
+              </p>
+            </Card>
+
+            {/* Article 1 — Tissu + Confection */}
+            <Card className="p-3 bg-white">
+              <p className="text-[10.5px] font-semibold tracking-wider uppercase text-violet-strong mb-1.5">
+                Article 1 — Tissu & Confection
+              </p>
+              <PriceRow label="Tissu" value={calc.prixTissu} />
+              {calc.prixDoublure > 0 && (
+                <PriceRow
+                  label={`Doublure (${(calc.details.metrageDoublure ?? 0).toFixed(2)} m)`}
+                  value={calc.prixDoublure}
+                />
+              )}
+              <PriceRow label="Confection" value={calc.prixConfection} />
+              <PriceRow label="Accessoires" value={calc.prixAccessoires} />
+              <PriceRow
+                label="Sous-total"
+                value={calc.prixTissu + calc.prixDoublure + calc.prixConfection + calc.prixAccessoires}
+                strong
+              />
+            </Card>
+
+            {/* Article 2 — Rail */}
+            {v.rail !== "Tringle" && (
+              <Card className="p-3 bg-white">
+                <p className="text-[10.5px] font-semibold tracking-wider uppercase text-blue mb-1.5">
+                  Article 2 — Rail
+                </p>
+                <PriceRow label={`Rail ${v.rail} ${v.poseRail}`} value={calc.prixRail} />
+                {calc.prixCoudes > 0 && (
+                  <PriceRow label={`${v.nombreCoudes} coude(s)`} value={calc.prixCoudes} />
+                )}
+                <PriceRow label="Sous-total" value={calc.prixRail + calc.prixCoudes} strong />
+              </Card>
+            )}
+
+            {/* Article 3 — Pose */}
+            {v.avecPose && calc.prixPose > 0 && (
+              <Card className="p-3 bg-white">
+                <p className="text-[10.5px] font-semibold tracking-wider uppercase text-emerald mb-1.5">
+                  Article 3 — Pose
+                </p>
+                <PriceRow label="Pose à domicile" value={calc.prixPose} strong />
+              </Card>
+            )}
+
+            {/* Total */}
+            <div className="rounded-xl bg-ink text-white p-3">
+              <p className="text-[10.5px] font-semibold tracking-wider uppercase opacity-70 mb-1">
+                Total rideau
+              </p>
+              <p className="text-[22px] font-bold tabular-nums leading-none">
+                {eurFmt.format(totalGlobal)}
+              </p>
+              <p className="text-[10.5px] opacity-60 mt-1.5">
+                {v.rail !== "Tringle" ? (v.avecPose && calc.prixPose > 0 ? "3" : "2") : (v.avecPose && calc.prixPose > 0 ? "2" : "1")} ligne
+                {(v.rail !== "Tringle" ? (v.avecPose && calc.prixPose > 0 ? 3 : 2) : (v.avecPose && calc.prixPose > 0 ? 2 : 1)) > 1 ? "s" : ""} de devis générée(s)
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PriceRow({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between text-[11.5px] py-0.5">
+      <span className={strong ? "text-ink font-semibold" : "text-muted"}>{label}</span>
+      <span
+        className={
+          "font-mono tabular-nums " + (strong ? "text-ink font-semibold" : "text-ink-2")
+        }
+      >
+        {eurFmt.format(value)}
+      </span>
+    </div>
+  );
+}
