@@ -57,7 +57,9 @@ export async function updateSession(request: NextRequest) {
   // Public routes that don't require auth
   const publicRoutes = ["/", "/auth"];
   const isPublic =
-    publicRoutes.includes(pathname) || pathname.startsWith("/auth/");
+    publicRoutes.includes(pathname) ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/api/health");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
