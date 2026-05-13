@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { searchCatalogProductsAction } from "@/app/(platform)/boutique/actions";
 import { RideauForm } from "@/components/boutique/article-rideau-form";
+import { StoreForm } from "@/components/boutique/article-store-form";
+import { RideauSerieForm } from "@/components/boutique/article-rideau-serie-form";
 
 type ArticleType = "rideau" | "store" | "produit" | "rideau_serie";
 
@@ -40,10 +42,10 @@ const TYPES: {
   {
     key: "store",
     label: "Store sur mesure",
-    description: "Bateau régulier / irrégulier",
+    description: "Bateau régulier / irrégulier — calcul temps réel",
     tone: "blue",
     icon: Layers,
-    available: false,
+    available: true,
   },
   {
     key: "rideau_serie",
@@ -51,7 +53,7 @@ const TYPES: {
     description: "56 modèles prêts à poser",
     tone: "pink",
     icon: ShoppingBag,
-    available: false,
+    available: true,
   },
 ];
 
@@ -121,8 +123,12 @@ export function AddArticleModal({
           <RideauForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
 
-        {(selectedType === "store" || selectedType === "rideau_serie") && (
-          <PartTwoPlaceholder type={selectedType} onBack={() => setSelectedType(null)} />
+        {selectedType === "store" && (
+          <StoreForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
+        {selectedType === "rideau_serie" && (
+          <RideauSerieForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
       </div>
     </div>
