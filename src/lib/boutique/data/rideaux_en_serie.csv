@@ -1,0 +1,57 @@
+Type,Finition,Doublage,Tissu,Largeur,Hauteur,Prix
+Rideau,Œillets,Non doublé,Coton blanc,140,240,89
+Rideau,Œillets,Non doublé,Coton blanc,160,240,99
+Rideau,Œillets,Non doublé,Coton blanc,180,240,109
+Rideau,Œillets,Non doublé,Coton blanc,200,240,119
+Rideau,Œillets,Doublé,Coton blanc,140,240,119
+Rideau,Œillets,Doublé,Coton blanc,160,240,129
+Rideau,Œillets,Doublé,Coton blanc,180,240,139
+Rideau,Œillets,Doublé,Coton blanc,200,240,149
+Rideau,Plis simples,Non doublé,Coton blanc,140,240,95
+Rideau,Plis simples,Non doublé,Coton blanc,160,240,105
+Rideau,Plis simples,Non doublé,Coton blanc,180,240,115
+Rideau,Plis simples,Non doublé,Coton blanc,200,240,125
+Rideau,Plis simples,Doublé,Coton blanc,140,240,125
+Rideau,Plis simples,Doublé,Coton blanc,160,240,135
+Rideau,Plis simples,Doublé,Coton blanc,180,240,145
+Rideau,Plis simples,Doublé,Coton blanc,200,240,155
+Rideau,Vague,Non doublé,Coton blanc,140,240,105
+Rideau,Vague,Non doublé,Coton blanc,160,240,115
+Rideau,Vague,Non doublé,Coton blanc,180,240,125
+Rideau,Vague,Non doublé,Coton blanc,200,240,135
+Rideau,Vague,Doublé,Coton blanc,140,240,135
+Rideau,Vague,Doublé,Coton blanc,160,240,145
+Rideau,Vague,Doublé,Coton blanc,180,240,155
+Rideau,Vague,Doublé,Coton blanc,200,240,165
+Rideau,Œillets,Non doublé,Lin naturel,140,240,159
+Rideau,Œillets,Non doublé,Lin naturel,160,240,179
+Rideau,Œillets,Non doublé,Lin naturel,180,240,199
+Rideau,Œillets,Non doublé,Lin naturel,200,240,219
+Rideau,Œillets,Doublé,Lin naturel,140,240,189
+Rideau,Œillets,Doublé,Lin naturel,160,240,209
+Rideau,Œillets,Doublé,Lin naturel,180,240,229
+Rideau,Œillets,Doublé,Lin naturel,200,240,249
+Rideau,Plis simples,Non doublé,Velours premium,140,240,199
+Rideau,Plis simples,Non doublé,Velours premium,160,240,225
+Rideau,Plis simples,Non doublé,Velours premium,180,240,249
+Rideau,Plis simples,Non doublé,Velours premium,200,240,275
+Rideau,Plis simples,Doublé,Velours premium,140,240,229
+Rideau,Plis simples,Doublé,Velours premium,160,240,255
+Rideau,Plis simples,Doublé,Velours premium,180,240,279
+Rideau,Plis simples,Doublé,Velours premium,200,240,305
+Store,Bateau régulier,Non doublé,Coton blanc,140,240,129
+Store,Bateau régulier,Non doublé,Coton blanc,160,240,145
+Store,Bateau régulier,Non doublé,Coton blanc,180,240,159
+Store,Bateau régulier,Non doublé,Coton blanc,200,240,175
+Store,Bateau régulier,Doublé,Coton blanc,140,240,159
+Store,Bateau régulier,Doublé,Coton blanc,160,240,175
+Store,Bateau régulier,Doublé,Coton blanc,180,240,189
+Store,Bateau régulier,Doublé,Coton blanc,200,240,205
+Store,Bateau irrégulier,Non doublé,Lin naturel,140,240,169
+Store,Bateau irrégulier,Non doublé,Lin naturel,160,240,189
+Store,Bateau irrégulier,Non doublé,Lin naturel,180,240,209
+Store,Bateau irrégulier,Non doublé,Lin naturel,200,240,229
+Store,Bateau irrégulier,Doublé,Lin naturel,140,240,199
+Store,Bateau irrégulier,Doublé,Lin naturel,160,240,219
+Store,Bateau irrégulier,Doublé,Lin naturel,180,240,239
+Store,Bateau irrégulier,Doublé,Lin naturel,200,240,259

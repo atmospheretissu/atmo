@@ -1,0 +1,13 @@
+largeur,hauteur,type_double,prix
+100,100,non_double,104
+100,100,double,132
+100,150,non_double,120
+100,150,double,150
+100,200,non_double,137
+100,200,double,173
+100,250,non_double,184
+100,250,double,226
+100,300,non_double,217
+100,300,double,263
+100,350,non_double,240
+100,350,double,300
