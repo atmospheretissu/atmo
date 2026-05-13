@@ -13,6 +13,7 @@
     "db:types": "supabase gen types typescript --project-id mryvgigwmbuusbxzgoym > src/lib/supabase/types.ts"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "class-variance-authority": "^0.7.1",
