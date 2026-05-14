@@ -86,9 +86,11 @@ export default async function CommandeDetailPage({
         ]}
         actions={
           <>
-            <Button variant="ghost" size="sm">
-              <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF
-            </Button>
+            <a href={`/commandes/${bc.id}/pdf?inline=1`} target="_blank" rel="noreferrer">
+              <Button variant="ghost" size="sm">
+                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF
+              </Button>
+            </a>
             <BcStatusActions bcId={bc.id} status={bc.status} francoOk={francoOk} />
           </>
         }

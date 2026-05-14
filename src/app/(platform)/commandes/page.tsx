@@ -7,7 +7,6 @@ import {
   Truck,
   Package,
   CheckCircle2,
-  Mail,
   Download,
   MoreHorizontal,
 } from "lucide-react";
@@ -125,7 +124,9 @@ function BcTable({ bcs }: { bcs: Awaited<ReturnType<typeof listBons>> }) {
               return (
                 <tr key={bc.id} className="border-b border-line last:border-0 hover:bg-canvas-2/30 transition-colors group">
                   <td className="px-4 py-3">
-                    <p className="font-mono text-[12.5px] text-ink font-medium">{bc.number}</p>
+                    <Link href={`/commandes/${bc.id}`} className="font-mono text-[12.5px] text-ink font-medium hover:text-violet">
+                      {bc.number}
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     {bc.supplier ? (
@@ -196,15 +197,12 @@ function BcTable({ bcs }: { bcs: Awaited<ReturnType<typeof listBons>> }) {
                   </td>
                   <td className="px-2 py-3 text-right">
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon-sm" aria-label="PDF">
+                      <Link href={`/commandes/${bc.id}/pdf?inline=1`} target="_blank" aria-label="PDF" className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2">
                         <Download className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Envoyer">
-                        <Mail className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="Plus">
+                      </Link>
+                      <Link href={`/commandes/${bc.id}`} aria-label="Ouvrir" className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2">
                         <MoreHorizontal className="h-3.5 w-3.5" />
-                      </Button>
+                      </Link>
                     </div>
                   </td>
                 </tr>
