@@ -59,7 +59,8 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/auth/") ||
-    pathname.startsWith("/api/health");
+    pathname.startsWith("/api/health") ||
+    pathname.startsWith("/api/stripe/webhook");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

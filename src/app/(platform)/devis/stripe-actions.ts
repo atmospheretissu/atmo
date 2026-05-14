@@ -1,0 +1,90 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { getStripe, isStripeConfigured } from "@/lib/stripe/client";
+
+export type StripeCheckoutResult =
+  | { ok: true; url: string }
+  | { ok: false; message: string };
+
+/**
+ * Crée une Session Checkout Stripe pour l'acompte 50% d'un devis.
+ * Renvoie l'URL Checkout — le client redirige le navigateur dessus.
+ *
+ * Au paiement, le webhook /api/stripe/webhook reçoit l'événement
+ * `checkout.session.completed`, marque le devis acompte_recu et déclenche
+ * la création du dossier.
+ */
+export async function createStripeCheckoutAction(
+  devisId: string
+): Promise<StripeCheckoutResult> {
+  if (!isStripeConfigured()) {
+    return {
+      ok: false,
+      message: "Stripe non configuré (manque STRIPE_SECRET_KEY).",
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: devis, error } = await supabase
+    .from("devis")
+    .select("id, number, client_id, total_ttc, acompte_ttc, product_summary")
+    .eq("id", devisId)
+    .maybeSingle();
+
+  if (error || !devis) {
+    return { ok: false, message: "Devis introuvable." };
+  }
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("display_name, email")
+    .eq("id", devis.client_id)
+    .maybeSingle();
+
+  const acompteAmount = Number(devis.acompte_ttc ?? Number(devis.total_ttc) * 0.5);
+  if (acompteAmount <= 0) {
+    return { ok: false, message: "Montant d'acompte invalide." };
+  }
+
+  const stripe = getStripe();
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      customer_email: client?.email ?? undefined,
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            unit_amount: Math.round(acompteAmount * 100), // cents
+            product_data: {
+              name: `Acompte 50% — Devis ${devis.number}`,
+              description: `${devis.product_summary} — ${client?.display_name ?? ""}`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        devis_id: devis.id,
+        devis_number: devis.number,
+        kind: "acompte",
+        atmosphere_app_version: "1",
+      },
+      success_url: `${appUrl}/devis/${devis.id}?stripe=success`,
+      cancel_url: `${appUrl}/devis/${devis.id}?stripe=cancel`,
+      locale: "fr",
+    });
+
+    return { ok: true, url: session.url ?? `${appUrl}/devis/${devis.id}` };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Erreur Stripe",
+    };
+  }
+}

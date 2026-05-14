@@ -17,6 +17,9 @@ import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
+import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
+import { StripeCheckoutButton } from "@/components/devis/stripe-button";
+import { SendEmailButton } from "@/components/devis/send-email-button";
 import { getDevisDetail } from "@/lib/db/devis";
 import {
   devisStatusLabels,
@@ -75,9 +78,10 @@ export default async function DevisDetailPage({
             <Button variant="secondary" size="sm">
               <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
             </Button>
-            <Button variant="primary" size="sm">
-              <Send className="h-3.5 w-3.5" strokeWidth={2.4} /> Envoyer
-            </Button>
+            {status !== "acompte_recu" && status !== "refuse" && status !== "expire" && (
+              <MarkAcompteButton devisId={devis.id} />
+            )}
+            <SendEmailButton devisId={devis.id} />
             <Button variant="ghost" size="icon-sm" aria-label="Plus">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -118,7 +122,7 @@ export default async function DevisDetailPage({
           <div className="space-y-6 min-w-0">
             {/* Stripe sceau (only if validated / waiting acompte) */}
             {(status === "valide" || status === "envoye") && (
-              <StripeSeal acompte={acompte} totalTTC={totalTTC} solde={solde} />
+              <StripeSeal acompte={acompte} totalTTC={totalTTC} solde={solde} devisId={devis.id} />
             )}
 
             {/* Lines */}
@@ -274,10 +278,12 @@ function StripeSeal({
   acompte,
   totalTTC,
   solde,
+  devisId,
 }: {
   acompte: number;
   totalTTC: number;
   solde: number;
+  devisId: string;
 }) {
   return (
     <div className="rounded-xl bg-ink text-white overflow-hidden">
@@ -295,21 +301,12 @@ function StripeSeal({
             Acompte de validation
           </h2>
           <p className="text-[13px] text-white/65 leading-relaxed max-w-md mb-5">
-            Aucun bon de commande, aucune fiche confection ne part avant encaissement. Stripe à
-            brancher.
+            Aucun bon de commande, aucune fiche confection ne part avant encaissement.
+            Une session Stripe est créée à la demande, le webhook met à jour automatiquement
+            le statut et lance la création du dossier de confection.
           </p>
           <div className="flex flex-wrap gap-2">
-            <button
-              disabled
-              className="inline-flex items-center gap-2 bg-white text-ink px-4 py-2.5 rounded-lg text-[13px] font-semibold opacity-50 cursor-not-allowed"
-              title="Stripe sera branché à l'étape suivante"
-            >
-              Envoyer le lien Stripe
-              <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.4} />
-            </button>
-            <button className="inline-flex items-center gap-2 border border-white/20 text-white px-4 py-2.5 rounded-lg text-[12.5px] hover:bg-white/10 transition-colors">
-              Marquer acompte reçu
-            </button>
+            <StripeCheckoutButton devisId={devisId} />
           </div>
         </div>
 
