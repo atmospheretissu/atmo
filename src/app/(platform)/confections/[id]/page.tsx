@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
+import { PlanPoseButton } from "@/components/confections/plan-pose-button";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { eur, shortDate } from "@/lib/formatters";
 
@@ -132,10 +133,13 @@ export default async function DossierDetailPage({
                 </Link>
               )}
               <Link href="/reception">
-                <Button variant="primary" size="sm">
+                <Button variant="secondary" size="sm">
                   <QrCode className="h-3.5 w-3.5" strokeWidth={2.4} /> Scanner réception
                 </Button>
               </Link>
+              {dossier.status === "pret_pose" && dossier.solde_paid && (
+                <PlanPoseButton dossierId={dossier.id} />
+              )}
             </div>
           </div>
         </section>
