@@ -4,6 +4,76 @@ import type { Database } from "@/lib/supabase/types";
 export type BonCommande = Database["public"]["Tables"]["bons_commande"]["Row"];
 export type BCInsert = Database["public"]["Tables"]["bons_commande"]["Insert"];
 export type BCStatus = Database["public"]["Enums"]["bc_status"];
+export type BCLine = Database["public"]["Tables"]["bc_lines"]["Row"];
+export type BCLineInsert = Database["public"]["Tables"]["bc_lines"]["Insert"];
+
+export type Supplier = Database["public"]["Tables"]["suppliers"]["Row"];
+
+export type BCDetail = {
+  bc: BonCommande;
+  supplier: Supplier | null;
+  dossier: { id: string; number: string; client_id: string; status: string } | null;
+  client: { id: string; display_name: string; city: string | null } | null;
+  lines: BCLine[];
+};
+
+export async function getBcDetail(id: string): Promise<BCDetail | null> {
+  const supabase = await createClient();
+  const { data: bc, error: e1 } = await supabase
+    .from("bons_commande")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (e1) throw e1;
+  if (!bc) return null;
+
+  const [{ data: supplier }, { data: lines }] = await Promise.all([
+    supabase.from("suppliers").select("*").eq("id", bc.supplier_id).maybeSingle(),
+    supabase
+      .from("bc_lines")
+      .select("*")
+      .eq("bc_id", id)
+      .order("position", { ascending: true }),
+  ]);
+
+  let dossier: BCDetail["dossier"] = null;
+  let client: BCDetail["client"] = null;
+  if (bc.dossier_id) {
+    const { data: d } = await supabase
+      .from("dossiers")
+      .select("id, number, client_id, status")
+      .eq("id", bc.dossier_id)
+      .maybeSingle();
+    if (d) {
+      dossier = d;
+      const { data: c } = await supabase
+        .from("clients")
+        .select("id, display_name, city")
+        .eq("id", d.client_id)
+        .maybeSingle();
+      client = c ?? null;
+    }
+  }
+
+  return { bc, supplier: supplier ?? null, dossier, client, lines: lines ?? [] };
+}
+
+/**
+ * Recalcule amount_ht à partir des lignes.
+ */
+export async function recomputeBcAmount(bcId: string): Promise<number> {
+  const supabase = await createClient();
+  const { data: lines } = await supabase
+    .from("bc_lines")
+    .select("total_ht, qty, unit_price_ht")
+    .eq("bc_id", bcId);
+  const total = (lines ?? []).reduce((sum, l) => {
+    const t = Number(l.total_ht ?? Number(l.qty) * Number(l.unit_price_ht ?? 0));
+    return sum + (Number.isFinite(t) ? t : 0);
+  }, 0);
+  await supabase.from("bons_commande").update({ amount_ht: total }).eq("id", bcId);
+  return total;
+}
 
 export async function getNextBcNumber(): Promise<string> {
   const supabase = await createClient();
