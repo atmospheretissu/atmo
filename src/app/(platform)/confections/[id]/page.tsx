@@ -132,8 +132,13 @@ export default async function DossierDetailPage({
                   </Button>
                 </Link>
               )}
-              <Link href="/reception">
+              <Link href={`/confections/${dossier.id}/fiche?inline=1`} target="_blank">
                 <Button variant="secondary" size="sm">
+                  <Scissors className="h-3.5 w-3.5" strokeWidth={2.4} /> Fiche couturier PDF
+                </Button>
+              </Link>
+              <Link href="/reception">
+                <Button variant="ghost" size="sm">
                   <QrCode className="h-3.5 w-3.5" strokeWidth={2.4} /> Scanner réception
                 </Button>
               </Link>

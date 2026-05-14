@@ -227,6 +227,52 @@ export async function listAllDossiers(): Promise<DossierWithClient[]> {
 }
 
 /**
+ * Détail d'un dossier + items + devis_lines du devis source (avec meta
+ * pour la fiche couturier).
+ */
+export async function getDossierForFiche(id: string) {
+  const supabase = await createClient();
+  const { data: dossier, error: e1 } = await supabase
+    .from("dossiers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (e1) throw e1;
+  if (!dossier) return null;
+
+  const [{ data: client }, { data: items }, { data: devisLines }, { data: devis }] = await Promise.all([
+    supabase.from("clients").select("*").eq("id", dossier.client_id).maybeSingle(),
+    supabase
+      .from("dossier_items")
+      .select("*")
+      .eq("dossier_id", id)
+      .order("position", { ascending: true }),
+    dossier.devis_id
+      ? supabase
+          .from("devis_lines")
+          .select("*")
+          .eq("devis_id", dossier.devis_id)
+          .order("position", { ascending: true })
+      : Promise.resolve({ data: [] as never[] }),
+    dossier.devis_id
+      ? supabase
+          .from("devis")
+          .select("number, version, created_at")
+          .eq("id", dossier.devis_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  return {
+    dossier,
+    client: client ?? null,
+    items: items ?? [],
+    devisLines: devisLines ?? [],
+    devis: devis ?? null,
+  };
+}
+
+/**
  * Détail d'un dossier + tous ses items.
  */
 export async function getDossierDetail(id: string) {
