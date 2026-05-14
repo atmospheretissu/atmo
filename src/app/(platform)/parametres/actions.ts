@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { SupplierInsert, SupplierUpdate } from "@/lib/db/suppliers";
+import type { ProfileUpdate, UserRole } from "@/lib/db/profiles";
+import type { SmsTemplateUpdate } from "@/lib/db/sms-templates";
 
 type Result = { ok: true } | { ok: false; message: string };
 
@@ -60,6 +62,56 @@ export async function toggleSupplierActiveAction(
   active: boolean
 ): Promise<Result> {
   return updateSupplierAction(id, { active });
+}
+
+export async function updateProfileAction(
+  id: string,
+  patch: { full_name?: string; phone?: string | null; role?: UserRole }
+): Promise<Result> {
+  const supabase = await createClient();
+  const sanitized: ProfileUpdate = {};
+  if (patch.full_name !== undefined) {
+    if (!patch.full_name.trim()) return { ok: false, message: "Nom requis" };
+    sanitized.full_name = patch.full_name.trim();
+    sanitized.avatar_initial = patch.full_name.trim()[0]?.toUpperCase() ?? null;
+  }
+  if (patch.phone !== undefined) sanitized.phone = patch.phone?.trim() || null;
+  if (patch.role !== undefined) sanitized.role = patch.role;
+  const { error } = await supabase.from("profiles").update(sanitized).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}
+
+export async function toggleProfileActiveAction(
+  id: string,
+  active: boolean
+): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("profiles").update({ active }).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}
+
+export async function updateSmsTemplateAction(
+  id: string,
+  patch: { body?: string; active?: boolean; label?: string; trigger_description?: string | null }
+): Promise<Result> {
+  const supabase = await createClient();
+  const sanitized: SmsTemplateUpdate = {};
+  if (patch.body !== undefined) {
+    if (!patch.body.trim()) return { ok: false, message: "Corps du SMS requis" };
+    sanitized.body = patch.body.trim();
+  }
+  if (patch.active !== undefined) sanitized.active = patch.active;
+  if (patch.label !== undefined && patch.label.trim()) sanitized.label = patch.label.trim();
+  if (patch.trigger_description !== undefined)
+    sanitized.trigger_description = patch.trigger_description?.trim() || null;
+  const { error } = await supabase.from("sms_templates").update(sanitized).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
 }
 
 export async function deleteSupplierAction(id: string): Promise<Result> {
