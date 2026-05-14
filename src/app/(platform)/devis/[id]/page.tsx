@@ -47,7 +47,7 @@ export default async function DevisDetailPage({
   const { id } = await params;
   const result = await getDevisDetail(id);
   if (!result) notFound();
-  const { devis, client, lines } = result;
+  const { devis, client, lines, dossier } = result;
 
   const status = devis.status as DevisStatus;
   const channel = devis.channel as Channel;
@@ -234,6 +234,36 @@ export default async function DevisDetailPage({
                       <span className="font-mono tabular-nums">{client.phone}</span>
                     </div>
                   )}
+                </div>
+              </Card>
+            )}
+
+            {/* Fiche confection liée */}
+            {dossier && (
+              <Card>
+                <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-line">
+                  <p className="eyebrow">Fiche confection</p>
+                  <Link
+                    href={`/confections/${dossier.id}`}
+                    className="text-[12px] text-violet hover:underline font-medium"
+                  >
+                    Ouvrir →
+                  </Link>
+                </div>
+                <div className="px-5 pb-5 pt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-[12.5px] text-ink font-semibold">{dossier.number}</p>
+                    {dossier.acompte_paid ? (
+                      <StatusPill tone="emerald">Acompte reçu</StatusPill>
+                    ) : (
+                      <StatusPill tone="amber">En attente acompte</StatusPill>
+                    )}
+                  </div>
+                  <p className="text-[11.5px] text-muted">
+                    {dossier.acompte_paid
+                      ? "Production en cours. Les BC fournisseurs sont en brouillon dans /commandes."
+                      : "Fiche pré-créée. La production démarrera dès réception de l'acompte 50%."}
+                  </p>
                 </div>
               </Card>
             )}

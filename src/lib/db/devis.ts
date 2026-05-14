@@ -57,19 +57,28 @@ export async function getDevisDetail(id: string) {
   if (e1) throw e1;
   if (!devis) return null;
 
-  const [{ data: client, error: e2 }, { data: lines, error: e3 }] = await Promise.all([
+  const [
+    { data: client, error: e2 },
+    { data: lines, error: e3 },
+    { data: dossier },
+  ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", devis.client_id).maybeSingle(),
     supabase
       .from("devis_lines")
       .select("*")
       .eq("devis_id", id)
       .order("position", { ascending: true }),
+    supabase
+      .from("dossiers")
+      .select("id, number, status, acompte_paid")
+      .eq("devis_id", id)
+      .maybeSingle(),
   ]);
 
   if (e2) throw e2;
   if (e3) throw e3;
 
-  return { devis, client: client ?? null, lines: lines ?? [] };
+  return { devis, client: client ?? null, lines: lines ?? [], dossier: dossier ?? null };
 }
 
 /**

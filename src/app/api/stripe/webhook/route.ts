@@ -80,10 +80,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. Auto-création du dossier (idempotent)
+    // 3. Auto-création (ou récupération) du dossier — idempotent.
+    //    Si la fiche existait déjà (créée à la création du devis depuis la boutique),
+    //    on flip simplement acompte_paid à true.
     const dossierResult = await createDossierFromDevis(devisId);
     if (!dossierResult.ok) {
       console.error("Webhook: failed to create dossier", dossierResult.message);
+    } else {
+      await supabase
+        .from("dossiers")
+        .update({ acompte_paid: true, acompte_paid_at: new Date().toISOString() })
+        .eq("id", dossierResult.dossierId)
+        .eq("acompte_paid", false);
     }
 
     return NextResponse.json({

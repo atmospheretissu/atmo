@@ -162,11 +162,18 @@ export async function markAcompteRecuAction(
     });
   }
 
-  // 3. Auto-création du dossier de confection
+  // 3. Auto-création (ou récupération) du dossier de confection.
+  //    Idempotent : si la fiche a déjà été créée depuis la boutique avec
+  //    acompte_paid=false, on flip simplement le flag.
   const dossierResult = await createDossierFromDevis(devisId);
   if (!dossierResult.ok) {
-    // On ne bloque pas l'utilisateur, mais on log
     console.error("Échec création dossier:", dossierResult.message);
+  } else {
+    await supabase
+      .from("dossiers")
+      .update({ acompte_paid: true, acompte_paid_at: new Date().toISOString() })
+      .eq("id", dossierResult.dossierId)
+      .eq("acompte_paid", false);
   }
 
   revalidatePath("/devis");

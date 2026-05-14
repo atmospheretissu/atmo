@@ -234,6 +234,13 @@ function DossierCard({ dossier }: { dossier: Awaited<ReturnType<typeof listAllDo
           </div>
         )}
 
+        {!dossier.acompte_paid && (
+          <div className="mt-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-soft text-amber text-[10.5px] font-semibold">
+            <AlertTriangle className="h-3 w-3" strokeWidth={2.4} />
+            En attente acompte
+          </div>
+        )}
+
         {alerteSolde && (
           <div className="mt-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-soft text-red text-[10.5px] font-semibold">
             <AlertTriangle className="h-3 w-3" strokeWidth={2.4} />

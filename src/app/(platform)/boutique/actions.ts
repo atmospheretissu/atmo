@@ -5,6 +5,19 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import { getNextDevisNumber } from "@/lib/db/devis";
+import { createDossierFromDevis } from "@/lib/db/dossiers";
+
+const CONFECTION_TYPES = new Set([
+  "rideau_tissu_confection",
+  "store_tissu_confection",
+]);
+
+function requiresConfection(articles: BoutiquePieceArticle[]): boolean {
+  return articles.some((a) => {
+    const ta = String((a.meta ?? {})["typeArticle"] ?? a.type);
+    return CONFECTION_TYPES.has(ta);
+  });
+}
 
 export type BoutiquePieceArticle = {
   /** Type d'article : produit catalogue (Part 1), puis rideau, store, rideau_serie */
@@ -141,7 +154,22 @@ export async function createBoutiqueDevisAction(
     return { ok: false, message: `Échec ajout des lignes : ${e2.message}` };
   }
 
+  // Auto-création de la fiche confection si au moins un article nécessite
+  // une confection sur mesure (rideau_tissu_confection / store_tissu_confection).
+  // L'acompte_paid reste false — la production démarre à réception de l'acompte.
+  const allArticles = input.pieces.flatMap((p) => p.articles);
+  if (requiresConfection(allArticles)) {
+    const r = await createDossierFromDevis(devis.id);
+    if (!r.ok) {
+      console.warn(
+        `[boutique] Fiche confection non créée pour devis ${devis.id}: ${r.message}`
+      );
+    }
+  }
+
   revalidatePath("/devis");
+  revalidatePath("/confections");
+  revalidatePath("/commandes");
   revalidatePath("/dashboard");
   redirect(`/devis/${devis.id}`);
 }
