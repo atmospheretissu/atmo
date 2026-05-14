@@ -148,6 +148,14 @@ export async function createDossierFromDevis(
     }
   }
 
+  // 5. Auto-création des BC fournisseurs (best-effort, ne bloque pas)
+  try {
+    const { autoCreateBcsForDossier } = await import("@/lib/db/bons-commande");
+    await autoCreateBcsForDossier(dossier.id);
+  } catch (err) {
+    console.warn("autoCreateBcsForDossier failed:", err);
+  }
+
   return { ok: true, dossierId: dossier.id, created: true };
 }
 
