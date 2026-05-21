@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase/types";
 import { parseDevisForm, computeDevisTotals } from "@/lib/validation/devis";
 import { getNextDevisNumber } from "@/lib/db/devis";
 import { createDossierFromDevis } from "@/lib/db/dossiers";
-import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
+import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
 
 function appBaseUrl(): string {
   return (
@@ -126,35 +126,39 @@ export async function changeDevisStatusAction(
   const { error } = await supabase.from("devis").update(updates).eq("id", devisId);
   if (error) return { ok: false, errors: {}, message: error.message };
 
-  // SMS auto à l'envoi du devis
+  // Trigger event "devis_envoye" (lit la règle automation → SMS et/ou email)
   if (newStatus === "envoye") {
     try {
       const { data: devis } = await supabase
         .from("devis")
-        .select("number, client_id, product_summary")
+        .select("number, client_id, total_ttc, product_summary")
         .eq("id", devisId)
         .maybeSingle();
       const { data: client } = devis
         ? await supabase
             .from("clients")
-            .select("phone, display_name")
+            .select("phone, email, display_name")
             .eq("id", devis.client_id)
             .maybeSingle()
         : { data: null };
-      if (devis && client?.phone) {
-        await sendSmsForTemplate({
-          templateKey: "devis_envoye",
+      if (devis && client) {
+        await triggerEvent("devis_envoye", {
           toPhone: client.phone,
+          toEmail: client.email,
+          toName: client.display_name,
           clientId: devis.client_id,
           vars: {
             prenom: firstNameOf(client.display_name),
+            nom: client.display_name,
+            numero_devis: devis.number,
             produit: devis.product_summary,
+            total_ttc: String(Math.round(Number(devis.total_ttc ?? 0))),
             lien_pdf: `${appBaseUrl()}/devis/${devisId}/pdf`,
           },
         });
       }
     } catch (err) {
-      console.warn("[devis_envoye SMS]", err);
+      console.warn("[trigger devis_envoye]", err);
     }
   }
 
@@ -204,28 +208,29 @@ export async function markAcompteRecuAction(
     });
   }
 
-  // SMS confirmation acompte
+  // Trigger event "acompte_recu"
   try {
     const { data: client } = devis
       ? await supabase
           .from("clients")
-          .select("phone, display_name")
+          .select("phone, email, display_name")
           .eq("id", devis.client_id)
           .maybeSingle()
       : { data: null };
-    if (devis && client?.phone) {
-      await sendSmsForTemplate({
-        templateKey: "acompte_recu",
+    if (devis && client) {
+      await triggerEvent("acompte_recu", {
         toPhone: client.phone,
+        toEmail: client.email,
+        toName: client.display_name,
         clientId: devis.client_id,
         vars: {
           prenom: firstNameOf(client.display_name),
-          acompte: Math.round(Number(devis.acompte_ttc ?? 0)),
+          acompte: String(Math.round(Number(devis.acompte_ttc ?? 0))),
         },
       });
     }
   } catch (err) {
-    console.warn("[acompte_recu SMS]", err);
+    console.warn("[trigger acompte_recu]", err);
   }
 
   // 3. Auto-création (ou récupération) du dossier de confection.

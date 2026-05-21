@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { SupplierInsert, SupplierUpdate } from "@/lib/db/suppliers";
 import type { ProfileUpdate, UserRole } from "@/lib/db/profiles";
 import type { SmsTemplateUpdate } from "@/lib/db/sms-templates";
+import type { EmailTemplateUpdate } from "@/lib/db/email-templates-shared";
+import type { AutomationRuleUpdate } from "@/lib/db/automation-rules-shared";
 import { sendSmsForTemplate } from "@/lib/brevo/send-sms";
 
 type Result = { ok: true } | { ok: false; message: string };
@@ -291,4 +293,161 @@ export async function loadTestTabDataAction(): Promise<{
     listRecentSmsLog(20),
   ]);
   return { brevoAccount, recentSmsLog };
+}
+
+export async function updateEmailTemplateAction(
+  id: string,
+  patch: {
+    subject?: string;
+    html_body?: string;
+    text_body?: string | null;
+    sender_email?: string | null;
+    sender_name?: string | null;
+    label?: string;
+    trigger_description?: string | null;
+    active?: boolean;
+  },
+): Promise<Result> {
+  const supabase = await createClient();
+  const sanitized: EmailTemplateUpdate = {};
+  if (patch.subject !== undefined) {
+    if (!patch.subject.trim()) return { ok: false, message: "Sujet requis" };
+    sanitized.subject = patch.subject.trim();
+  }
+  if (patch.html_body !== undefined) {
+    if (!patch.html_body.trim()) return { ok: false, message: "Corps HTML requis" };
+    sanitized.html_body = patch.html_body;
+  }
+  if (patch.text_body !== undefined) sanitized.text_body = patch.text_body?.trim() || null;
+  if (patch.sender_email !== undefined)
+    sanitized.sender_email = patch.sender_email?.trim() || null;
+  if (patch.sender_name !== undefined)
+    sanitized.sender_name = patch.sender_name?.trim() || null;
+  if (patch.label !== undefined && patch.label.trim()) sanitized.label = patch.label.trim();
+  if (patch.trigger_description !== undefined)
+    sanitized.trigger_description = patch.trigger_description?.trim() || null;
+  if (patch.active !== undefined) sanitized.active = patch.active;
+
+  const { error } = await supabase.from("email_templates").update(sanitized).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}
+
+export async function updateAutomationRuleAction(
+  id: string,
+  patch: {
+    sms_enabled?: boolean;
+    sms_template_key?: string | null;
+    email_enabled?: boolean;
+    email_template_key?: string | null;
+  },
+): Promise<Result> {
+  const supabase = await createClient();
+  const sanitized: AutomationRuleUpdate = {};
+  if (patch.sms_enabled !== undefined) sanitized.sms_enabled = patch.sms_enabled;
+  if (patch.sms_template_key !== undefined)
+    sanitized.sms_template_key = patch.sms_template_key || null;
+  if (patch.email_enabled !== undefined) sanitized.email_enabled = patch.email_enabled;
+  if (patch.email_template_key !== undefined)
+    sanitized.email_template_key = patch.email_template_key || null;
+  sanitized.updated_at = new Date().toISOString();
+
+  const { error } = await supabase.from("automation_rules").update(sanitized).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}
+
+export async function sendCustomEmailAction(input: {
+  toEmail: string;
+  toName?: string;
+  subject: string;
+  htmlBody: string;
+  templateKey?: string | null;
+  vars?: Record<string, string>;
+}): Promise<
+  { ok: true; messageId: string; bodyHtml: string; subject: string }
+  | { ok: false; message: string }
+> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.toEmail.trim())) {
+    return { ok: false, message: "Email destinataire invalide" };
+  }
+  if (!input.subject.trim()) return { ok: false, message: "Sujet vide" };
+  if (!input.htmlBody.trim()) return { ok: false, message: "Corps HTML vide" };
+
+  const { sendBrevoEmail, isBrevoConfigured } = await import("@/lib/brevo/client");
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+
+  const interpolated = {
+    subject: input.subject.replace(/\{\{(\w+)\}\}/g, (_, k) => input.vars?.[k] ?? ""),
+    html: input.htmlBody.replace(/\{\{(\w+)\}\}/g, (_, k) => input.vars?.[k] ?? ""),
+  };
+
+  const supabaseAdmin = createServiceRoleClient();
+  const { data: logRow } = await supabaseAdmin
+    .from("email_log")
+    .insert({
+      template_key: input.templateKey ?? null,
+      to_email: input.toEmail.trim(),
+      subject: interpolated.subject,
+      body_html: interpolated.html,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (!isBrevoConfigured()) {
+    if (logRow) {
+      await supabaseAdmin
+        .from("email_log")
+        .update({ status: "skipped", error: "BREVO_API_KEY absent" })
+        .eq("id", logRow.id);
+    }
+    revalidatePath("/parametres");
+    return { ok: false, message: "BREVO_API_KEY non configurée" };
+  }
+
+  const r = await sendBrevoEmail({
+    to: [{ email: input.toEmail.trim(), name: input.toName }],
+    subject: interpolated.subject,
+    htmlContent: interpolated.html,
+  });
+
+  if (r.ok) {
+    if (logRow) {
+      await supabaseAdmin
+        .from("email_log")
+        .update({
+          status: "sent",
+          brevo_message_id: r.messageId,
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", logRow.id);
+    }
+    revalidatePath("/parametres");
+    return {
+      ok: true,
+      messageId: r.messageId,
+      bodyHtml: interpolated.html,
+      subject: interpolated.subject,
+    };
+  } else {
+    if (logRow) {
+      await supabaseAdmin
+        .from("email_log")
+        .update({ status: "failed", error: r.message })
+        .eq("id", logRow.id);
+    }
+    revalidatePath("/parametres");
+    return { ok: false, message: r.message };
+  }
+}
+
+export async function loadEmailLogAction(): Promise<{
+  rows: import("@/lib/db/email-log").EmailLogWithMeta[];
+}> {
+  const { listRecentEmailLog } = await import("@/lib/db/email-log");
+  const rows = await listRecentEmailLog(20);
+  return { rows };
 }

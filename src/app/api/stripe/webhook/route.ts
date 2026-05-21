@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/client";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { createDossierFromDevis } from "@/lib/db/dossiers";
-import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
+import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
 
 /**
  * Webhook Stripe — point d'entrée des notifications de paiement.
@@ -81,27 +81,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2b. SMS confirmation acompte
+    // 2b. Trigger event "acompte_recu" (SMS et/ou email selon règle)
     if (devis) {
       try {
         const { data: client } = await supabase
           .from("clients")
-          .select("phone, display_name")
+          .select("phone, email, display_name")
           .eq("id", devis.client_id)
           .maybeSingle();
-        if (client?.phone) {
-          await sendSmsForTemplate({
-            templateKey: "acompte_recu",
+        if (client) {
+          await triggerEvent("acompte_recu", {
             toPhone: client.phone,
+            toEmail: client.email,
+            toName: client.display_name,
             clientId: devis.client_id,
             vars: {
               prenom: firstNameOf(client.display_name),
-              acompte: Math.round(Number(devis.acompte_ttc ?? 0)),
+              acompte: String(Math.round(Number(devis.acompte_ttc ?? 0))),
             },
           });
         }
       } catch (err) {
-        console.warn("[stripe webhook → acompte_recu SMS]", err);
+        console.warn("[trigger stripe → acompte_recu]", err);
       }
     }
 

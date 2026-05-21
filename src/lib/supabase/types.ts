@@ -714,6 +714,132 @@ export interface Database {
         };
         Relationships: [];
       };
+      email_templates: {
+        Row: {
+          id: string;
+          key: string;
+          label: string;
+          subject: string;
+          html_body: string;
+          text_body: string | null;
+          sender_email: string | null;
+          sender_name: string | null;
+          trigger_description: string | null;
+          active: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          label: string;
+          subject: string;
+          html_body: string;
+          text_body?: string | null;
+          sender_email?: string | null;
+          sender_name?: string | null;
+          trigger_description?: string | null;
+          active?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          label?: string;
+          subject?: string;
+          html_body?: string;
+          text_body?: string | null;
+          sender_email?: string | null;
+          sender_name?: string | null;
+          trigger_description?: string | null;
+          active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      email_log: {
+        Row: {
+          id: string;
+          template_key: string | null;
+          client_id: string | null;
+          to_email: string;
+          subject: string;
+          body_html: string;
+          brevo_message_id: string | null;
+          status: string;
+          error: string | null;
+          sent_at: string | null;
+          delivered_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          template_key?: string | null;
+          client_id?: string | null;
+          to_email: string;
+          subject: string;
+          body_html: string;
+          brevo_message_id?: string | null;
+          status?: string;
+          error?: string | null;
+          sent_at?: string | null;
+          delivered_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          template_key?: string | null;
+          client_id?: string | null;
+          to_email?: string;
+          subject?: string;
+          body_html?: string;
+          brevo_message_id?: string | null;
+          status?: string;
+          error?: string | null;
+          sent_at?: string | null;
+          delivered_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      automation_rules: {
+        Row: {
+          id: string;
+          event_key: string;
+          label: string;
+          description: string | null;
+          module: string | null;
+          sms_enabled: boolean;
+          sms_template_key: string | null;
+          email_enabled: boolean;
+          email_template_key: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_key: string;
+          label: string;
+          description?: string | null;
+          module?: string | null;
+          sms_enabled?: boolean;
+          sms_template_key?: string | null;
+          email_enabled?: boolean;
+          email_template_key?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_key?: string;
+          label?: string;
+          description?: string | null;
+          module?: string | null;
+          sms_enabled?: boolean;
+          sms_template_key?: string | null;
+          email_enabled?: boolean;
+          email_template_key?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       lm_leads: {
         Row: {
           id: string;

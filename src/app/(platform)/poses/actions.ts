@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
+import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
 
 export type PoseActionResult =
   | { ok: true; poseId?: string }
@@ -149,14 +149,15 @@ export async function markPoseDoneAction(
     const { data: client } = dossier
       ? await supabase
           .from("clients")
-          .select("phone, display_name")
+          .select("phone, email, display_name")
           .eq("id", dossier.client_id)
           .maybeSingle()
       : { data: null };
-    if (dossier && client?.phone) {
-      await sendSmsForTemplate({
-        templateKey: "pose_effectuee",
+    if (dossier && client) {
+      await triggerEvent("pose_effectuee", {
         toPhone: client.phone,
+        toEmail: client.email,
+        toName: client.display_name,
         clientId: dossier.client_id,
         vars: {
           prenom: firstNameOf(client.display_name),
@@ -165,7 +166,7 @@ export async function markPoseDoneAction(
       });
     }
   } catch (err) {
-    console.warn("[pose_effectuee SMS]", err);
+    console.warn("[trigger pose_effectuee]", err);
   }
 
   revalidatePath("/poses");

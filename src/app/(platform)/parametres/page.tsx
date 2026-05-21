@@ -1,22 +1,23 @@
 import { listSuppliers } from "@/lib/db/suppliers";
 import { listProfiles } from "@/lib/db/profiles";
 import { listSmsTemplates } from "@/lib/db/sms-templates";
+import { listEmailTemplates } from "@/lib/db/email-templates";
+import { listAutomationRules } from "@/lib/db/automation-rules";
 import ParametresClient from "./parametres-client";
 import type { UserRole } from "@/lib/db/profiles-shared";
 
 export const dynamic = "force-dynamic";
 
 export default async function ParametresPage() {
-  // SSR : on ne fetch que ce qui est nécessaire à la 1ère vue (suppliers, profiles,
-  // templates). Brevo (HTTP externe ~500ms) + sms_log sont lazy-loadés côté client
-  // quand on ouvre le Test tab.
-  const [suppliers, profiles, smsTemplates] = await Promise.all([
-    listSuppliers(),
-    listProfiles(),
-    listSmsTemplates(),
-  ]);
+  const [suppliers, profiles, smsTemplates, emailTemplates, automationRules] =
+    await Promise.all([
+      listSuppliers(),
+      listProfiles(),
+      listSmsTemplates(),
+      listEmailTemplates(),
+      listAutomationRules(),
+    ]);
 
-  // Counts dérivés des profiles déjà fetchés (au lieu d'une 2e query DB)
   const roleCounts: Record<UserRole, number> = {
     admin: 0,
     commercial: 0,
@@ -41,6 +42,8 @@ export default async function ParametresPage() {
       suppliers={suppliers}
       profiles={profiles}
       smsTemplates={smsTemplates}
+      emailTemplates={emailTemplates}
+      automationRules={automationRules}
       roleCounts={roleCounts}
       envFlags={envFlags}
     />

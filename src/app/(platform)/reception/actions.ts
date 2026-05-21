@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
+import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
 
 export type ReceiveResult =
   | {
@@ -69,22 +69,23 @@ export async function receiveByQrAction(qrCode: string): Promise<ReceiveResult> 
   const { data: client } = dossier
     ? await supabase
         .from("clients")
-        .select("display_name, phone")
+        .select("display_name, phone, email")
         .eq("id", dossier.client_id)
         .maybeSingle()
     : { data: null };
 
-  // SMS "tous reçus" si on vient juste de basculer en pret_pose
-  if (!wasAlreadyReceived && dossier?.status === "pret_pose" && client?.phone) {
+  // Trigger "tous_recus" si on vient de basculer en pret_pose
+  if (!wasAlreadyReceived && dossier?.status === "pret_pose" && client) {
     try {
-      await sendSmsForTemplate({
-        templateKey: "tous_recus",
+      await triggerEvent("tous_recus", {
         toPhone: client.phone,
+        toEmail: client.email,
+        toName: client.display_name,
         clientId: dossier.client_id,
         vars: { prenom: firstNameOf(client.display_name) },
       });
     } catch (err) {
-      console.warn("[tous_recus SMS]", err);
+      console.warn("[trigger tous_recus]", err);
     }
   }
 
