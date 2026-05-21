@@ -4,19 +4,13 @@ import { useState } from "react";
 import {
   Users,
   Shield,
-  MessageSquare,
-  Mail,
   Plug,
   Truck,
   FlaskConical,
-  Zap,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { SuppliersTab } from "@/components/parametres/suppliers-tab";
 import { UsersTab } from "@/components/parametres/users-tab";
-import { SmsTemplatesTab } from "@/components/parametres/sms-templates-tab";
-import { EmailTemplatesTab } from "@/components/parametres/email-templates-tab";
-import { ArchitectureTab } from "@/components/parametres/architecture-tab";
 import { RolesTab } from "@/components/parametres/roles-tab";
 import { IntegrationsTab } from "@/components/parametres/integrations-tab";
 import { TestTab } from "@/components/parametres/test-tab";
@@ -24,25 +18,13 @@ import type { Supplier } from "@/lib/db/suppliers";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import type { EmailTemplate } from "@/lib/db/email-templates-shared";
-import type { AutomationRule } from "@/lib/db/automation-rules-shared";
-import type { EventAlert } from "@/lib/db/event-alerts-shared";
-type TabKey =
-  | "fournisseurs"
-  | "utilisateurs"
-  | "roles"
-  | "sms"
-  | "email"
-  | "architecture"
-  | "test"
-  | "integrations";
+type TabKey = "fournisseurs" | "utilisateurs" | "roles" | "test" | "integrations";
 
 type Props = {
   suppliers: Supplier[];
   profiles: Profile[];
   smsTemplates: SmsTemplate[];
   emailTemplates: EmailTemplate[];
-  automationRules: AutomationRule[];
-  eventAlerts: EventAlert[];
   roleCounts: Record<UserRole, number>;
   envFlags: {
     stripe: boolean;
@@ -57,8 +39,6 @@ export default function ParametresClient({
   profiles,
   smsTemplates,
   emailTemplates,
-  automationRules,
-  eventAlerts,
   roleCounts,
   envFlags,
 }: Props) {
@@ -89,9 +69,6 @@ export default function ParametresClient({
             <TabBtn active={tab === "fournisseurs"} onClick={() => setTab("fournisseurs")} icon={Truck} label="Fournisseurs" count={suppliers.length} />
             <TabBtn active={tab === "utilisateurs"} onClick={() => setTab("utilisateurs")} icon={Users} label="Utilisateurs" count={profiles.length} />
             <TabBtn active={tab === "roles"} onClick={() => setTab("roles")} icon={Shield} label="Rôles & accès" count={6} />
-            <TabBtn active={tab === "sms"} onClick={() => setTab("sms")} icon={MessageSquare} label="Templates SMS" count={smsTemplates.length} />
-            <TabBtn active={tab === "email"} onClick={() => setTab("email")} icon={Mail} label="Templates Email" count={emailTemplates.length} />
-            <TabBtn active={tab === "architecture"} onClick={() => setTab("architecture")} icon={Zap} label="Architecture" count={automationRules.length} />
             <TabBtn active={tab === "test"} onClick={() => setTab("test")} icon={FlaskConical} label="Envoi & Test" count={0} />
             <TabBtn active={tab === "integrations"} onClick={() => setTab("integrations")} icon={Plug} label="Intégrations" count={5} />
           </nav>
@@ -101,18 +78,6 @@ export default function ParametresClient({
           {tab === "fournisseurs" && <SuppliersTab suppliers={suppliers} />}
           {tab === "utilisateurs" && <UsersTab profiles={profiles} />}
           {tab === "roles" && <RolesTab counts={roleCounts} />}
-          {tab === "sms" && <SmsTemplatesTab templates={smsTemplates} brevoConfigured={envFlags.brevoSms} />}
-          {tab === "email" && (
-            <EmailTemplatesTab templates={emailTemplates} brevoConfigured={envFlags.brevoEmail} />
-          )}
-          {tab === "architecture" && (
-            <ArchitectureTab
-              rules={automationRules}
-              smsTemplates={smsTemplates}
-              emailTemplates={emailTemplates}
-              alerts={eventAlerts}
-            />
-          )}
           {tab === "test" && (
             <TestTab
               smsTemplates={smsTemplates}

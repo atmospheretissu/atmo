@@ -17,6 +17,8 @@ import {
   Calendar,
   ShoppingBag,
   Inbox,
+  MessageSquare,
+  Zap,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
@@ -50,6 +52,8 @@ const navSecondary: Item[] = [
 
 const navAdmin: Item[] = [
   { label: "Paramètres", href: "/parametres", icon: Settings, tone: "ink" },
+  { label: "Templates", href: "/templates", icon: MessageSquare, tone: "violet" },
+  { label: "Architecture", href: "/architecture", icon: Zap, tone: "amber" },
 ];
 
 function NavLink({ item }: { item: Item }) {
