@@ -9,8 +9,6 @@ import {
   AlertTriangle,
   Plus,
   Bell,
-  ChevronDown,
-  ChevronRight,
   Pencil,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -47,7 +45,6 @@ export function ArchitectureTab({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editingAlert, setEditingAlert] = useState<{
     rule: AutomationRule;
     alert: EventAlert | null;
@@ -69,13 +66,6 @@ export function ArchitectureTab({
       setBusyId(null);
       router.refresh();
     });
-  };
-
-  const toggleExpanded = (eventKey: string) => {
-    const n = new Set(expanded);
-    if (n.has(eventKey)) n.delete(eventKey);
-    else n.add(eventKey);
-    setExpanded(n);
   };
 
   const alertsByEvent = new Map<string, EventAlert[]>();
@@ -104,18 +94,34 @@ export function ArchitectureTab({
     <>
       <div className="space-y-4">
         <Card className="p-4 bg-canvas-2/30 border-dashed">
-          <div className="flex items-start gap-3">
-            <ColorChip tone="violet" size="md">
-              <Zap className="h-4 w-4" strokeWidth={2.2} />
-            </ColorChip>
-            <div className="flex-1">
-              <p className="text-[14px] font-semibold text-ink">Architecture des communications</p>
-              <p className="text-[12px] text-muted mt-1 max-w-3xl">
-                Pour chaque événement : configure la <strong>communication client</strong>{" "}
-                (SMS/email envoyé à la personne concernée) et ajoute des{" "}
-                <strong>alertes internes</strong> (équipe, admin) avec destinataires et critères
-                personnalisés (montant min/max, canal). Tout est appliqué en live.
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start gap-3">
+              <ColorChip tone="violet" size="md">
+                <Mail className="h-4 w-4" strokeWidth={2.2} />
+              </ColorChip>
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-ink">
+                  Communication client (zone grise)
+                </p>
+                <p className="text-[11.5px] text-muted mt-1">
+                  Le SMS et/ou l&apos;email envoyés <strong>au client concerné</strong> par l&apos;événement.
+                  Toggle ON/OFF et choix du template par colonne.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <ColorChip tone="pink" size="md">
+                <Bell className="h-4 w-4" strokeWidth={2.2} />
+              </ColorChip>
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-ink">
+                  Alertes internes (zone violette)
+                </p>
+                <p className="text-[11.5px] text-muted mt-1">
+                  N alertes par événement vers <strong>toi / l&apos;équipe</strong>. Numéros/emails
+                  multiples + critères (montant min/max, canal).
+                </p>
+              </div>
             </div>
           </div>
         </Card>
@@ -137,7 +143,6 @@ export function ArchitectureTab({
                 const smsBroken = r.sms_enabled && !r.sms_template_key;
                 const emailBroken = r.email_enabled && !r.email_template_key;
                 const rowAlerts = alertsByEvent.get(r.event_key) ?? [];
-                const isExpanded = expanded.has(r.event_key);
                 const activeAlertsCount = rowAlerts.filter((a) => a.active).length;
 
                 return (
@@ -148,17 +153,7 @@ export function ArchitectureTab({
                     {/* Main row */}
                     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px_300px] gap-3 px-4 py-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleExpanded(r.event_key)}
-                            className="text-muted-2 hover:text-ink"
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </button>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-ink leading-tight">{r.label}</p>
                           {activeAlertsCount > 0 && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-soft text-violet text-[10.5px] font-semibold">
@@ -167,11 +162,11 @@ export function ArchitectureTab({
                             </span>
                           )}
                         </div>
-                        <p className="font-mono text-[10.5px] text-muted-2 mt-0.5 ml-6">
+                        <p className="font-mono text-[10.5px] text-muted-2 mt-0.5">
                           {r.event_key}
                         </p>
                         {r.description && (
-                          <p className="text-[11.5px] text-muted mt-1 ml-6 max-w-md">
+                          <p className="text-[11.5px] text-muted mt-1 max-w-md">
                             {r.description}
                           </p>
                         )}
@@ -244,46 +239,47 @@ export function ArchitectureTab({
                       </div>
                     </div>
 
-                    {/* Expanded alerts panel */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 ml-6">
-                        <div className="rounded-lg bg-canvas-2/40 border border-line p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <Bell className="h-3.5 w-3.5 text-violet" strokeWidth={2.4} />
-                              <p className="text-[12px] font-semibold text-ink">
-                                Alertes internes
-                              </p>
-                              <span className="text-[11px] text-muted-2">
-                                {rowAlerts.length} configurée{rowAlerts.length > 1 ? "s" : ""}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => setEditingAlert({ rule: r, alert: null })}
-                              className="text-[11.5px] text-violet hover:underline font-medium inline-flex items-center gap-1"
-                            >
-                              <Plus className="h-3 w-3" /> Nouvelle alerte
-                            </button>
-                          </div>
-
-                          {rowAlerts.length === 0 ? (
-                            <p className="text-[11.5px] text-muted-2 text-center py-2">
-                              Aucune alerte interne pour cet événement.
+                    {/* Alerts panel — always visible */}
+                    <div className="px-4 pb-4">
+                      <div className="rounded-lg bg-violet-soft/40 border border-violet/20 p-3">
+                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <Bell className="h-3.5 w-3.5 text-violet" strokeWidth={2.4} />
+                            <p className="text-[12px] font-semibold text-ink">
+                              Alertes internes
                             </p>
-                          ) : (
-                            <div className="space-y-2">
-                              {rowAlerts.map((a) => (
-                                <AlertRow
-                                  key={a.id}
-                                  alert={a}
-                                  onEdit={() => setEditingAlert({ rule: r, alert: a })}
-                                />
-                              ))}
-                            </div>
-                          )}
+                            <span className="text-[11px] text-muted-2">
+                              {rowAlerts.length === 0
+                                ? "aucune"
+                                : `${rowAlerts.length} configurée${rowAlerts.length > 1 ? "s" : ""}`}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setEditingAlert({ rule: r, alert: null })}
+                            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md bg-violet text-white text-[11.5px] font-semibold hover:bg-violet/90 transition-colors"
+                          >
+                            <Plus className="h-3 w-3" strokeWidth={2.4} /> Ajouter une alerte
+                          </button>
                         </div>
+
+                        {rowAlerts.length === 0 ? (
+                          <p className="text-[11.5px] text-muted-2 text-center py-2 italic">
+                            Aucune alerte interne pour cet événement. Clique sur « Ajouter une
+                            alerte » pour être notifié quand cet événement se déclenche.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {rowAlerts.map((a) => (
+                              <AlertRow
+                                key={a.id}
+                                alert={a}
+                                onEdit={() => setEditingAlert({ rule: r, alert: a })}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
