@@ -16,7 +16,7 @@ export default async function ParametresPage() {
   const envFlags = {
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
     brevoEmail: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL),
-    brevoSms: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SMS_SENDER),
+    brevoSms: Boolean(process.env.BREVO_API_KEY),
     pennylane: Boolean(process.env.PENNYLANE_API_KEY),
   };
 

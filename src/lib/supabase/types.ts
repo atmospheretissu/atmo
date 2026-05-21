@@ -1003,6 +1003,7 @@ export interface Database {
           label: string;
           body: string;
           trigger_description: string | null;
+          sender: string | null;
           active: boolean;
           updated_at: string;
         };
@@ -1012,6 +1013,7 @@ export interface Database {
           label: string;
           body: string;
           trigger_description?: string | null;
+          sender?: string | null;
           active?: boolean;
           updated_at?: string;
         };
@@ -1021,6 +1023,7 @@ export interface Database {
           label?: string;
           body?: string;
           trigger_description?: string | null;
+          sender?: string | null;
           active?: boolean;
           updated_at?: string;
         };

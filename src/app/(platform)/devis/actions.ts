@@ -7,6 +7,16 @@ import type { Database } from "@/lib/supabase/types";
 import { parseDevisForm, computeDevisTotals } from "@/lib/validation/devis";
 import { getNextDevisNumber } from "@/lib/db/devis";
 import { createDossierFromDevis } from "@/lib/db/dossiers";
+import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
+
+function appBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : "https://atmospheretissus.fr")
+  );
+}
 
 export type DevisFormState =
   | { ok: true; id?: string }
@@ -116,6 +126,38 @@ export async function changeDevisStatusAction(
   const { error } = await supabase.from("devis").update(updates).eq("id", devisId);
   if (error) return { ok: false, errors: {}, message: error.message };
 
+  // SMS auto à l'envoi du devis
+  if (newStatus === "envoye") {
+    try {
+      const { data: devis } = await supabase
+        .from("devis")
+        .select("number, client_id, product_summary")
+        .eq("id", devisId)
+        .maybeSingle();
+      const { data: client } = devis
+        ? await supabase
+            .from("clients")
+            .select("phone, display_name")
+            .eq("id", devis.client_id)
+            .maybeSingle()
+        : { data: null };
+      if (devis && client?.phone) {
+        await sendSmsForTemplate({
+          templateKey: "devis_envoye",
+          toPhone: client.phone,
+          clientId: devis.client_id,
+          vars: {
+            prenom: firstNameOf(client.display_name),
+            produit: devis.product_summary,
+            lien_pdf: `${appBaseUrl()}/devis/${devisId}/pdf`,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn("[devis_envoye SMS]", err);
+    }
+  }
+
   revalidatePath("/devis");
   revalidatePath(`/devis/${devisId}`);
   return { ok: true };
@@ -160,6 +202,30 @@ export async function markAcompteRecuAction(
       notes: "Marquage manuel depuis la fiche devis",
       recorded_by: user.id,
     });
+  }
+
+  // SMS confirmation acompte
+  try {
+    const { data: client } = devis
+      ? await supabase
+          .from("clients")
+          .select("phone, display_name")
+          .eq("id", devis.client_id)
+          .maybeSingle()
+      : { data: null };
+    if (devis && client?.phone) {
+      await sendSmsForTemplate({
+        templateKey: "acompte_recu",
+        toPhone: client.phone,
+        clientId: devis.client_id,
+        vars: {
+          prenom: firstNameOf(client.display_name),
+          acompte: Math.round(Number(devis.acompte_ttc ?? 0)),
+        },
+      });
+    }
+  } catch (err) {
+    console.warn("[acompte_recu SMS]", err);
   }
 
   // 3. Auto-création (ou récupération) du dossier de confection.

@@ -76,7 +76,7 @@ export default function ParametresClient({
           {tab === "fournisseurs" && <SuppliersTab suppliers={suppliers} />}
           {tab === "utilisateurs" && <UsersTab profiles={profiles} />}
           {tab === "roles" && <RolesTab counts={roleCounts} />}
-          {tab === "sms" && <SmsTemplatesTab templates={smsTemplates} />}
+          {tab === "sms" && <SmsTemplatesTab templates={smsTemplates} brevoConfigured={envFlags.brevoSms} />}
           {tab === "integrations" && <IntegrationsTab envFlags={envFlags} />}
         </section>
       </div>

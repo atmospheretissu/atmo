@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { SupplierInsert, SupplierUpdate } from "@/lib/db/suppliers";
 import type { ProfileUpdate, UserRole } from "@/lib/db/profiles";
 import type { SmsTemplateUpdate } from "@/lib/db/sms-templates";
+import { sendSmsForTemplate } from "@/lib/brevo/send-sms";
 
 type Result = { ok: true } | { ok: false; message: string };
 
@@ -96,7 +97,13 @@ export async function toggleProfileActiveAction(
 
 export async function updateSmsTemplateAction(
   id: string,
-  patch: { body?: string; active?: boolean; label?: string; trigger_description?: string | null }
+  patch: {
+    body?: string;
+    active?: boolean;
+    label?: string;
+    trigger_description?: string | null;
+    sender?: string | null;
+  },
 ): Promise<Result> {
   const supabase = await createClient();
   const sanitized: SmsTemplateUpdate = {};
@@ -108,6 +115,16 @@ export async function updateSmsTemplateAction(
   if (patch.label !== undefined && patch.label.trim()) sanitized.label = patch.label.trim();
   if (patch.trigger_description !== undefined)
     sanitized.trigger_description = patch.trigger_description?.trim() || null;
+  if (patch.sender !== undefined) {
+    const s = patch.sender?.trim();
+    if (s && (s.length < 3 || s.length > 11)) {
+      return { ok: false, message: "Expéditeur : 3 à 11 caractères" };
+    }
+    if (s && !/^[A-Za-z0-9 _-]+$/.test(s)) {
+      return { ok: false, message: "Expéditeur : lettres, chiffres, espace, _ ou - uniquement" };
+    }
+    sanitized.sender = s || null;
+  }
   const { error } = await supabase.from("sms_templates").update(sanitized).eq("id", id);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/parametres");
@@ -131,4 +148,41 @@ export async function deleteSupplierAction(id: string): Promise<Result> {
   if (error) return { ok: false, message: error.message };
   revalidatePath("/parametres");
   return { ok: true };
+}
+
+/**
+ * Envoie un SMS de test pour un template donné (utilisé depuis l'UI Paramètres).
+ * Les variables sont remplies avec des valeurs factices pour la démo.
+ */
+export async function sendTestSmsAction(
+  templateId: string,
+  phone: string,
+): Promise<{ ok: true; messageId: string } | { ok: false; message: string }> {
+  if (!/^\+[1-9]\d{6,14}$/.test(phone.trim())) {
+    return { ok: false, message: "Format attendu : +33612345678 (E.164)" };
+  }
+  const supabase = await createClient();
+  const { data: template } = await supabase
+    .from("sms_templates")
+    .select("key")
+    .eq("id", templateId)
+    .maybeSingle();
+  if (!template) return { ok: false, message: "Template introuvable" };
+
+  const r = await sendSmsForTemplate({
+    templateKey: template.key,
+    toPhone: phone.trim(),
+    vars: {
+      prenom: "Hélène",
+      produit: "Rideau salon",
+      date: "lundi 26 mai",
+      heure: "10h",
+      poseur: "Romain",
+      acompte: "490",
+      lien_pdf: "https://atmospheretissus.fr/d/abc",
+      lien_avis: "https://g.page/atmospheretissus/review",
+    },
+  });
+  if (!r.ok) return { ok: false, message: r.message };
+  return { ok: true, messageId: r.messageId };
 }

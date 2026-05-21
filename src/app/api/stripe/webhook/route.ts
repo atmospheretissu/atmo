@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/client";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { createDossierFromDevis } from "@/lib/db/dossiers";
+import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
 
 /**
  * Webhook Stripe — point d'entrée des notifications de paiement.
@@ -78,6 +79,30 @@ export async function POST(request: NextRequest) {
             : session.payment_intent?.id ?? null,
         notes: `Stripe Checkout — ${session.id}`,
       });
+    }
+
+    // 2b. SMS confirmation acompte
+    if (devis) {
+      try {
+        const { data: client } = await supabase
+          .from("clients")
+          .select("phone, display_name")
+          .eq("id", devis.client_id)
+          .maybeSingle();
+        if (client?.phone) {
+          await sendSmsForTemplate({
+            templateKey: "acompte_recu",
+            toPhone: client.phone,
+            clientId: devis.client_id,
+            vars: {
+              prenom: firstNameOf(client.display_name),
+              acompte: Math.round(Number(devis.acompte_ttc ?? 0)),
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("[stripe webhook → acompte_recu SMS]", err);
+      }
     }
 
     // 3. Auto-création (ou récupération) du dossier — idempotent.

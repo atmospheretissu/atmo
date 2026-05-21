@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { sendSmsForTemplate, firstNameOf } from "@/lib/brevo/send-sms";
 
 export type PoseActionResult =
   | { ok: true; poseId?: string }
@@ -137,6 +138,35 @@ export async function markPoseDoneAction(
   if (error || !pose) return { ok: false, message: error?.message ?? "?" };
 
   await supabase.from("dossiers").update({ status: "pose" }).eq("id", pose.dossier_id);
+
+  // SMS satisfaction après pose effectuée
+  try {
+    const { data: dossier } = await supabase
+      .from("dossiers")
+      .select("client_id")
+      .eq("id", pose.dossier_id)
+      .maybeSingle();
+    const { data: client } = dossier
+      ? await supabase
+          .from("clients")
+          .select("phone, display_name")
+          .eq("id", dossier.client_id)
+          .maybeSingle()
+      : { data: null };
+    if (dossier && client?.phone) {
+      await sendSmsForTemplate({
+        templateKey: "pose_effectuee",
+        toPhone: client.phone,
+        clientId: dossier.client_id,
+        vars: {
+          prenom: firstNameOf(client.display_name),
+          lien_avis: "https://g.page/atmospheretissus/review",
+        },
+      });
+    }
+  } catch (err) {
+    console.warn("[pose_effectuee SMS]", err);
+  }
 
   revalidatePath("/poses");
   revalidatePath(`/poses/${poseId}`);
