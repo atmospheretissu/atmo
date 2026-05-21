@@ -1,21 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@/lib/supabase/types";
+import { canAccess, ROLE_ROUTES } from "@/lib/db/profiles-shared";
+import type { UserRole } from "@/lib/db/profiles-shared";
 
 /**
- * Refreshes the Supabase auth session cookie on every request and enforces
- * route protection. Public routes: '/', '/auth/*'. Everything else requires a
- * signed-in user — unauthenticated requests are redirected to '/'.
+ * Refreshes the Supabase auth session cookie on every request, enforces
+ * route protection, AND gates routes by user role (profile.role).
  *
- * Called from `src/proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts`).
+ *   - Anonymous users : only `/`, `/auth/*`, webhooks, cron, health
+ *   - Authenticated users : routes filtered by ROLE_ROUTES[role]
+ *   - Forbidden access : redirect to /403 with `from=<original-path>`
  */
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
-    request,
-  });
+  let response = NextResponse.next({ request });
 
-  // Supabase not yet configured (e.g. during initial setup): let everything pass.
-  // The prototype UI still works against mock data until credentials are wired.
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -33,28 +32,23 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
+            request.cookies.set(name, value),
           );
-          response = NextResponse.next({
-            request,
-          });
+          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
-  // IMPORTANT: do not put any logic between createServerClient and getUser.
-  // A simple mistake can cause hard-to-debug session issues.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't require auth
   const publicRoutes = ["/", "/auth"];
   const isPublic =
     publicRoutes.includes(pathname) ||
@@ -71,12 +65,45 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If signed in and on the login page, send to dashboard
+  // Signed-in user on login page → redirect to role's home
   if (user && pathname === "/") {
+    const role = await getUserRole(supabase, user.id);
+    const home = role ? ROLE_ROUTES[role]?.homeRoute ?? "/dashboard" : "/dashboard";
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = home;
     return NextResponse.redirect(url);
   }
 
+  // Role-based gating for authenticated requests on platform routes
+  if (user && !isPublic && !pathname.startsWith("/api/")) {
+    const role = await getUserRole(supabase, user.id);
+
+    // Pas de profil = on laisse passer mais on signale (cas démo/initial)
+    // Profil avec rôle = on vérifie l'accès
+    if (role && !canAccess(role, pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/403";
+      url.searchParams.set("from", pathname);
+      return NextResponse.redirect(url);
+    }
+  }
+
   return response;
+}
+
+/**
+ * Lit le rôle du profil de l'utilisateur. Cache par requête via le cookieStore
+ * implicite — chaque proxy invocation = 1 query max.
+ */
+async function getUserRole(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+  userId: string,
+): Promise<UserRole | null> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("role, active")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!data || data.active === false) return null;
+  return data.role as UserRole;
 }

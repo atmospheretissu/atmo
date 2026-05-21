@@ -19,11 +19,14 @@ import {
   Inbox,
   MessageSquare,
   Zap,
-  Activity,
+  Rss,
+  LogOut,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
+import { canAccess, ROLE_LABELS } from "@/lib/db/profiles-shared";
+import type { UserRole } from "@/lib/db/profiles-shared";
 
 type Item = {
   label: string;
@@ -35,13 +38,13 @@ type Item = {
 
 const navMain: Item[] = [
   { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard, tone: "violet" },
-  { label: "Activité", href: "/feed", icon: Activity, tone: "blue" },
+  { label: "Activité", href: "/feed", icon: Rss, tone: "blue" },
   { label: "Boutique", href: "/boutique", icon: ShoppingBag, tone: "amber" },
-  { label: "Devis", href: "/devis", icon: FileText, tone: "pink", badge: 12 },
-  { label: "Confections", href: "/confections", icon: Scissors, tone: "orange", badge: 7 },
+  { label: "Devis", href: "/devis", icon: FileText, tone: "pink" },
+  { label: "Confections", href: "/confections", icon: Scissors, tone: "orange" },
   { label: "Commandes fournisseurs", href: "/commandes", icon: PackageSearch, tone: "blue" },
   { label: "Réception", href: "/reception", icon: ScanLine, tone: "yellow" },
-  { label: "Poses", href: "/poses", icon: Wrench, tone: "emerald", badge: 3 },
+  { label: "Poses", href: "/poses", icon: Wrench, tone: "emerald" },
   { label: "Agenda", href: "/agenda", icon: Calendar, tone: "violet" },
 ];
 
@@ -58,6 +61,11 @@ const navAdmin: Item[] = [
   { label: "Architecture", href: "/architecture", icon: Zap, tone: "amber" },
 ];
 
+function filterByRole(items: Item[], role: UserRole | null): Item[] {
+  if (!role) return items;
+  return items.filter((i) => canAccess(role, i.href));
+}
+
 function NavLink({ item }: { item: Item }) {
   const pathname = usePathname();
   const active =
@@ -71,7 +79,7 @@ function NavLink({ item }: { item: Item }) {
         "group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13.5px] transition-colors",
         active
           ? "bg-white text-ink font-medium border border-line"
-          : "text-ink-3 hover:bg-white/60 hover:text-ink border border-transparent"
+          : "text-ink-3 hover:bg-white/60 hover:text-ink border border-transparent",
       )}
     >
       <ColorChip tone={item.tone} size="sm">
@@ -84,7 +92,7 @@ function NavLink({ item }: { item: Item }) {
             "shrink-0 rounded-full text-[10.5px] font-semibold px-1.5 py-0.5 leading-none tabular-nums",
             active
               ? "bg-canvas-2 text-ink-2"
-              : "bg-white text-muted border border-line"
+              : "bg-white text-muted border border-line",
           )}
         >
           {item.badge}
@@ -94,13 +102,8 @@ function NavLink({ item }: { item: Item }) {
   );
 }
 
-function NavSection({
-  label,
-  items,
-}: {
-  label?: string;
-  items: Item[];
-}) {
+function NavSection({ label, items }: { label?: string; items: Item[] }) {
+  if (items.length === 0) return null;
   return (
     <div className="space-y-0.5">
       {label && (
@@ -117,18 +120,30 @@ function NavSection({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({
+  role,
+  userEmail,
+}: {
+  role: UserRole | null;
+  userEmail: string | null;
+}) {
+  const main = filterByRole(navMain, role);
+  const secondary = filterByRole(navSecondary, role);
+  const admin = filterByRole(navAdmin, role);
+  const initial = (userEmail ?? "?")[0]?.toUpperCase() ?? "?";
+  const roleLabel = role ? ROLE_LABELS[role] : "";
+
   return (
     <aside className="w-[252px] shrink-0 border-r border-line bg-canvas flex flex-col h-screen sticky top-0">
       {/* Brand */}
       <div className="h-14 px-4 flex items-center justify-between border-b border-line">
-        <Link href="/dashboard">
+        <Link href={role ? "/dashboard" : "/"}>
           <Logo />
         </Link>
       </div>
 
       {/* Workspace */}
-      <button className="mx-3 mt-3 group flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-left transition-colors hover:border-line-strong border border-line">
+      <div className="mx-3 mt-3 flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 border border-line">
         <div className="h-7 w-7 rounded-md bg-ink text-white flex items-center justify-center text-[11px] font-semibold tracking-wide">
           AT
         </div>
@@ -140,32 +155,37 @@ export function Sidebar() {
             Magasin Bordeaux · Centre
           </p>
         </div>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-2 group-hover:text-ink-3 transition-colors" />
-      </button>
+      </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 pt-2 pb-3 space-y-1">
-        <NavSection items={navMain} />
-        <NavSection label="Magasin" items={navSecondary} />
-        <NavSection label="Admin" items={navAdmin} />
+        <NavSection items={main} />
+        <NavSection label="Magasin" items={secondary} />
+        <NavSection label="Admin" items={admin} />
       </nav>
 
       {/* User */}
       <div className="border-t border-line p-3">
-        <button className="w-full flex items-center gap-2.5 rounded-lg p-1.5 hover:bg-white transition-colors text-left">
+        <div className="flex items-center gap-2.5 rounded-lg p-1.5">
           <div className="h-8 w-8 rounded-full bg-pastel-yellow text-pastel-yellow-ink flex items-center justify-center text-[12px] font-semibold">
-            CM
+            {initial}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[12.5px] font-semibold text-ink truncate leading-tight">
-              Camille Morel
+              {userEmail ?? "—"}
             </p>
             <p className="text-[10.5px] text-muted truncate mt-0.5">
-              Commercial · Back-office
+              {roleLabel || "Sans rôle"}
             </p>
           </div>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-2" />
-        </button>
+          <a
+            href="/auth/sign-out"
+            className="h-7 w-7 rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2 inline-flex items-center justify-center"
+            title="Se déconnecter"
+          >
+            <LogOut className="h-3.5 w-3.5" strokeWidth={2.2} />
+          </a>
+        </div>
       </div>
     </aside>
   );

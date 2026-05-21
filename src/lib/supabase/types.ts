@@ -1276,7 +1276,7 @@ export interface Database {
       payment_method: "stripe" | "especes" | "cb" | "cheque" | "virement";
       pose_status: "a_planifier" | "planifie" | "confirme" | "pose" | "annule";
       supplier_type: "tissu" | "rail" | "accessoire" | "couture" | "autre";
-      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice";
+      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice" | "consultation_lm";
     };
     CompositeTypes: Record<string, Record<string, unknown>>;
   };

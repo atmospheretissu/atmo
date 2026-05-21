@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Power, Loader2, Users } from "lucide-react";
+import { Pencil, Power, Loader2, Users, Plus, Mail, KeyRound } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -10,6 +10,8 @@ import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import {
   updateProfileAction,
   toggleProfileActiveAction,
+  inviteUserAction,
+  sendPasswordResetAction,
 } from "@/app/(platform)/parametres/actions";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import { ROLE_LABELS } from "@/lib/db/profiles-shared";
@@ -36,11 +38,49 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [inviteDraft, setInviteDraft] = useState<{
+    email: string;
+    full_name: string;
+    phone: string;
+    role: UserRole;
+  }>({
+    email: "",
+    full_name: "",
+    phone: "",
+    role: "consultation_lm",
+  });
   const [draft, setDraft] = useState<{ full_name: string; phone: string; role: UserRole }>({
     full_name: "",
     phone: "",
     role: "commercial",
   });
+
+  const submitInvite = () => {
+    startTransition(async () => {
+      const r = await inviteUserAction(inviteDraft);
+      if (!r.ok) {
+        alert(`Erreur : ${r.message}`);
+        return;
+      }
+      setInviting(false);
+      setInviteDraft({ email: "", full_name: "", phone: "", role: "consultation_lm" });
+      alert(`Invitation envoyée à ${inviteDraft.email} — il/elle recevra un lien pour définir son mot de passe.`);
+      router.refresh();
+    });
+  };
+
+  const resetPassword = (email: string) => {
+    if (!confirm(`Envoyer un lien de reset de mot de passe à ${email} ?`)) return;
+    startTransition(async () => {
+      const r = await sendPasswordResetAction(email);
+      if (!r.ok) {
+        alert(`Erreur : ${r.message}`);
+        return;
+      }
+      alert(`Lien envoyé à ${email}`);
+    });
+  };
 
   const openEdit = (p: Profile) => {
     setDraft({
@@ -83,23 +123,78 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
     });
   };
 
-  if (profiles.length === 0) {
-    return (
-      <Card className="py-16 px-6 flex flex-col items-center text-center">
-        <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-violet to-pink text-white inline-flex items-center justify-center mb-4">
-          <Users className="h-6 w-6" strokeWidth={2} />
-        </div>
-        <h2 className="text-[16px] font-semibold text-ink mb-1">Aucun utilisateur</h2>
-        <p className="text-[12.5px] text-muted max-w-md">
-          Les profils sont créés automatiquement à la première connexion via Supabase Auth.
-          Crée des comptes via le tableau de bord Supabase (Auth → Users) avec leur rôle attribué.
-        </p>
-      </Card>
-    );
-  }
 
   return (
-    <Card className="overflow-hidden">
+    <div className="space-y-4">
+      {/* Invitation */}
+      {inviting ? (
+        <Card className="p-4 ring-2 ring-violet-soft">
+          <p className="text-[13.5px] font-semibold text-ink mb-3">Inviter un utilisateur</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">Email</span>
+              <input
+                type="email"
+                value={inviteDraft.email}
+                onChange={(e) => setInviteDraft({ ...inviteDraft, email: e.target.value })}
+                placeholder="nouveau@exemple.fr"
+                className={INPUT_CLASS}
+                autoFocus
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">Nom complet</span>
+              <input
+                value={inviteDraft.full_name}
+                onChange={(e) => setInviteDraft({ ...inviteDraft, full_name: e.target.value })}
+                placeholder="Prénom Nom"
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">Téléphone (option.)</span>
+              <input
+                value={inviteDraft.phone}
+                onChange={(e) => setInviteDraft({ ...inviteDraft, phone: e.target.value })}
+                placeholder="+33…"
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">Rôle</span>
+              <select
+                value={inviteDraft.role}
+                onChange={(e) => setInviteDraft({ ...inviteDraft, role: e.target.value as UserRole })}
+                className={INPUT_CLASS}
+              >
+                {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-[11.5px] text-muted mb-3">
+            L&apos;utilisateur recevra un email avec un lien pour définir son mot de passe.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setInviting(false)} disabled={pending}>Annuler</Button>
+            <Button variant="primary" size="sm" onClick={submitInvite} disabled={pending}>
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Envoyer l'invitation"}
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="flex items-center justify-between">
+          <p className="text-[11.5px] text-muted-2">
+            Invite un membre par email — il définira son mot de passe via un lien sécurisé.
+          </p>
+          <Button variant="primary" size="sm" onClick={() => setInviting(true)} disabled={pending}>
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Inviter un utilisateur
+          </Button>
+        </div>
+      )}
+
+      <Card className="overflow-hidden">
       <div className="px-5 pt-5 pb-3 border-b border-line">
         <p className="eyebrow mb-1">Équipe</p>
         <h3 className="text-[15px] font-semibold text-ink">
@@ -159,6 +254,9 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
                 {u.active ? "Actif" : "Inactif"}
               </StatusPill>
               <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon-sm" aria-label="Reset mot de passe" disabled={pending} onClick={() => resetPassword(u.email)}>
+                  <KeyRound className="h-3.5 w-3.5" />
+                </Button>
                 <Button variant="ghost" size="icon-sm" aria-label={u.active ? "Désactiver" : "Réactiver"} disabled={pending} onClick={() => toggle(u)}>
                   <Power className="h-3.5 w-3.5" />
                 </Button>
@@ -170,6 +268,7 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
           );
         })}
       </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

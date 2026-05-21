@@ -8,6 +8,7 @@ import type { SmsTemplate, SmsTemplateUpdate } from "@/lib/db/sms-templates";
 import type { EmailTemplate, EmailTemplateUpdate } from "@/lib/db/email-templates-shared";
 import type { AutomationRuleUpdate } from "@/lib/db/automation-rules-shared";
 import type { EventAlertInsert, EventAlertUpdate, AlertCriteria } from "@/lib/db/event-alerts-shared";
+import type { UserRole as RoleEnum } from "@/lib/db/profiles-shared";
 import { sendSmsForTemplate } from "@/lib/brevo/send-sms";
 
 type Result = { ok: true } | { ok: false; message: string };
@@ -723,5 +724,88 @@ export async function deleteEmailTemplateAction(id: string): Promise<Result> {
   const { error } = await supabase.from("email_templates").delete().eq("id", id);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/templates");
+  return { ok: true };
+}
+
+/* ============================ AUTH : INVITE + PASSWORD RESET ============================ */
+
+/**
+ * Admin invite : crée un user Supabase Auth + son profil avec rôle choisi.
+ * Envoie un magic link au nouvel utilisateur (premier login → définit son mot de passe).
+ */
+export async function inviteUserAction(input: {
+  email: string;
+  full_name: string;
+  role: RoleEnum;
+  phone?: string;
+}): Promise<{ ok: true; userId: string } | { ok: false; message: string }> {
+  if (!input.email?.trim()) return { ok: false, message: "Email requis" };
+  if (!input.full_name?.trim()) return { ok: false, message: "Nom complet requis" };
+  if (!input.role) return { ok: false, message: "Rôle requis" };
+
+  const email = input.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, message: "Email invalide" };
+  }
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const supabaseAdmin = createServiceRoleClient();
+
+  const redirectTo =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : "https://atmospheretissus.fr");
+
+  // 1. Invite via email (crée user + envoie magic link)
+  const { data: invited, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    email,
+    { redirectTo: `${redirectTo}/auth/callback` },
+  );
+
+  if (inviteErr) return { ok: false, message: inviteErr.message };
+  if (!invited?.user) return { ok: false, message: "Échec de l'invitation" };
+
+  // 2. Crée le profil (ou met à jour si l'user existait déjà)
+  const { error: profileErr } = await supabaseAdmin.from("profiles").upsert(
+    {
+      id: invited.user.id,
+      email,
+      full_name: input.full_name.trim(),
+      role: input.role,
+      phone: input.phone?.trim() || null,
+      active: true,
+    },
+    { onConflict: "id" },
+  );
+
+  if (profileErr) {
+    return { ok: false, message: `User créé mais profil échec : ${profileErr.message}` };
+  }
+
+  revalidatePath("/parametres");
+  return { ok: true, userId: invited.user.id };
+}
+
+/**
+ * Renvoie un magic link pour reset de mot de passe.
+ */
+export async function sendPasswordResetAction(
+  email: string,
+): Promise<Result> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return { ok: false, message: "Email invalide" };
+  }
+  const redirectTo =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : "https://atmospheretissus.fr");
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: `${redirectTo}/auth/callback?reset=1`,
+  });
+  if (error) return { ok: false, message: error.message };
   return { ok: true };
 }

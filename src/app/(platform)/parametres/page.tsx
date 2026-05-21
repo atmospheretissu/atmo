@@ -23,6 +23,7 @@ export default async function ParametresPage() {
     couturiere: 0,
     poseur: 0,
     decoratrice: 0,
+    consultation_lm: 0,
   };
   for (const p of profiles) {
     if (p.active !== false) roleCounts[p.role] += 1;
