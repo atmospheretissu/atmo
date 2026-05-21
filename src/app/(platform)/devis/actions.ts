@@ -131,7 +131,7 @@ export async function changeDevisStatusAction(
     try {
       const { data: devis } = await supabase
         .from("devis")
-        .select("number, client_id, total_ttc, product_summary")
+        .select("number, client_id, total_ttc, product_summary, channel")
         .eq("id", devisId)
         .maybeSingle();
       const { data: client } = devis
@@ -154,6 +154,10 @@ export async function changeDevisStatusAction(
             produit: devis.product_summary,
             total_ttc: String(Math.round(Number(devis.total_ttc ?? 0))),
             lien_pdf: `${appBaseUrl()}/devis/${devisId}/pdf`,
+          },
+          criteriaContext: {
+            amount: Number(devis.total_ttc ?? 0),
+            channel: devis.channel,
           },
         });
       }
@@ -218,6 +222,12 @@ export async function markAcompteRecuAction(
           .maybeSingle()
       : { data: null };
     if (devis && client) {
+      // Fetch channel + total_ttc pour les critères
+      const { data: devisFull } = await supabase
+        .from("devis")
+        .select("channel, total_ttc")
+        .eq("id", devisId)
+        .maybeSingle();
       await triggerEvent("acompte_recu", {
         toPhone: client.phone,
         toEmail: client.email,
@@ -226,6 +236,11 @@ export async function markAcompteRecuAction(
         vars: {
           prenom: firstNameOf(client.display_name),
           acompte: String(Math.round(Number(devis.acompte_ttc ?? 0))),
+          total_ttc: String(Math.round(Number(devisFull?.total_ttc ?? 0))),
+        },
+        criteriaContext: {
+          amount: Number(devisFull?.total_ttc ?? 0),
+          channel: devisFull?.channel ?? undefined,
         },
       });
     }

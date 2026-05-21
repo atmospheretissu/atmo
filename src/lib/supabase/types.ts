@@ -801,6 +801,63 @@ export interface Database {
         };
         Relationships: [];
       };
+      event_alerts: {
+        Row: {
+          id: string;
+          event_key: string;
+          label: string;
+          active: boolean;
+          send_sms: boolean;
+          send_email: boolean;
+          recipient_phones: string[];
+          recipient_emails: string[];
+          sms_template_key: string | null;
+          email_template_key: string | null;
+          sms_body: string | null;
+          email_subject: string | null;
+          email_html: string | null;
+          criteria: Record<string, unknown>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_key: string;
+          label: string;
+          active?: boolean;
+          send_sms?: boolean;
+          send_email?: boolean;
+          recipient_phones?: string[];
+          recipient_emails?: string[];
+          sms_template_key?: string | null;
+          email_template_key?: string | null;
+          sms_body?: string | null;
+          email_subject?: string | null;
+          email_html?: string | null;
+          criteria?: Record<string, unknown>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_key?: string;
+          label?: string;
+          active?: boolean;
+          send_sms?: boolean;
+          send_email?: boolean;
+          recipient_phones?: string[];
+          recipient_emails?: string[];
+          sms_template_key?: string | null;
+          email_template_key?: string | null;
+          sms_body?: string | null;
+          email_subject?: string | null;
+          email_html?: string | null;
+          criteria?: Record<string, unknown>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       automation_rules: {
         Row: {
           id: string;

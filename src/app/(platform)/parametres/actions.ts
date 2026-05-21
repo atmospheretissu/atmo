@@ -7,6 +7,7 @@ import type { ProfileUpdate, UserRole } from "@/lib/db/profiles";
 import type { SmsTemplateUpdate } from "@/lib/db/sms-templates";
 import type { EmailTemplateUpdate } from "@/lib/db/email-templates-shared";
 import type { AutomationRuleUpdate } from "@/lib/db/automation-rules-shared";
+import type { EventAlertInsert, EventAlertUpdate, AlertCriteria } from "@/lib/db/event-alerts-shared";
 import { sendSmsForTemplate } from "@/lib/brevo/send-sms";
 
 type Result = { ok: true } | { ok: false; message: string };
@@ -450,4 +451,126 @@ export async function loadEmailLogAction(): Promise<{
   const { listRecentEmailLog } = await import("@/lib/db/email-log");
   const rows = await listRecentEmailLog(20);
   return { rows };
+}
+
+/* ============================ EVENT ALERTS CRUD ============================ */
+
+function sanitizePhones(raw: string): string[] {
+  return raw
+    .split(/[\n,;]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function sanitizeEmails(raw: string): string[] {
+  return raw
+    .split(/[\n,;]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+}
+
+export async function createEventAlertAction(input: {
+  event_key: string;
+  label: string;
+  send_sms: boolean;
+  send_email: boolean;
+  recipient_phones: string; // raw textarea content
+  recipient_emails: string; // raw textarea content
+  sms_template_key?: string | null;
+  email_template_key?: string | null;
+  sms_body?: string;
+  email_subject?: string;
+  email_html?: string;
+  criteria?: AlertCriteria;
+  active?: boolean;
+}): Promise<Result> {
+  if (!input.event_key) return { ok: false, message: "event_key requis" };
+  if (!input.label.trim()) return { ok: false, message: "Libellé requis" };
+  const phones = sanitizePhones(input.recipient_phones);
+  const emails = sanitizeEmails(input.recipient_emails);
+  if (input.send_sms && phones.length === 0)
+    return { ok: false, message: "SMS activé : au moins un numéro requis" };
+  if (input.send_email && emails.length === 0)
+    return { ok: false, message: "Email activé : au moins un email requis" };
+  if (input.send_sms && !input.sms_template_key && !input.sms_body?.trim())
+    return { ok: false, message: "SMS : template ou corps requis" };
+  if (input.send_email && !input.email_template_key && !input.email_html?.trim())
+    return { ok: false, message: "Email : template ou corps HTML requis" };
+
+  const supabase = await createClient();
+  const payload: EventAlertInsert = {
+    event_key: input.event_key,
+    label: input.label.trim(),
+    send_sms: input.send_sms,
+    send_email: input.send_email,
+    recipient_phones: phones,
+    recipient_emails: emails,
+    sms_template_key: input.sms_template_key || null,
+    email_template_key: input.email_template_key || null,
+    sms_body: input.sms_body?.trim() || null,
+    email_subject: input.email_subject?.trim() || null,
+    email_html: input.email_html?.trim() || null,
+    criteria: (input.criteria as Record<string, unknown>) ?? {},
+    active: input.active ?? true,
+  };
+  const { error } = await supabase.from("event_alerts").insert(payload);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}
+
+export async function updateEventAlertAction(
+  id: string,
+  input: Partial<{
+    label: string;
+    active: boolean;
+    send_sms: boolean;
+    send_email: boolean;
+    recipient_phones: string;
+    recipient_emails: string;
+    sms_template_key: string | null;
+    email_template_key: string | null;
+    sms_body: string;
+    email_subject: string;
+    email_html: string;
+    criteria: AlertCriteria;
+  }>,
+): Promise<Result> {
+  const supabase = await createClient();
+  const sanitized: EventAlertUpdate = {};
+  if (input.label !== undefined) {
+    if (!input.label.trim()) return { ok: false, message: "Libellé requis" };
+    sanitized.label = input.label.trim();
+  }
+  if (input.active !== undefined) sanitized.active = input.active;
+  if (input.send_sms !== undefined) sanitized.send_sms = input.send_sms;
+  if (input.send_email !== undefined) sanitized.send_email = input.send_email;
+  if (input.recipient_phones !== undefined)
+    sanitized.recipient_phones = sanitizePhones(input.recipient_phones);
+  if (input.recipient_emails !== undefined)
+    sanitized.recipient_emails = sanitizeEmails(input.recipient_emails);
+  if (input.sms_template_key !== undefined)
+    sanitized.sms_template_key = input.sms_template_key || null;
+  if (input.email_template_key !== undefined)
+    sanitized.email_template_key = input.email_template_key || null;
+  if (input.sms_body !== undefined) sanitized.sms_body = input.sms_body?.trim() || null;
+  if (input.email_subject !== undefined)
+    sanitized.email_subject = input.email_subject?.trim() || null;
+  if (input.email_html !== undefined) sanitized.email_html = input.email_html?.trim() || null;
+  if (input.criteria !== undefined)
+    sanitized.criteria = input.criteria as Record<string, unknown>;
+  sanitized.updated_at = new Date().toISOString();
+
+  const { error } = await supabase.from("event_alerts").update(sanitized).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}
+
+export async function deleteEventAlertAction(id: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("event_alerts").delete().eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
 }

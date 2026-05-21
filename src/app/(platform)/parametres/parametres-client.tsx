@@ -25,6 +25,7 @@ import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import type { EmailTemplate } from "@/lib/db/email-templates-shared";
 import type { AutomationRule } from "@/lib/db/automation-rules-shared";
+import type { EventAlert } from "@/lib/db/event-alerts-shared";
 type TabKey =
   | "fournisseurs"
   | "utilisateurs"
@@ -41,6 +42,7 @@ type Props = {
   smsTemplates: SmsTemplate[];
   emailTemplates: EmailTemplate[];
   automationRules: AutomationRule[];
+  eventAlerts: EventAlert[];
   roleCounts: Record<UserRole, number>;
   envFlags: {
     stripe: boolean;
@@ -56,6 +58,7 @@ export default function ParametresClient({
   smsTemplates,
   emailTemplates,
   automationRules,
+  eventAlerts,
   roleCounts,
   envFlags,
 }: Props) {
@@ -107,6 +110,7 @@ export default function ParametresClient({
               rules={automationRules}
               smsTemplates={smsTemplates}
               emailTemplates={emailTemplates}
+              alerts={eventAlerts}
             />
           )}
           {tab === "test" && (
