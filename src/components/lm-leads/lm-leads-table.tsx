@@ -266,11 +266,21 @@ function TriggerAlertButton({ leadId, leadNumber }: { leadId: string; leadNumber
         return;
       }
       const parts: string[] = [];
-      if (r.smsFired) parts.push(`SMS client ${r.smsOk ? "✓" : "✗"}`);
-      if (r.emailFired) parts.push(`Email client ${r.emailOk ? "✓" : "✗"}`);
+      // SMS
+      if (r.smsFired) {
+        parts.push(r.smsOk ? "SMS client ✓" : `SMS client ✗ (${r.smsMessage ?? "?"})`);
+      } else if (r.smsMessage) {
+        parts.push(`SMS · ${r.smsMessage}`);
+      }
+      // Email
+      if (r.emailFired) {
+        parts.push(r.emailOk ? "Email client ✓" : `Email client ✗ (${r.emailMessage ?? "?"})`);
+      } else if (r.emailMessage) {
+        parts.push(`Email · ${r.emailMessage}`);
+      }
       if (r.alertsMatched > 0)
         parts.push(`${r.alertsMatched} alerte(s) interne(s) → ${r.alertsSent.sms} SMS, ${r.alertsSent.email} email`);
-      const summary = parts.length > 0 ? parts.join(" · ") : "Aucun envoi (règles inactives ou contact manquant)";
+      const summary = parts.length > 0 ? parts.join(" · ") : "Aucune règle Architecture trouvée";
       setResult({ ok: true, summary });
     });
   };

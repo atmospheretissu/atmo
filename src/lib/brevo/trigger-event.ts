@@ -199,32 +199,39 @@ export async function triggerEvent(
   result.ruleFound = Boolean(rule);
 
   if (rule) {
-    if (rule.sms_enabled && rule.sms_template_key) {
-      if (ctx.toPhone) {
-        const r = await sendSmsForTemplate({
-          templateKey: rule.sms_template_key,
-          toPhone: ctx.toPhone,
-          clientId: ctx.clientId ?? null,
-          vars: ctx.vars,
-        });
-        result.sms = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
-      } else {
-        result.sms = { fired: false, message: "Pas de toPhone fourni" };
-      }
+    // SMS branch — always set result.sms with the reason
+    if (!rule.sms_enabled) {
+      result.sms = { fired: false, message: "SMS désactivé dans Architecture" };
+    } else if (!rule.sms_template_key) {
+      result.sms = { fired: false, message: "Aucun template SMS sélectionné" };
+    } else if (!ctx.toPhone) {
+      result.sms = { fired: false, message: "Pas de téléphone client" };
+    } else {
+      const r = await sendSmsForTemplate({
+        templateKey: rule.sms_template_key,
+        toPhone: ctx.toPhone,
+        clientId: ctx.clientId ?? null,
+        vars: ctx.vars,
+      });
+      result.sms = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
     }
-    if (rule.email_enabled && rule.email_template_key) {
-      if (ctx.toEmail) {
-        const r = await sendEmailForTemplate({
-          templateKey: rule.email_template_key,
-          toEmail: ctx.toEmail,
-          toName: ctx.toName ?? undefined,
-          clientId: ctx.clientId ?? null,
-          vars: ctx.vars,
-        });
-        result.email = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
-      } else {
-        result.email = { fired: false, message: "Pas de toEmail fourni" };
-      }
+
+    // Email branch — always set result.email with the reason
+    if (!rule.email_enabled) {
+      result.email = { fired: false, message: "Email désactivé dans Architecture" };
+    } else if (!rule.email_template_key) {
+      result.email = { fired: false, message: "Aucun template email sélectionné" };
+    } else if (!ctx.toEmail) {
+      result.email = { fired: false, message: "Pas d'email client" };
+    } else {
+      const r = await sendEmailForTemplate({
+        templateKey: rule.email_template_key,
+        toEmail: ctx.toEmail,
+        toName: ctx.toName ?? undefined,
+        clientId: ctx.clientId ?? null,
+        vars: ctx.vars,
+      });
+      result.email = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
     }
   }
 
