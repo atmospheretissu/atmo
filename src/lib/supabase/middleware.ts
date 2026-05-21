@@ -61,7 +61,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/stripe/webhook") ||
-    pathname.startsWith("/api/webhooks/");
+    pathname.startsWith("/api/webhooks/") ||
+    pathname.startsWith("/api/cron/");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

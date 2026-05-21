@@ -11,6 +11,7 @@ import { ColorChip, StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { eur } from "@/lib/formatters";
 import { listLmLeads, getLmLeadStats, getLastAtmoleadRun } from "@/lib/db/lm-leads";
+import { processPendingLmLeadAlerts } from "@/lib/events/process-pending";
 import { LmLeadsTable } from "@/components/lm-leads/lm-leads-table";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,13 @@ function timeAgo(iso: string): string {
 }
 
 export default async function LeadsLmPage() {
+  // Fire-and-forget : déclenche les alertes des leads non traités.
+  // On n'attend pas — la page se charge immédiatement, le batch tourne en
+  // arrière-plan. Les alertes apparaîtront dans /feed dès qu'envoyées.
+  void processPendingLmLeadAlerts({ batchSize: 25 }).catch((err) =>
+    console.warn("[leads-lm page] process pending failed:", err),
+  );
+
   const [leads, stats, lastRun] = await Promise.all([
     listLmLeads(),
     getLmLeadStats(),

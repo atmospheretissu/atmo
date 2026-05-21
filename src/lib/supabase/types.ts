@@ -911,6 +911,7 @@ export interface Database {
           poseur_id: string | null;
           amount: number | null;
           notes: string | null;
+          alerts_sent_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -927,6 +928,7 @@ export interface Database {
           poseur_id?: string | null;
           amount?: number | null;
           notes?: string | null;
+          alerts_sent_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -943,6 +945,7 @@ export interface Database {
           poseur_id?: string | null;
           amount?: number | null;
           notes?: string | null;
+          alerts_sent_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
