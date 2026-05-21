@@ -21,6 +21,7 @@ import {
   Zap,
   Rss,
   LogOut,
+  Lock,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
@@ -61,17 +62,30 @@ const navAdmin: Item[] = [
   { label: "Architecture", href: "/architecture", icon: Zap, tone: "amber" },
 ];
 
-function filterByRole(items: Item[], role: UserRole | null): Item[] {
-  if (!role) return items;
-  return items.filter((i) => canAccess(role, i.href));
-}
-
-function NavLink({ item }: { item: Item }) {
+function NavLink({ item, allowed }: { item: Item; allowed: boolean }) {
   const pathname = usePathname();
   const active =
-    pathname === item.href ||
-    (item.href !== "/" && pathname.startsWith(item.href));
+    allowed &&
+    (pathname === item.href ||
+      (item.href !== "/" && pathname.startsWith(item.href)));
   const Icon = item.icon;
+
+  // Pas d'accès : item grisé, non cliquable, avec icône verrou.
+  if (!allowed) {
+    return (
+      <div
+        title="Pas d'accès avec votre rôle"
+        className="group relative flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13.5px] text-muted-2 opacity-50 cursor-not-allowed select-none border border-transparent"
+      >
+        <ColorChip tone={item.tone} size="sm">
+          <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
+        </ColorChip>
+        <span className="flex-1 truncate">{item.label}</span>
+        <Lock className="h-3 w-3 text-muted-2 shrink-0" strokeWidth={2.4} />
+      </div>
+    );
+  }
+
   return (
     <Link
       href={item.href}
@@ -102,8 +116,15 @@ function NavLink({ item }: { item: Item }) {
   );
 }
 
-function NavSection({ label, items }: { label?: string; items: Item[] }) {
-  if (items.length === 0) return null;
+function NavSection({
+  label,
+  items,
+  role,
+}: {
+  label?: string;
+  items: Item[];
+  role: UserRole | null;
+}) {
   return (
     <div className="space-y-0.5">
       {label && (
@@ -114,7 +135,7 @@ function NavSection({ label, items }: { label?: string; items: Item[] }) {
         </div>
       )}
       {items.map((i) => (
-        <NavLink key={i.href} item={i} />
+        <NavLink key={i.href} item={i} allowed={role ? canAccess(role, i.href) : true} />
       ))}
     </div>
   );
@@ -127,9 +148,6 @@ export function Sidebar({
   role: UserRole | null;
   userEmail: string | null;
 }) {
-  const main = filterByRole(navMain, role);
-  const secondary = filterByRole(navSecondary, role);
-  const admin = filterByRole(navAdmin, role);
   const initial = (userEmail ?? "?")[0]?.toUpperCase() ?? "?";
   const roleLabel = role ? ROLE_LABELS[role] : "";
 
@@ -159,9 +177,9 @@ export function Sidebar({
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 pt-2 pb-3 space-y-1">
-        <NavSection items={main} />
-        <NavSection label="Magasin" items={secondary} />
-        <NavSection label="Admin" items={admin} />
+        <NavSection items={navMain} role={role} />
+        <NavSection label="Magasin" items={navSecondary} role={role} />
+        <NavSection label="Admin" items={navAdmin} role={role} />
       </nav>
 
       {/* User */}
