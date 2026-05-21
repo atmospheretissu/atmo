@@ -1,17 +1,22 @@
 import { listSuppliers } from "@/lib/db/suppliers";
 import { listProfiles, getRoleCounts } from "@/lib/db/profiles";
 import { listSmsTemplates } from "@/lib/db/sms-templates";
+import { listRecentSmsLog } from "@/lib/db/sms-log";
+import { getBrevoAccount } from "@/lib/brevo/account";
 import ParametresClient from "./parametres-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function ParametresPage() {
-  const [suppliers, profiles, smsTemplates, roleCounts] = await Promise.all([
-    listSuppliers(),
-    listProfiles(),
-    listSmsTemplates(),
-    getRoleCounts(),
-  ]);
+  const [suppliers, profiles, smsTemplates, roleCounts, recentSmsLog, brevoAccount] =
+    await Promise.all([
+      listSuppliers(),
+      listProfiles(),
+      listSmsTemplates(),
+      getRoleCounts(),
+      listRecentSmsLog(20),
+      getBrevoAccount(),
+    ]);
 
   const envFlags = {
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
@@ -27,6 +32,8 @@ export default async function ParametresPage() {
       smsTemplates={smsTemplates}
       roleCounts={roleCounts}
       envFlags={envFlags}
+      recentSmsLog={recentSmsLog}
+      brevoAccount={brevoAccount}
     />
   );
 }

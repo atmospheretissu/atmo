@@ -186,3 +186,92 @@ export async function sendTestSmsAction(
   if (!r.ok) return { ok: false, message: r.message };
   return { ok: true, messageId: r.messageId };
 }
+
+/**
+ * Envoi de test 100% configurable (Test tab).
+ * Permet de fournir body / sender / vars custom au lieu de tirer du template.
+ */
+export async function sendCustomSmsAction(input: {
+  phone: string;
+  body: string;
+  sender?: string;
+  templateKey?: string | null;
+  vars?: Record<string, string>;
+}): Promise<{ ok: true; messageId: string; bodyInterpolated: string } | { ok: false; message: string }> {
+  if (!/^\+[1-9]\d{6,14}$/.test(input.phone.trim())) {
+    return { ok: false, message: "Format attendu : +33612345678 (E.164)" };
+  }
+  if (!input.body.trim()) return { ok: false, message: "Corps du SMS vide" };
+  if (input.sender && (input.sender.length < 3 || input.sender.length > 11)) {
+    return { ok: false, message: "Expéditeur : 3 à 11 caractères" };
+  }
+
+  const { sendBrevoSms, isBrevoConfigured } = await import("@/lib/brevo/client");
+  const { DEFAULT_SENDER } = await import("@/lib/db/sms-templates-shared");
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+
+  const interpolated = input.body.replace(/\{\{(\w+)\}\}/g, (_, name) => {
+    return input.vars?.[name] ?? "";
+  });
+
+  const sender = input.sender?.trim() || process.env.BREVO_SMS_SENDER || DEFAULT_SENDER;
+
+  const supabaseAdmin = createServiceRoleClient();
+  const { data: logRow } = await supabaseAdmin
+    .from("sms_log")
+    .insert({
+      template_key: input.templateKey ?? null,
+      to_phone: input.phone.trim(),
+      body: interpolated,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (!isBrevoConfigured()) {
+    if (logRow) {
+      await supabaseAdmin
+        .from("sms_log")
+        .update({ status: "skipped", error: "BREVO_API_KEY absent" })
+        .eq("id", logRow.id);
+    }
+    revalidatePath("/parametres");
+    return { ok: false, message: "BREVO_API_KEY non configurée" };
+  }
+
+  const r = await sendBrevoSms({
+    recipient: input.phone.trim(),
+    content: interpolated,
+    sender,
+    tag: input.templateKey ?? "test",
+  });
+
+  if (r.ok) {
+    if (logRow) {
+      await supabaseAdmin
+        .from("sms_log")
+        .update({
+          status: "sent",
+          brevo_message_id: r.messageId,
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", logRow.id);
+    }
+    revalidatePath("/parametres");
+    return { ok: true, messageId: r.messageId, bodyInterpolated: interpolated };
+  } else {
+    if (logRow) {
+      await supabaseAdmin
+        .from("sms_log")
+        .update({ status: "failed", error: r.message })
+        .eq("id", logRow.id);
+    }
+    revalidatePath("/parametres");
+    return { ok: false, message: r.message };
+  }
+}
+
+export async function refreshBrevoStatusAction(): Promise<{ ok: true }> {
+  revalidatePath("/parametres");
+  return { ok: true };
+}
