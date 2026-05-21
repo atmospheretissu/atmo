@@ -78,7 +78,8 @@ export async function updateProfileAction(
   if (patch.full_name !== undefined) {
     if (!patch.full_name.trim()) return { ok: false, message: "Nom requis" };
     sanitized.full_name = patch.full_name.trim();
-    sanitized.avatar_initial = patch.full_name.trim()[0]?.toUpperCase() ?? null;
+    // avatar_initial est une colonne GENERATED ALWAYS — Postgres la calcule
+    // depuis full_name, on ne la set pas manuellement.
   }
   if (patch.phone !== undefined) sanitized.phone = patch.phone?.trim() || null;
   if (patch.role !== undefined) sanitized.role = patch.role;
