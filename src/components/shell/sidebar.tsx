@@ -19,6 +19,7 @@ import {
   Inbox,
   MessageSquare,
   Zap,
+  Activity,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
@@ -34,6 +35,7 @@ type Item = {
 
 const navMain: Item[] = [
   { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard, tone: "violet" },
+  { label: "Activité", href: "/feed", icon: Activity, tone: "blue" },
   { label: "Boutique", href: "/boutique", icon: ShoppingBag, tone: "amber" },
   { label: "Devis", href: "/devis", icon: FileText, tone: "pink", badge: 12 },
   { label: "Confections", href: "/confections", icon: Scissors, tone: "orange", badge: 7 },
