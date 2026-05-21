@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, Mail, Phone, MapPin, ChevronDown } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { Search, Mail, Phone, MapPin, Send, Loader2, Bell } from "lucide-react";
 import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
 import { Input } from "@/components/ui/input";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { eur } from "@/lib/formatters";
 import type { LmLeadWithClient, LeadStatus } from "@/lib/db/lm-leads";
+import { triggerLeadAlertAction } from "@/app/(platform)/leads-lm/actions";
 
 const statusTone: Record<LeadStatus, StatusTone> = {
   nouveau: "blue",
@@ -151,6 +152,7 @@ export function LmLeadsTable({
                 <th className="px-5 py-2.5 eyebrow text-right">Montant</th>
                 <th className="px-5 py-2.5 eyebrow">Statut</th>
                 <th className="px-5 py-2.5 eyebrow">Reçu</th>
+                <th className="px-5 py-2.5 eyebrow text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -226,12 +228,15 @@ export function LmLeadsTable({
                     <td className="px-5 py-3 align-top text-[11.5px] text-muted">
                       {shortDate(l.created_at)}
                     </td>
+                    <td className="px-5 py-3 align-top text-right">
+                      <TriggerAlertButton leadId={l.id} leadNumber={l.number} />
+                    </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-[13px] text-muted">
+                  <td colSpan={8} className="px-5 py-12 text-center text-[13px] text-muted">
                     Aucun lead pour ce filtre.
                   </td>
                 </tr>
@@ -241,5 +246,60 @@ export function LmLeadsTable({
         </div>
       </section>
     </>
+  );
+}
+
+function TriggerAlertButton({ leadId, leadNumber }: { leadId: string; leadNumber: string }) {
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<
+    | { ok: true; summary: string }
+    | { ok: false; message: string }
+    | null
+  >(null);
+
+  const send = () => {
+    setResult(null);
+    startTransition(async () => {
+      const r = await triggerLeadAlertAction(leadId);
+      if (!r.ok) {
+        setResult({ ok: false, message: r.message });
+        return;
+      }
+      const parts: string[] = [];
+      if (r.smsFired) parts.push(`SMS client ${r.smsOk ? "✓" : "✗"}`);
+      if (r.emailFired) parts.push(`Email client ${r.emailOk ? "✓" : "✗"}`);
+      if (r.alertsMatched > 0)
+        parts.push(`${r.alertsMatched} alerte(s) interne(s) → ${r.alertsSent.sms} SMS, ${r.alertsSent.email} email`);
+      const summary = parts.length > 0 ? parts.join(" · ") : "Aucun envoi (règles inactives ou contact manquant)";
+      setResult({ ok: true, summary });
+    });
+  };
+
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      <button
+        onClick={send}
+        disabled={pending}
+        title={`Envoyer alertes/SMS/email configurés pour ${leadNumber}`}
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-violet text-white text-[11.5px] font-semibold hover:bg-violet/90 transition-colors disabled:opacity-50"
+      >
+        {pending ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <Bell className="h-3 w-3" strokeWidth={2.4} />
+        )}
+        Déclencher
+      </button>
+      {result && (
+        <p
+          className={
+            "text-[10.5px] text-right max-w-[200px] leading-tight " +
+            (result.ok ? "text-emerald" : "text-pink")
+          }
+        >
+          {result.ok ? result.summary : `✗ ${result.message}`}
+        </p>
+      )}
+    </div>
   );
 }

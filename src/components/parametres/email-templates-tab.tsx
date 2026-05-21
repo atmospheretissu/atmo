@@ -2,10 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Loader2, Send, Mail, Eye, Code } from "lucide-react";
+import { Pencil, Loader2, Send, Mail, Eye, Code, Plus, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { updateEmailTemplateAction } from "@/app/(platform)/parametres/actions";
+import {
+  updateEmailTemplateAction,
+  createEmailTemplateAction,
+  deleteEmailTemplateAction,
+} from "@/app/(platform)/parametres/actions";
 import type { EmailTemplate } from "@/lib/db/email-templates-shared";
 import { EMAIL_VARIABLES } from "@/lib/db/email-templates-shared";
 
@@ -34,6 +38,51 @@ export function EmailTemplatesTab({
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createDraft, setCreateDraft] = useState({
+    key: "",
+    label: "",
+    subject: "",
+    html_body: "",
+    text_body: "",
+    sender_email: "",
+    sender_name: "",
+    trigger_description: "",
+  });
+
+  const submitCreate = () => {
+    startTransition(async () => {
+      const r = await createEmailTemplateAction(createDraft);
+      if (!r.ok) {
+        alert(`Erreur : ${r.message}`);
+        return;
+      }
+      setCreating(false);
+      setCreateDraft({
+        key: "",
+        label: "",
+        subject: "",
+        html_body: "",
+        text_body: "",
+        sender_email: "",
+        sender_name: "",
+        trigger_description: "",
+      });
+      router.refresh();
+    });
+  };
+
+  const remove = (t: EmailTemplate) => {
+    if (!confirm(`Supprimer le template "${t.label}" ?`)) return;
+    startTransition(async () => {
+      const r = await deleteEmailTemplateAction(t.id);
+      if (!r.ok) {
+        alert(`Erreur : ${r.message}`);
+        return;
+      }
+      router.refresh();
+    });
+  };
   const [draft, setDraft] = useState<Draft>({
     subject: "",
     html_body: "",
@@ -125,6 +174,128 @@ export function EmailTemplatesTab({
           )}
         </p>
       </Card>
+
+      <div className="flex items-center justify-between">
+        <p className="text-[11.5px] text-muted-2">
+          Crée des templates email custom à plugger dans les règles ou alertes.
+        </p>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setCreating((v) => !v)}
+          disabled={pending}
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau template Email
+        </Button>
+      </div>
+
+      {creating && (
+        <Card className="p-5 ring-2 ring-violet-soft">
+          <p className="text-[14px] font-semibold text-ink mb-3">Nouveau template Email</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Clé technique
+              </span>
+              <input
+                value={createDraft.key}
+                onChange={(e) => setCreateDraft({ ...createDraft, key: e.target.value })}
+                placeholder="ex: alerte_interne"
+                className={INPUT_CLASS + " font-mono"}
+                autoFocus
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Libellé
+              </span>
+              <input
+                value={createDraft.label}
+                onChange={(e) => setCreateDraft({ ...createDraft, label: e.target.value })}
+                placeholder="Ex: Alerte admin urgente"
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Expéditeur · email
+              </span>
+              <input
+                value={createDraft.sender_email}
+                onChange={(e) => setCreateDraft({ ...createDraft, sender_email: e.target.value })}
+                placeholder="Défaut env"
+                className={INPUT_CLASS}
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Expéditeur · nom
+              </span>
+              <input
+                value={createDraft.sender_name}
+                onChange={(e) => setCreateDraft({ ...createDraft, sender_name: e.target.value })}
+                placeholder="Défaut env"
+                className={INPUT_CLASS}
+              />
+            </label>
+          </div>
+          <label className="block mb-3">
+            <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Déclencheur (description)
+            </span>
+            <input
+              value={createDraft.trigger_description}
+              onChange={(e) =>
+                setCreateDraft({ ...createDraft, trigger_description: e.target.value })
+              }
+              placeholder="Ex: À l'acompte reçu pour montant > 5000€"
+              className={INPUT_CLASS}
+            />
+          </label>
+          <label className="block mb-3">
+            <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Sujet
+            </span>
+            <input
+              value={createDraft.subject}
+              onChange={(e) => setCreateDraft({ ...createDraft, subject: e.target.value })}
+              placeholder="Ex: Alerte — gros acompte reçu"
+              className={INPUT_CLASS}
+            />
+          </label>
+          <label className="block mb-3">
+            <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Corps HTML
+            </span>
+            <textarea
+              value={createDraft.html_body}
+              onChange={(e) => setCreateDraft({ ...createDraft, html_body: e.target.value })}
+              rows={6}
+              className={TEXTAREA_CLASS}
+              placeholder="<p>Acompte de {{acompte}}€ reçu pour {{client_nom}}.</p>"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Version texte (optionnel)
+            </span>
+            <textarea
+              value={createDraft.text_body}
+              onChange={(e) => setCreateDraft({ ...createDraft, text_body: e.target.value })}
+              rows={2}
+              className={TEXTAREA_CLASS}
+            />
+          </label>
+          <div className="flex items-center justify-end gap-2 mt-3">
+            <Button variant="ghost" size="sm" onClick={() => setCreating(false)} disabled={pending}>
+              Annuler
+            </Button>
+            <Button variant="primary" size="sm" onClick={submitCreate} disabled={pending}>
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Créer"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <div className="space-y-3">
         {templates.map((t) => {
@@ -250,29 +421,38 @@ export function EmailTemplatesTab({
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-1.5 mt-3 border-t border-line pt-2.5">
+              <div className="flex items-center justify-between gap-1.5 mt-3 border-t border-line pt-2.5">
                 <button
-                  onClick={() => setPreviewing(previewing === t.id ? null : t.id)}
-                  className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
-                >
-                  {previewing === t.id ? (
-                    <>
-                      <Code className="h-3 w-3" /> Masquer
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="h-3 w-3" /> Aperçu HTML
-                    </>
-                  )}
-                </button>
-                <span className="text-muted-2 mx-1">·</span>
-                <button
-                  onClick={() => openEdit(t)}
-                  className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+                  onClick={() => remove(t)}
+                  className="text-[11.5px] text-muted-2 hover:text-pink inline-flex items-center gap-1"
                   disabled={pending}
                 >
-                  <Pencil className="h-3 w-3" /> Modifier
+                  <Trash2 className="h-3 w-3" /> Supprimer
                 </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setPreviewing(previewing === t.id ? null : t.id)}
+                    className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+                  >
+                    {previewing === t.id ? (
+                      <>
+                        <Code className="h-3 w-3" /> Masquer
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-3 w-3" /> Aperçu HTML
+                      </>
+                    )}
+                  </button>
+                  <span className="text-muted-2 mx-1">·</span>
+                  <button
+                    onClick={() => openEdit(t)}
+                    className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+                    disabled={pending}
+                  >
+                    <Pencil className="h-3 w-3" /> Modifier
+                  </button>
+                </div>
               </div>
             </Card>
           );

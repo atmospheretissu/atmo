@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Loader2, Send, MessageSquare, Power } from "lucide-react";
+import { Pencil, Loader2, Send, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   updateSmsTemplateAction,
   sendTestSmsAction,
+  createSmsTemplateAction,
+  deleteSmsTemplateAction,
 } from "@/app/(platform)/parametres/actions";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import { SMS_VARIABLES, DEFAULT_SENDER } from "@/lib/db/sms-templates-shared";
@@ -25,10 +27,43 @@ export function SmsTemplatesTab({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createDraft, setCreateDraft] = useState({
+    key: "",
+    label: "",
+    body: "",
+    sender: "",
+    trigger_description: "",
+  });
   const [draft, setDraft] = useState<{ body: string; sender: string }>({
     body: "",
     sender: "",
   });
+
+  const submitCreate = () => {
+    startTransition(async () => {
+      const r = await createSmsTemplateAction(createDraft);
+      if (!r.ok) {
+        alert(`Erreur : ${r.message}`);
+        return;
+      }
+      setCreating(false);
+      setCreateDraft({ key: "", label: "", body: "", sender: "", trigger_description: "" });
+      router.refresh();
+    });
+  };
+
+  const remove = (t: SmsTemplate) => {
+    if (!confirm(`Supprimer le template "${t.label}" ?`)) return;
+    startTransition(async () => {
+      const r = await deleteSmsTemplateAction(t.id);
+      if (!r.ok) {
+        alert(`Erreur : ${r.message}`);
+        return;
+      }
+      router.refresh();
+    });
+  };
 
   const openEdit = (t: SmsTemplate) => {
     setDraft({ body: t.body, sender: t.sender ?? "" });
@@ -135,6 +170,98 @@ export function SmsTemplatesTab({
         </div>
       </Card>
 
+      {/* Bouton créer */}
+      <div className="flex items-center justify-between">
+        <p className="text-[11.5px] text-muted-2">
+          Crée des templates spécifiques pour tes besoins métier (notifications internes, alertes, etc.).
+        </p>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setCreating((v) => !v)}
+          disabled={pending}
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau template SMS
+        </Button>
+      </div>
+
+      {/* Form création */}
+      {creating && (
+        <Card className="p-4 ring-2 ring-violet-soft">
+          <p className="text-[13.5px] font-semibold text-ink mb-3">Nouveau template SMS</p>
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_180px] gap-2 mb-3">
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Clé technique
+              </span>
+              <input
+                value={createDraft.key}
+                onChange={(e) => setCreateDraft({ ...createDraft, key: e.target.value })}
+                placeholder="ex: alerte_admin"
+                className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-[13.5px] text-ink font-mono placeholder:text-muted-2 focus:border-accent focus:outline-none"
+                autoFocus
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Libellé (lecture humaine)
+              </span>
+              <input
+                value={createDraft.label}
+                onChange={(e) => setCreateDraft({ ...createDraft, label: e.target.value })}
+                placeholder="Ex: Alerte interne admin"
+                className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-[13.5px] text-ink placeholder:text-muted-2 focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                Expéditeur
+              </span>
+              <input
+                value={createDraft.sender}
+                onChange={(e) => setCreateDraft({ ...createDraft, sender: e.target.value })}
+                placeholder={DEFAULT_SENDER}
+                maxLength={11}
+                className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-[13.5px] text-ink placeholder:text-muted-2 focus:border-accent focus:outline-none"
+              />
+            </label>
+          </div>
+          <label className="block mb-2">
+            <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Description (déclencheur)
+            </span>
+            <input
+              value={createDraft.trigger_description}
+              onChange={(e) =>
+                setCreateDraft({ ...createDraft, trigger_description: e.target.value })
+              }
+              placeholder="Ex: Au scan QR du dernier élément"
+              className="h-9 w-full rounded-md border border-line-strong bg-surface px-3 text-[13.5px] text-ink placeholder:text-muted-2 focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Corps du SMS
+            </span>
+            <textarea
+              value={createDraft.body}
+              onChange={(e) => setCreateDraft({ ...createDraft, body: e.target.value })}
+              rows={4}
+              placeholder="Bonjour {{prenom}}, ..."
+              className="w-full rounded-md border border-line-strong bg-surface p-3 text-[12.5px] text-ink font-mono leading-relaxed focus:border-accent focus:outline-none resize-y"
+            />
+          </label>
+          <div className="flex items-center justify-end gap-2 mt-3">
+            <Button variant="ghost" size="sm" onClick={() => setCreating(false)} disabled={pending}>
+              Annuler
+            </Button>
+            <Button variant="primary" size="sm" onClick={submitCreate} disabled={pending}>
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Créer"}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {templates.map((t) => {
           if (editing === t.id) {
@@ -222,22 +349,31 @@ export function SmsTemplatesTab({
               <p className="text-[10.5px] text-muted-2 mt-1.5 text-right">
                 {t.body.length} car. · {Math.ceil(t.body.length / 160) || 1} SMS
               </p>
-              <div className="flex items-center justify-end gap-1.5 mt-2 border-t border-line pt-3">
+              <div className="flex items-center justify-between gap-1.5 mt-2 border-t border-line pt-3">
                 <button
-                  onClick={() => testSend(t)}
-                  className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+                  onClick={() => remove(t)}
+                  className="text-[11.5px] text-muted-2 hover:text-pink inline-flex items-center gap-1"
                   disabled={pending}
                 >
-                  <Send className="h-3 w-3" /> Tester l&apos;envoi
+                  <Trash2 className="h-3 w-3" /> Supprimer
                 </button>
-                <span className="text-muted-2 mx-1">·</span>
-                <button
-                  onClick={() => openEdit(t)}
-                  className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
-                  disabled={pending}
-                >
-                  <Pencil className="h-3 w-3" /> Modifier
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => testSend(t)}
+                    className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+                    disabled={pending}
+                  >
+                    <Send className="h-3 w-3" /> Tester l&apos;envoi
+                  </button>
+                  <span className="text-muted-2 mx-1">·</span>
+                  <button
+                    onClick={() => openEdit(t)}
+                    className="text-[11.5px] text-muted hover:text-ink inline-flex items-center gap-1"
+                    disabled={pending}
+                  >
+                    <Pencil className="h-3 w-3" /> Modifier
+                  </button>
+                </div>
               </div>
             </Card>
           );

@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { SupplierInsert, SupplierUpdate } from "@/lib/db/suppliers";
 import type { ProfileUpdate, UserRole } from "@/lib/db/profiles";
-import type { SmsTemplateUpdate } from "@/lib/db/sms-templates";
-import type { EmailTemplateUpdate } from "@/lib/db/email-templates-shared";
+import type { SmsTemplate, SmsTemplateUpdate } from "@/lib/db/sms-templates";
+import type { EmailTemplate, EmailTemplateUpdate } from "@/lib/db/email-templates-shared";
 import type { AutomationRuleUpdate } from "@/lib/db/automation-rules-shared";
 import type { EventAlertInsert, EventAlertUpdate, AlertCriteria } from "@/lib/db/event-alerts-shared";
 import { sendSmsForTemplate } from "@/lib/brevo/send-sms";
@@ -572,5 +572,156 @@ export async function deleteEventAlertAction(id: string): Promise<Result> {
   const { error } = await supabase.from("event_alerts").delete().eq("id", id);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/parametres");
+  return { ok: true };
+}
+
+/* ============================ TEMPLATES CRUD ============================ */
+
+function sanitizeKey(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export async function createSmsTemplateAction(input: {
+  key: string;
+  label: string;
+  body: string;
+  sender?: string;
+  trigger_description?: string;
+  active?: boolean;
+}): Promise<{ ok: true; template: SmsTemplate } | { ok: false; message: string }> {
+  const key = sanitizeKey(input.key);
+  if (!key) return { ok: false, message: "Clé requise (lettres/chiffres/_)" };
+  if (!input.label.trim()) return { ok: false, message: "Libellé requis" };
+  if (!input.body.trim()) return { ok: false, message: "Corps requis" };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("sms_templates")
+    .insert({
+      key,
+      label: input.label.trim(),
+      body: input.body.trim(),
+      sender: input.sender?.trim() || null,
+      trigger_description: input.trigger_description?.trim() || null,
+      active: input.active ?? true,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    if (error.code === "23505") return { ok: false, message: `La clé "${key}" existe déjà` };
+    return { ok: false, message: error.message };
+  }
+  revalidatePath("/templates");
+  revalidatePath("/architecture");
+  return { ok: true, template: data as SmsTemplate };
+}
+
+export async function deleteSmsTemplateAction(id: string): Promise<Result> {
+  const supabase = await createClient();
+  // Vérifie qu'il n'est pas utilisé par une règle ou une alerte
+  const { data: tmpl } = await supabase
+    .from("sms_templates")
+    .select("key")
+    .eq("id", id)
+    .maybeSingle();
+  if (!tmpl) return { ok: false, message: "Template introuvable" };
+  const [{ count: ruleUsage }, { count: alertUsage }] = await Promise.all([
+    supabase
+      .from("automation_rules")
+      .select("*", { count: "exact", head: true })
+      .eq("sms_template_key", tmpl.key),
+    supabase
+      .from("event_alerts")
+      .select("*", { count: "exact", head: true })
+      .eq("sms_template_key", tmpl.key),
+  ]);
+  const total = (ruleUsage ?? 0) + (alertUsage ?? 0);
+  if (total > 0) {
+    return {
+      ok: false,
+      message: `Template utilisé par ${ruleUsage ?? 0} règle(s) et ${alertUsage ?? 0} alerte(s) — désactive-le plutôt`,
+    };
+  }
+  const { error } = await supabase.from("sms_templates").delete().eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/templates");
+  return { ok: true };
+}
+
+export async function createEmailTemplateAction(input: {
+  key: string;
+  label: string;
+  subject: string;
+  html_body: string;
+  text_body?: string;
+  sender_email?: string;
+  sender_name?: string;
+  trigger_description?: string;
+  active?: boolean;
+}): Promise<{ ok: true; template: EmailTemplate } | { ok: false; message: string }> {
+  const key = sanitizeKey(input.key);
+  if (!key) return { ok: false, message: "Clé requise (lettres/chiffres/_)" };
+  if (!input.label.trim()) return { ok: false, message: "Libellé requis" };
+  if (!input.subject.trim()) return { ok: false, message: "Sujet requis" };
+  if (!input.html_body.trim()) return { ok: false, message: "Corps HTML requis" };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("email_templates")
+    .insert({
+      key,
+      label: input.label.trim(),
+      subject: input.subject.trim(),
+      html_body: input.html_body,
+      text_body: input.text_body?.trim() || null,
+      sender_email: input.sender_email?.trim() || null,
+      sender_name: input.sender_name?.trim() || null,
+      trigger_description: input.trigger_description?.trim() || null,
+      active: input.active ?? true,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    if (error.code === "23505") return { ok: false, message: `La clé "${key}" existe déjà` };
+    return { ok: false, message: error.message };
+  }
+  revalidatePath("/templates");
+  revalidatePath("/architecture");
+  return { ok: true, template: data as EmailTemplate };
+}
+
+export async function deleteEmailTemplateAction(id: string): Promise<Result> {
+  const supabase = await createClient();
+  const { data: tmpl } = await supabase
+    .from("email_templates")
+    .select("key")
+    .eq("id", id)
+    .maybeSingle();
+  if (!tmpl) return { ok: false, message: "Template introuvable" };
+  const [{ count: ruleUsage }, { count: alertUsage }] = await Promise.all([
+    supabase
+      .from("automation_rules")
+      .select("*", { count: "exact", head: true })
+      .eq("email_template_key", tmpl.key),
+    supabase
+      .from("event_alerts")
+      .select("*", { count: "exact", head: true })
+      .eq("email_template_key", tmpl.key),
+  ]);
+  const total = (ruleUsage ?? 0) + (alertUsage ?? 0);
+  if (total > 0) {
+    return {
+      ok: false,
+      message: `Template utilisé par ${ruleUsage ?? 0} règle(s) et ${alertUsage ?? 0} alerte(s) — désactive-le plutôt`,
+    };
+  }
+  const { error } = await supabase.from("email_templates").delete().eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/templates");
   return { ok: true };
 }

@@ -60,7 +60,8 @@ export async function updateSession(request: NextRequest) {
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/health") ||
-    pathname.startsWith("/api/stripe/webhook");
+    pathname.startsWith("/api/stripe/webhook") ||
+    pathname.startsWith("/api/webhooks/");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
