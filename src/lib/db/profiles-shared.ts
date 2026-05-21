@@ -21,7 +21,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   couturiere: ["Ses bons de travail", "Mise à jour statut confection"],
   poseur: ["Interventions à planifier", "Contact client", "Confirmation pose"],
   decoratrice: ["Ses rendez-vous", "Fiches clients", "Historique"],
-  consultation_lm: ["Tableau de bord", "Leads Leroy Merlin (lecture)", "Activité (lecture)"],
+  consultation_lm: ["Tableau de bord", "Leads Leroy Merlin", "Activité", "Templates", "Architecture"],
 };
 
 export const ROLE_COLORS: Record<UserRole, "ink" | "violet" | "orange" | "pink" | "emerald" | "blue" | "amber"> = {
@@ -83,7 +83,7 @@ export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
     homeRoute: "/clients",
   },
   consultation_lm: {
-    allowed: ["/dashboard", "/leads-lm", "/feed"],
+    allowed: ["/dashboard", "/leads-lm", "/feed", "/templates", "/architecture"],
     homeRoute: "/dashboard",
   },
 };
