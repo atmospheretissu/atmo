@@ -80,7 +80,7 @@ export async function sendBrevoSms(
       body: JSON.stringify({
         recipient: payload.recipient,
         content: payload.content,
-        sender: payload.sender ?? process.env.BREVO_SENDER_NAME ?? "ATMOSPHERE",
+        sender: payload.sender ?? process.env.BREVO_SMS_SENDER ?? "ATMOSPHERE",
         type: "transactional",
         tag: payload.tag,
       }),
