@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   Send,
   Loader2,
@@ -22,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ColorChip, StatusPill } from "@/components/ui/status-pill";
 import {
   sendCustomSmsAction,
-  refreshBrevoStatusAction,
+  loadTestTabDataAction,
 } from "@/app/(platform)/parametres/actions";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import { DEFAULT_SENDER } from "@/lib/db/sms-templates-shared";
@@ -37,8 +36,6 @@ const TEXTAREA_CLASS =
 
 type Props = {
   templates: SmsTemplate[];
-  recentLog: SmsLogWithMeta[];
-  brevoAccount: BrevoAccountInfo;
   brevoConfigured: boolean;
 };
 
@@ -64,12 +61,41 @@ function interpolate(body: string, vars: Record<string, string>): string {
   return body.replace(/\{\{(\w+)\}\}/g, (_, name) => vars[name] ?? "");
 }
 
-export function TestTab({ templates, recentLog, brevoAccount, brevoConfigured }: Props) {
+export function TestTab({ templates, brevoConfigured }: Props) {
+  const [data, setData] = useState<{
+    brevoAccount: BrevoAccountInfo | null;
+    recentLog: SmsLogWithMeta[];
+  }>({ brevoAccount: null, recentLog: [] });
+  const [loading, setLoading] = useState(true);
+  const [pending, startTransition] = useTransition();
+
+  const load = () =>
+    startTransition(async () => {
+      setLoading(true);
+      try {
+        const r = await loadTestTabDataAction();
+        setData({ brevoAccount: r.brevoAccount, recentLog: r.recentSmsLog });
+      } finally {
+        setLoading(false);
+      }
+    });
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-5">
-      <BrevoStatusCard account={brevoAccount} brevoConfigured={brevoConfigured} />
-      <SmsTestCard templates={templates} brevoConfigured={brevoConfigured} />
-      <RecentSmsLogCard rows={recentLog} />
+      <BrevoStatusCard
+        account={data.brevoAccount}
+        brevoConfigured={brevoConfigured}
+        loading={loading}
+        onRefresh={load}
+        refreshing={pending}
+      />
+      <SmsTestCard templates={templates} brevoConfigured={brevoConfigured} onSent={load} />
+      <RecentSmsLogCard rows={data.recentLog} loading={loading} />
     </div>
   );
 }
@@ -79,23 +105,21 @@ export function TestTab({ templates, recentLog, brevoAccount, brevoConfigured }:
 function BrevoStatusCard({
   account,
   brevoConfigured,
+  loading,
+  onRefresh,
+  refreshing,
 }: {
-  account: BrevoAccountInfo;
+  account: BrevoAccountInfo | null;
   brevoConfigured: boolean;
+  loading: boolean;
+  onRefresh: () => void;
+  refreshing: boolean;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const refresh = () =>
-    startTransition(async () => {
-      await refreshBrevoStatusAction();
-      router.refresh();
-    });
-
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <ColorChip tone={brevoConfigured && account.ok ? "emerald" : "amber"} size="md">
+          <ColorChip tone={brevoConfigured && account?.ok ? "emerald" : "amber"} size="md">
             <Sparkles className="h-4 w-4" strokeWidth={2.2} />
           </ColorChip>
           <div>
@@ -105,8 +129,8 @@ function BrevoStatusCard({
             </p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={pending}>
-          {pending ? (
+        <Button variant="ghost" size="sm" onClick={onRefresh} disabled={refreshing}>
+          {refreshing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
@@ -115,14 +139,21 @@ function BrevoStatusCard({
         </Button>
       </div>
 
-      {!brevoConfigured && (
+      {loading && (
+        <div className="rounded-lg bg-canvas-2/40 border border-line p-4 text-center text-[12.5px] text-muted-2">
+          <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" />
+          Connexion à Brevo…
+        </div>
+      )}
+
+      {!loading && !brevoConfigured && (
         <div className="rounded-lg bg-amber-soft border border-amber/20 p-3 text-[12.5px] text-ink-2">
           <strong>BREVO_API_KEY non détectée.</strong> Ajoute-la dans Railway → Variables, puis
           redéploie pour activer Brevo.
         </div>
       )}
 
-      {brevoConfigured && !account.ok && (
+      {!loading && brevoConfigured && account && !account.ok && (
         <div className="rounded-lg bg-amber-soft border border-amber/20 p-3 text-[12.5px] text-ink-2">
           <strong>La clé est présente mais Brevo refuse la connexion.</strong>
           <div className="mt-1 font-mono text-[11px] text-amber">{account.message}</div>
@@ -141,7 +172,7 @@ function BrevoStatusCard({
         </div>
       )}
 
-      {account.ok && (
+      {!loading && account?.ok && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <InfoCell label="Compte" value={account.email} mono />
           <InfoCell
@@ -212,11 +243,12 @@ function InfoCell({
 function SmsTestCard({
   templates,
   brevoConfigured,
+  onSent,
 }: {
   templates: SmsTemplate[];
   brevoConfigured: boolean;
+  onSent: () => void;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [templateKey, setTemplateKey] = useState<string>(templates[0]?.key ?? "");
   const [body, setBody] = useState<string>(templates[0]?.body ?? "");
@@ -253,7 +285,7 @@ function SmsTestCard({
         vars,
       });
       setResult(r);
-      router.refresh();
+      onSent();
     });
   };
 
@@ -476,7 +508,13 @@ function SmsTestCard({
 
 /* ============================ RECENT LOG ============================== */
 
-function RecentSmsLogCard({ rows }: { rows: SmsLogWithMeta[] }) {
+function RecentSmsLogCard({
+  rows,
+  loading,
+}: {
+  rows: SmsLogWithMeta[];
+  loading: boolean;
+}) {
   return (
     <Card className="overflow-hidden">
       <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-line">
@@ -485,7 +523,12 @@ function RecentSmsLogCard({ rows }: { rows: SmsLogWithMeta[] }) {
             <Inbox className="h-4 w-4" strokeWidth={2.2} />
           </ColorChip>
           <div>
-            <p className="text-[14px] font-semibold text-ink">Historique SMS récents</p>
+            <p className="text-[14px] font-semibold text-ink">
+              Historique SMS récents
+              {rows.length > 0 && (
+                <span className="ml-2 text-muted-2 font-semibold text-[12px]">{rows.length}</span>
+              )}
+            </p>
             <p className="text-[11.5px] text-muted">
               Les 20 derniers envois (table <span className="font-mono">sms_log</span>).
             </p>
@@ -493,7 +536,12 @@ function RecentSmsLogCard({ rows }: { rows: SmsLogWithMeta[] }) {
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {loading ? (
+        <div className="px-5 py-10 text-center text-[12.5px] text-muted-2">
+          <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" />
+          Chargement…
+        </div>
+      ) : rows.length === 0 ? (
         <div className="px-5 py-10 text-center text-[12.5px] text-muted-2">
           Aucun SMS envoyé pour le moment.
         </div>

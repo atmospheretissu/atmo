@@ -275,3 +275,20 @@ export async function refreshBrevoStatusAction(): Promise<{ ok: true }> {
   revalidatePath("/parametres");
   return { ok: true };
 }
+
+/**
+ * Charge à la demande les données du Test tab (Brevo account + log).
+ * Évite le blocking call HTTP à Brevo sur chaque SSR de /parametres.
+ */
+export async function loadTestTabDataAction(): Promise<{
+  brevoAccount: import("@/lib/brevo/account").BrevoAccountInfo;
+  recentSmsLog: import("@/lib/db/sms-log").SmsLogWithMeta[];
+}> {
+  const { getBrevoAccount } = await import("@/lib/brevo/account");
+  const { listRecentSmsLog } = await import("@/lib/db/sms-log");
+  const [brevoAccount, recentSmsLog] = await Promise.all([
+    getBrevoAccount(),
+    listRecentSmsLog(20),
+  ]);
+  return { brevoAccount, recentSmsLog };
+}

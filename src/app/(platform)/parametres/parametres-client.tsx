@@ -19,9 +19,6 @@ import { TestTab } from "@/components/parametres/test-tab";
 import type { Supplier } from "@/lib/db/suppliers";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
-import type { SmsLogWithMeta } from "@/lib/db/sms-log";
-import type { BrevoAccountInfo } from "@/lib/brevo/account";
-
 type TabKey = "fournisseurs" | "utilisateurs" | "roles" | "sms" | "test" | "integrations";
 
 type Props = {
@@ -35,8 +32,6 @@ type Props = {
     brevoSms: boolean;
     pennylane: boolean;
   };
-  recentSmsLog: SmsLogWithMeta[];
-  brevoAccount: BrevoAccountInfo;
 };
 
 export default function ParametresClient({
@@ -45,8 +40,6 @@ export default function ParametresClient({
   smsTemplates,
   roleCounts,
   envFlags,
-  recentSmsLog,
-  brevoAccount,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("fournisseurs");
 
@@ -76,7 +69,7 @@ export default function ParametresClient({
             <TabBtn active={tab === "utilisateurs"} onClick={() => setTab("utilisateurs")} icon={Users} label="Utilisateurs" count={profiles.length} />
             <TabBtn active={tab === "roles"} onClick={() => setTab("roles")} icon={Shield} label="Rôles & accès" count={6} />
             <TabBtn active={tab === "sms"} onClick={() => setTab("sms")} icon={MessageSquare} label="Templates SMS" count={smsTemplates.length} />
-            <TabBtn active={tab === "test"} onClick={() => setTab("test")} icon={FlaskConical} label="Test" count={recentSmsLog.length} />
+            <TabBtn active={tab === "test"} onClick={() => setTab("test")} icon={FlaskConical} label="Test" count={0} />
             <TabBtn active={tab === "integrations"} onClick={() => setTab("integrations")} icon={Plug} label="Intégrations" count={5} />
           </nav>
         </section>
@@ -89,8 +82,6 @@ export default function ParametresClient({
           {tab === "test" && (
             <TestTab
               templates={smsTemplates}
-              recentLog={recentSmsLog}
-              brevoAccount={brevoAccount}
               brevoConfigured={envFlags.brevoSms}
             />
           )}
