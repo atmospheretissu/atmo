@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
+import { tryClaimLmLead } from "@/lib/events/lm-lead-claim";
 
 /**
  * Webhook : appelé par Supabase Database Webhooks à chaque INSERT dans lm_leads.
@@ -61,15 +62,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 3. Charge le lead + client
+  // 3. Charge le lead
   const supabase = createServiceRoleClient();
   const { data: lead } = await supabase
     .from("lm_leads")
-    .select("id, number, region, product_summary, amount, client_id")
+    .select("id, number, region, product_summary, amount, client_id, alerts_sent_at")
     .eq("id", leadId)
     .maybeSingle();
   if (!lead) {
     return NextResponse.json({ error: "lead not found", lead_id: leadId }, { status: 404 });
+  }
+
+  // 4. Atomic claim — empêche les doublons si plusieurs sources notifient.
+  // Si le lead a déjà été traité (par le poller ou un précédent webhook),
+  // on skip et on retourne already_processed.
+  const claimed = await tryClaimLmLead(leadId);
+  if (!claimed) {
+    return NextResponse.json({
+      ok: true,
+      lead_id: leadId,
+      already_processed: true,
+      previously_processed_at: lead.alerts_sent_at,
+    });
   }
 
   const { data: client } = lead.client_id
@@ -80,7 +94,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
     : { data: null };
 
-  // 4. Trigger
+  // 5. Trigger
   try {
     const result = await triggerEvent("lead_lm_received", {
       toPhone: client?.phone ?? null,
@@ -97,6 +111,7 @@ export async function POST(request: NextRequest) {
       criteriaContext: {
         amount: Number(lead.amount ?? 0),
       },
+      triggerSource: "webhook:lm-lead-created",
     });
 
     return NextResponse.json({

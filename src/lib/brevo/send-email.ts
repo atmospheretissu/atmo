@@ -20,6 +20,8 @@ export async function sendEmailForTemplate(args: {
   toName?: string;
   vars?: EmailVars;
   clientId?: string | null;
+  eventKey?: string | null;
+  triggerSource?: string | null;
 }): Promise<EmailSendResult> {
   const supabase = createServiceRoleClient();
 
@@ -51,6 +53,8 @@ export async function sendEmailForTemplate(args: {
       subject,
       body_html: html,
       status: "pending",
+      event_key: args.eventKey ?? null,
+      trigger_source: args.triggerSource ?? null,
     })
     .select("id")
     .single();

@@ -403,6 +403,16 @@ function CommunicationDetails({ event }: { event: FeedEvent }) {
     <div className="rounded-lg border border-line bg-white overflow-hidden">
       <div className="px-3 py-2 bg-canvas-2/40 border-b border-line flex items-center gap-2 flex-wrap">
         <StatusPill tone={statusTone}>{status}</StatusPill>
+        {d.event_key != null ? (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-soft text-violet text-[10.5px] font-semibold">
+            Événement : <span className="font-mono">{String(d.event_key)}</span>
+          </span>
+        ) : null}
+        {d.trigger_source_human != null ? (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-soft text-blue text-[10.5px] font-semibold">
+            Source : {String(d.trigger_source_human)}
+          </span>
+        ) : null}
         {d.template_key != null ? (
           <span className="text-[11px] text-muted">
             Template : <span className="font-mono text-ink-2">{String(d.template_key)}</span>

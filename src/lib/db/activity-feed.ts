@@ -319,12 +319,20 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
     queries.push(
       supabase
         .from("sms_log")
-        .select("id, template_key, client_id, to_phone, body, brevo_message_id, status, error, sent_at, created_at")
+        .select("id, template_key, client_id, to_phone, body, brevo_message_id, status, error, sent_at, created_at, event_key, trigger_source")
         .order("created_at", { ascending: false })
         .limit(perTable)
         .then(({ data }) =>
           (data ?? []).map((s): FeedEvent => {
             const failed = s.status === "failed" || s.status === "bounced";
+            const sourceLabel = s.trigger_source ? humanizeSource(s.trigger_source) : null;
+            const desc = [
+              s.template_key ? `Template: ${s.template_key}` : "Message libre",
+              s.event_key ? `Événement: ${s.event_key}` : null,
+              sourceLabel ? `Source: ${sourceLabel}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
             return {
               id: `sms:${s.id}`,
               kind: failed ? "sms_failed" : "sms_sent",
@@ -334,7 +342,7 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
                 : s.status === "skipped"
                   ? `SMS skip (no Brevo) — ${s.to_phone}`
                   : `SMS envoyé — ${s.to_phone}`,
-              description: s.template_key ? `Template: ${s.template_key}` : "Message libre",
+              description: desc,
               occurredAt: s.created_at,
               severity: failed ? "error" : s.status === "skipped" ? "warning" : "ok",
               link: null,
@@ -342,6 +350,9 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
                 body: s.body,
                 status: s.status,
                 template_key: s.template_key,
+                event_key: s.event_key,
+                trigger_source: s.trigger_source,
+                trigger_source_human: sourceLabel,
                 client_id: s.client_id,
                 brevo_message_id: s.brevo_message_id,
                 error: s.error,
@@ -358,12 +369,20 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
     queries.push(
       supabase
         .from("email_log")
-        .select("id, template_key, client_id, to_email, subject, body_html, brevo_message_id, status, error, sent_at, created_at")
+        .select("id, template_key, client_id, to_email, subject, body_html, brevo_message_id, status, error, sent_at, created_at, event_key, trigger_source")
         .order("created_at", { ascending: false })
         .limit(perTable)
         .then(({ data }) =>
           (data ?? []).map((e): FeedEvent => {
             const failed = e.status === "failed" || e.status === "bounced";
+            const sourceLabel = e.trigger_source ? humanizeSource(e.trigger_source) : null;
+            const desc = [
+              e.subject,
+              e.event_key ? `Événement: ${e.event_key}` : null,
+              sourceLabel ? `Source: ${sourceLabel}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
             return {
               id: `email:${e.id}`,
               kind: failed ? "email_failed" : "email_sent",
@@ -373,7 +392,7 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
                 : e.status === "skipped"
                   ? `Email skip (no Brevo) — ${e.to_email}`
                   : `Email envoyé — ${e.to_email}`,
-              description: e.subject,
+              description: desc,
               occurredAt: e.created_at,
               severity: failed ? "error" : e.status === "skipped" ? "warning" : "ok",
               link: null,
@@ -382,6 +401,9 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
                 body_html: e.body_html,
                 status: e.status,
                 template_key: e.template_key,
+                event_key: e.event_key,
+                trigger_source: e.trigger_source,
+                trigger_source_human: sourceLabel,
                 client_id: e.client_id,
                 brevo_message_id: e.brevo_message_id,
                 error: e.error,
@@ -397,4 +419,33 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
   const merged = results.flat();
   merged.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
   return merged.slice(0, limit);
+}
+
+/**
+ * Convertit un trigger_source technique en label humain.
+ * "webhook:lm-lead-created" → "Webhook Atmolead"
+ * "manual:leads-lm-button"  → "Clic manuel sur /leads-lm"
+ */
+function humanizeSource(source: string): string {
+  const baseSrc = source.split("+")[0];
+  const map: Record<string, string> = {
+    "webhook:lm-lead-created": "Webhook Atmolead",
+    "manual:leads-lm-button": "Clic manuel · Leads LM",
+    "manual:leads-lm-button-force": "Clic manuel forcé · Leads LM",
+    "cron:process-pending": "Poller automatique",
+    "action:change-devis-status": "Devis envoyé manuellement",
+    "action:mark-acompte-recu": "Acompte marqué reçu",
+    "action:receive-by-qr": "Scan QR réception",
+    "action:mark-pose-done": "Pose marquée effectuée",
+    "stripe:checkout-completed": "Webhook Stripe (paiement)",
+    "test:sms-tab": "Test depuis /parametres",
+    "test:email-tab": "Test depuis /parametres",
+    "test:templates-sms-button": "Bouton 'Tester l'envoi' (Templates SMS)",
+  };
+  if (baseSrc in map) {
+    const human = map[baseSrc];
+    if (source.includes("+alert:")) return `${human} → Alerte interne`;
+    return human;
+  }
+  return source;
 }

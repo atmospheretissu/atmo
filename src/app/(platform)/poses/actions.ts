@@ -163,6 +163,7 @@ export async function markPoseDoneAction(
           prenom: firstNameOf(client.display_name),
           lien_avis: "https://g.page/atmospheretissus/review",
         },
+        triggerSource: "action:mark-pose-done",
       });
     }
   } catch (err) {

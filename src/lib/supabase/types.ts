@@ -770,6 +770,8 @@ export interface Database {
           sent_at: string | null;
           delivered_at: string | null;
           created_at: string;
+          event_key: string | null;
+          trigger_source: string | null;
         };
         Insert: {
           id?: string;
@@ -784,6 +786,8 @@ export interface Database {
           sent_at?: string | null;
           delivered_at?: string | null;
           created_at?: string;
+          event_key?: string | null;
+          trigger_source?: string | null;
         };
         Update: {
           id?: string;
@@ -798,6 +802,8 @@ export interface Database {
           sent_at?: string | null;
           delivered_at?: string | null;
           created_at?: string;
+          event_key?: string | null;
+          trigger_source?: string | null;
         };
         Relationships: [];
       };
@@ -1153,6 +1159,8 @@ export interface Database {
           sent_at: string | null;
           delivered_at: string | null;
           created_at: string;
+          event_key: string | null;
+          trigger_source: string | null;
         };
         Insert: {
           id?: string;
@@ -1166,6 +1174,8 @@ export interface Database {
           sent_at?: string | null;
           delivered_at?: string | null;
           created_at?: string;
+          event_key?: string | null;
+          trigger_source?: string | null;
         };
         Update: {
           id?: string;
@@ -1179,6 +1189,8 @@ export interface Database {
           sent_at?: string | null;
           delivered_at?: string | null;
           created_at?: string;
+          event_key?: string | null;
+          trigger_source?: string | null;
         };
         Relationships: [];
       };

@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
+import { tryClaimLmLead, forceClaimLmLead } from "@/lib/events/lm-lead-claim";
 
 export type LeadAlertResult =
   | {
       ok: true;
+      alreadyProcessed: boolean;
       smsFired: boolean;
       smsOk?: boolean;
       smsMessage?: string;
@@ -19,12 +21,16 @@ export type LeadAlertResult =
   | { ok: false; message: string };
 
 /**
- * Déclenche manuellement l'événement "lead_lm_received" pour un lead existant.
- * Utilisé pour :
- *   - relancer un lead reçu avant le branchement du webhook
- *   - tester le flow SMS/email/alertes sans attendre un nouveau lead
+ * Déclenche manuellement l'événement "lead_lm_received" pour un lead.
+ *
+ *   - opts.force=false (défaut) : tente le claim atomique, retourne
+ *     alreadyProcessed=true si le lead a déjà été traité (par webhook ou poller)
+ *   - opts.force=true : force le re-déclenchement même si déjà traité
  */
-export async function triggerLeadAlertAction(leadId: string): Promise<LeadAlertResult> {
+export async function triggerLeadAlertAction(
+  leadId: string,
+  opts: { force?: boolean } = {},
+): Promise<LeadAlertResult> {
   const supabase = await createClient();
 
   const { data: lead, error } = await supabase
@@ -35,7 +41,28 @@ export async function triggerLeadAlertAction(leadId: string): Promise<LeadAlertR
   if (error) return { ok: false, message: error.message };
   if (!lead) return { ok: false, message: "Lead introuvable" };
 
-  // Récupère le client lié (pour avoir téléphone/email du contact LM)
+  // Claim atomique : empêche les doublons sauf si force=true
+  let alreadyProcessed = false;
+  if (opts.force) {
+    await forceClaimLmLead(leadId);
+  } else {
+    const claimed = await tryClaimLmLead(leadId);
+    if (!claimed) alreadyProcessed = true;
+  }
+
+  if (alreadyProcessed) {
+    return {
+      ok: true,
+      alreadyProcessed: true,
+      smsFired: false,
+      smsMessage: "Déjà traité — utilisez force pour renvoyer",
+      emailFired: false,
+      emailMessage: "Déjà traité — utilisez force pour renvoyer",
+      alertsMatched: 0,
+      alertsSent: { sms: 0, email: 0 },
+    };
+  }
+
   const { data: client } = lead.client_id
     ? await supabase
         .from("clients")
@@ -55,11 +82,11 @@ export async function triggerLeadAlertAction(leadId: string): Promise<LeadAlertR
       numero_devis: lead.number,
       produit: lead.product_summary,
       total_ttc: lead.amount ? String(Math.round(Number(lead.amount))) : "",
-      acompte: "",
     },
     criteriaContext: {
       amount: Number(lead.amount ?? 0),
     },
+    triggerSource: opts.force ? "manual:leads-lm-button-force" : "manual:leads-lm-button",
   });
 
   revalidatePath("/leads-lm");
@@ -67,6 +94,7 @@ export async function triggerLeadAlertAction(leadId: string): Promise<LeadAlertR
 
   return {
     ok: true,
+    alreadyProcessed: false,
     smsFired: result.sms?.fired ?? false,
     smsOk: result.sms?.ok,
     smsMessage: result.sms?.message,

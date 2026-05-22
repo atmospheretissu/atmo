@@ -50,6 +50,8 @@ export async function sendSmsForTemplate(args: {
   vars?: SmsVars;
   clientId?: string | null;
   overrideSender?: string;
+  eventKey?: string | null;
+  triggerSource?: string | null;
 }): Promise<SmsSendResult> {
   const supabase = createServiceRoleClient();
 
@@ -80,6 +82,8 @@ export async function sendSmsForTemplate(args: {
       to_phone: args.toPhone,
       body,
       status: "pending",
+      event_key: args.eventKey ?? null,
+      trigger_source: args.triggerSource ?? null,
     })
     .select("id")
     .single();

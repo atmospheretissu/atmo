@@ -252,59 +252,75 @@ export function LmLeadsTable({
 function TriggerAlertButton({ leadId, leadNumber }: { leadId: string; leadNumber: string }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<
-    | { ok: true; summary: string }
+    | { ok: true; summary: string; alreadyProcessed?: boolean }
     | { ok: false; message: string }
     | null
   >(null);
 
-  const send = () => {
+  const send = (force = false) => {
     setResult(null);
     startTransition(async () => {
-      const r = await triggerLeadAlertAction(leadId);
+      const r = await triggerLeadAlertAction(leadId, { force });
       if (!r.ok) {
         setResult({ ok: false, message: r.message });
         return;
       }
+      if (r.alreadyProcessed) {
+        setResult({
+          ok: true,
+          alreadyProcessed: true,
+          summary: "Déjà traité — clique à nouveau pour forcer le renvoi",
+        });
+        return;
+      }
       const parts: string[] = [];
-      // SMS
       if (r.smsFired) {
-        parts.push(r.smsOk ? "SMS client ✓" : `SMS client ✗ (${r.smsMessage ?? "?"})`);
+        parts.push(r.smsOk ? "SMS ✓" : `SMS ✗ (${r.smsMessage ?? "?"})`);
       } else if (r.smsMessage) {
         parts.push(`SMS · ${r.smsMessage}`);
       }
-      // Email
       if (r.emailFired) {
-        parts.push(r.emailOk ? "Email client ✓" : `Email client ✗ (${r.emailMessage ?? "?"})`);
+        parts.push(r.emailOk ? "Email ✓" : `Email ✗ (${r.emailMessage ?? "?"})`);
       } else if (r.emailMessage) {
         parts.push(`Email · ${r.emailMessage}`);
       }
       if (r.alertsMatched > 0)
-        parts.push(`${r.alertsMatched} alerte(s) interne(s) → ${r.alertsSent.sms} SMS, ${r.alertsSent.email} email`);
-      const summary = parts.length > 0 ? parts.join(" · ") : "Aucune règle Architecture trouvée";
+        parts.push(`${r.alertsMatched} alerte(s) → ${r.alertsSent.sms} SMS, ${r.alertsSent.email} email`);
+      const summary = parts.length > 0 ? parts.join(" · ") : "Aucune règle Architecture";
       setResult({ ok: true, summary });
     });
   };
 
+  // Si le résultat précédent dit "déjà traité", un 2e clic force le renvoi.
+  const isForceState = result?.ok && result.alreadyProcessed;
+
   return (
     <div className="inline-flex flex-col items-end gap-1">
       <button
-        onClick={send}
+        onClick={() => send(isForceState ?? false)}
         disabled={pending}
-        title={`Envoyer alertes/SMS/email configurés pour ${leadNumber}`}
-        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-violet text-white text-[11.5px] font-semibold hover:bg-violet/90 transition-colors disabled:opacity-50"
+        title={
+          isForceState
+            ? `Forcer le renvoi pour ${leadNumber}`
+            : `Envoyer alertes/SMS/email configurés pour ${leadNumber}`
+        }
+        className={
+          "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-white text-[11.5px] font-semibold transition-colors disabled:opacity-50 " +
+          (isForceState ? "bg-amber hover:bg-amber/90" : "bg-violet hover:bg-violet/90")
+        }
       >
         {pending ? (
           <Loader2 className="h-3 w-3 animate-spin" />
         ) : (
           <Bell className="h-3 w-3" strokeWidth={2.4} />
         )}
-        Déclencher
+        {isForceState ? "Forcer renvoi" : "Déclencher"}
       </button>
       {result && (
         <p
           className={
             "text-[10.5px] text-right max-w-[200px] leading-tight " +
-            (result.ok ? "text-emerald" : "text-pink")
+            (result.ok ? (result.alreadyProcessed ? "text-amber" : "text-emerald") : "text-pink")
           }
         >
           {result.ok ? result.summary : `✗ ${result.message}`}

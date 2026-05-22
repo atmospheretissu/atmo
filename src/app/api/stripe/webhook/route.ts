@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
               prenom: firstNameOf(client.display_name),
               acompte: String(Math.round(Number(devis.acompte_ttc ?? 0))),
             },
+            triggerSource: "stripe:checkout-completed",
           });
         }
       } catch (err) {

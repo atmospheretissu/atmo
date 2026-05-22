@@ -187,6 +187,7 @@ export async function sendTestSmsAction(
       lien_pdf: "https://atmospheretissus.fr/d/abc",
       lien_avis: "https://g.page/atmospheretissus/review",
     },
+    triggerSource: "test:templates-sms-button",
   });
   if (!r.ok) return { ok: false, message: r.message };
   return { ok: true, messageId: r.messageId };
@@ -229,6 +230,7 @@ export async function sendCustomSmsAction(input: {
       to_phone: input.phone.trim(),
       body: interpolated,
       status: "pending",
+      trigger_source: "test:sms-tab",
     })
     .select("id")
     .single();
@@ -396,6 +398,7 @@ export async function sendCustomEmailAction(input: {
       subject: interpolated.subject,
       body_html: interpolated.html,
       status: "pending",
+      trigger_source: "test:email-tab",
     })
     .select("id")
     .single();

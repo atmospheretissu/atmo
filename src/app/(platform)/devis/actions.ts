@@ -159,6 +159,7 @@ export async function changeDevisStatusAction(
             amount: Number(devis.total_ttc ?? 0),
             channel: devis.channel,
           },
+          triggerSource: "action:change-devis-status",
         });
       }
     } catch (err) {
@@ -242,6 +243,7 @@ export async function markAcompteRecuAction(
           amount: Number(devisFull?.total_ttc ?? 0),
           channel: devisFull?.channel ?? undefined,
         },
+        triggerSource: "action:mark-acompte-recu",
       });
     }
   } catch (err) {

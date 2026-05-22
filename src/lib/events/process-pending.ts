@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
+import { tryClaimLmLead } from "./lm-lead-claim";
 
 /**
  * Processeur poll-based : déclenche les SMS/email/alertes pour tous les
@@ -41,6 +42,13 @@ export async function processPendingLmLeadAlerts(opts: { batchSize?: number } = 
 
   for (const lead of pending) {
     try {
+      // Atomic claim : un autre process peut avoir traité ce lead entre le
+      // SELECT et maintenant. tryClaim retourne false si déjà claimed.
+      const claimed = await tryClaimLmLead(lead.id);
+      if (!claimed) {
+        continue;
+      }
+
       const { data: client } = lead.client_id
         ? await supabase
             .from("clients")
@@ -62,13 +70,8 @@ export async function processPendingLmLeadAlerts(opts: { batchSize?: number } = 
           total_ttc: lead.amount ? String(Math.round(Number(lead.amount))) : "",
         },
         criteriaContext: { amount: Number(lead.amount ?? 0) },
+        triggerSource: "cron:process-pending",
       });
-
-      // Marque traité même si Brevo a échoué (évite re-trigger en boucle)
-      await supabase
-        .from("lm_leads")
-        .update({ alerts_sent_at: new Date().toISOString() })
-        .eq("id", lead.id);
 
       if (
         r.sms?.fired ||

@@ -83,6 +83,7 @@ export async function receiveByQrAction(qrCode: string): Promise<ReceiveResult> 
         toName: client.display_name,
         clientId: dossier.client_id,
         vars: { prenom: firstNameOf(client.display_name) },
+        triggerSource: "action:receive-by-qr",
       });
     } catch (err) {
       console.warn("[trigger tous_recus]", err);

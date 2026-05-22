@@ -17,6 +17,8 @@ export type TriggerContext = {
   vars?: Record<string, string | number | undefined | null>;
   /** Contexte pour évaluer les critères des alertes internes. */
   criteriaContext?: CriteriaContext;
+  /** Origine de l'appel (webhook, action, cron, manual…). Loggé dans sms_log / email_log. */
+  triggerSource?: string;
 };
 
 export type TriggerEventResult = {
@@ -43,6 +45,7 @@ function interpolate(template: string, vars: Record<string, string | number | un
 async function dispatchAlert(
   alert: EventAlert,
   vars: Record<string, string | number | undefined | null>,
+  ctx: { eventKey: string; triggerSource?: string },
 ): Promise<{ sms: number; email: number }> {
   let smsCount = 0;
   let emailCount = 0;
@@ -57,6 +60,8 @@ async function dispatchAlert(
             templateKey: alert.sms_template_key,
             toPhone: phone,
             vars,
+            eventKey: ctx.eventKey,
+            triggerSource: ctx.triggerSource ? `${ctx.triggerSource}+alert:${alert.id}` : `alert:${alert.id}`,
           });
           if (r.ok) smsCount += 1;
         } else if (alert.sms_body) {
@@ -68,6 +73,8 @@ async function dispatchAlert(
               to_phone: phone,
               body,
               status: "pending",
+              event_key: ctx.eventKey,
+              trigger_source: ctx.triggerSource ? `${ctx.triggerSource}+alert:${alert.id}` : `alert:${alert.id}`,
             })
             .select("id")
             .single();
@@ -117,6 +124,8 @@ async function dispatchAlert(
             templateKey: alert.email_template_key,
             toEmail: email,
             vars,
+            eventKey: ctx.eventKey,
+            triggerSource: ctx.triggerSource ? `${ctx.triggerSource}+alert:${alert.id}` : `alert:${alert.id}`,
           });
           if (r.ok) emailCount += 1;
         } else if (alert.email_html) {
@@ -130,6 +139,8 @@ async function dispatchAlert(
               subject,
               body_html: html,
               status: "pending",
+              event_key: ctx.eventKey,
+              trigger_source: ctx.triggerSource ? `${ctx.triggerSource}+alert:${alert.id}` : `alert:${alert.id}`,
             })
             .select("id")
             .single();
@@ -212,6 +223,8 @@ export async function triggerEvent(
         toPhone: ctx.toPhone,
         clientId: ctx.clientId ?? null,
         vars: ctx.vars,
+        eventKey,
+        triggerSource: ctx.triggerSource ?? null,
       });
       result.sms = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
     }
@@ -230,6 +243,8 @@ export async function triggerEvent(
         toName: ctx.toName ?? undefined,
         clientId: ctx.clientId ?? null,
         vars: ctx.vars,
+        eventKey,
+        triggerSource: ctx.triggerSource ?? null,
       });
       result.email = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
     }
@@ -253,7 +268,10 @@ export async function triggerEvent(
   for (const alert of alerts) {
     if (!matchesCriteria(alert.criteria as AlertCriteria, ctx.criteriaContext)) continue;
     result.alertsMatched += 1;
-    const sent = await dispatchAlert(alert, alertVars);
+    const sent = await dispatchAlert(alert, alertVars, {
+      eventKey,
+      triggerSource: ctx.triggerSource,
+    });
     result.alertsSent.sms += sent.sms;
     result.alertsSent.email += sent.email;
   }
