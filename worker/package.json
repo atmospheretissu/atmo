@@ -1,0 +1,29 @@
+{
+  "name": "atmolead-worker",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "scrape:once": "tsx src/cli.ts run-once"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
+    "croner": "^9.0.0",
+    "dotenv": "^16.4.5",
+    "pino": "^9.5.0",
+    "playwright": "^1.60.0",
+    "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}
