@@ -28,7 +28,9 @@ export function startHealthServer(): void {
     res.writeHead(404).end('not found');
   });
 
-  server.listen(env.port, () => {
-    logger.info({ port: env.port }, 'health server listening');
+  // Bind to :: (IPv6 unspecified, dual-stack) — required by Railway's private
+  // networking which resolves *.railway.internal to IPv6 addresses.
+  server.listen(env.port, '::', () => {
+    logger.info({ port: env.port, host: '::' }, 'health server listening');
   });
 }
