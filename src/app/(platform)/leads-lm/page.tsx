@@ -54,7 +54,7 @@ export default async function LeadsLmPage() {
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Leads Leroy Merlin" },
+          { label: "Atmoleads" },
         ]}
         actions={
           <a
@@ -74,7 +74,7 @@ export default async function LeadsLmPage() {
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Pipeline LM · Atmolead scraper</p>
           <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Leads Leroy Merlin
+            Atmoleads
             <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
               {stats.total}
             </span>

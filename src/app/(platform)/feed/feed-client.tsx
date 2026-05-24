@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ExternalLink,
@@ -19,6 +19,8 @@ import {
   XCircle,
   Info,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
@@ -116,11 +118,13 @@ function fullDate(iso: string): string {
 }
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as FeedCategory[];
+const PAGE_SIZE = 50;
 
 export default function FeedClient({ events }: { events: FeedEvent[] }) {
   const [filterCats, setFilterCats] = useState<Set<FeedCategory>>(new Set(ALL_CATEGORIES));
   const [query, setQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -130,6 +134,23 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
       return true;
     });
   }, [events, filterCats, query]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterCats, query]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, filtered.length);
+  const paginated = useMemo(
+    () => filtered.slice(pageStart, pageEnd),
+    [filtered, pageStart, pageEnd],
+  );
 
   const toggleCat = (c: FeedCategory) => {
     const n = new Set(filterCats);
@@ -145,16 +166,16 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
   const onlyOne = (c: FeedCategory) => setFilterCats(new Set([c]));
   const showAll = () => setFilterCats(new Set(ALL_CATEGORIES));
 
-  // Group by day
+  // Group by day (sur la page courante)
   const byDay = useMemo(() => {
     const map = new Map<string, FeedEvent[]>();
-    for (const e of filtered) {
+    for (const e of paginated) {
       const day = new Date(e.occurredAt).toISOString().slice(0, 10);
       if (!map.has(day)) map.set(day, []);
       map.get(day)!.push(e);
     }
     return Array.from(map.entries());
-  }, [filtered]);
+  }, [paginated]);
 
   const counts = useMemo(() => {
     const m: Record<FeedCategory, number> = {} as Record<FeedCategory, number>;
@@ -259,38 +280,99 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
               <p className="text-[13px] text-muted">Aucun événement à afficher.</p>
             </Card>
           ) : (
-            <div className="space-y-6">
-              {byDay.map(([day, dayEvents]) => (
-                <div key={day}>
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                    <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-2">
-                      {formatDay(day)}
-                    </p>
-                    <span className="text-[10.5px] text-muted-2 tabular-nums">
-                      {dayEvents.length} évén.
-                    </span>
-                  </div>
-                  <Card className="overflow-hidden">
-                    <div className="divide-y divide-line">
-                      {dayEvents.map((event) => (
-                        <EventRow
-                          key={event.id}
-                          event={event}
-                          expanded={expandedId === event.id}
-                          onToggle={() =>
-                            setExpandedId(expandedId === event.id ? null : event.id)
-                          }
-                        />
-                      ))}
+            <>
+              <div className="space-y-6">
+                {byDay.map(([day, dayEvents]) => (
+                  <div key={day}>
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <p className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-2">
+                        {formatDay(day)}
+                      </p>
+                      <span className="text-[10.5px] text-muted-2 tabular-nums">
+                        {dayEvents.length} évén.
+                      </span>
                     </div>
-                  </Card>
-                </div>
-              ))}
-            </div>
+                    <Card className="overflow-hidden">
+                      <div className="divide-y divide-line">
+                        {dayEvents.map((event) => (
+                          <EventRow
+                            key={event.id}
+                            event={event}
+                            expanded={expandedId === event.id}
+                            onToggle={() =>
+                              setExpandedId(expandedId === event.id ? null : event.id)
+                            }
+                          />
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+                ))}
+              </div>
+
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                pageStart={pageStart}
+                pageEnd={pageEnd}
+                total={filtered.length}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+              />
+            </>
           )}
         </section>
       </div>
     </>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  pageStart,
+  pageEnd,
+  total,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  pageStart: number;
+  pageEnd: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+  return (
+    <div className="mt-6 flex items-center justify-between gap-4 flex-wrap">
+      <p className="text-[12px] text-muted tabular-nums">
+        {total === 0 ? "0 événement" : `${pageStart + 1}–${pageEnd} sur ${total}`}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onPrev}
+          disabled={!canPrev}
+          className="h-8 px-3 rounded-full text-[12.5px] font-medium flex items-center gap-1.5 bg-white text-ink border border-line hover:border-line-strong disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+          Précédent
+        </button>
+        <span className="text-[12px] text-muted tabular-nums px-2">
+          Page {page} / {totalPages}
+        </span>
+        <button
+          onClick={onNext}
+          disabled={!canNext}
+          className="h-8 px-3 rounded-full text-[12.5px] font-medium flex items-center gap-1.5 bg-white text-ink border border-line hover:border-line-strong disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        >
+          Suivant
+          <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.2} />
+        </button>
+      </div>
+    </div>
   );
 }
 

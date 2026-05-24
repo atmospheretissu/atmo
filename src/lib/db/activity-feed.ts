@@ -81,7 +81,7 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
               id: `lead:${l.id}`,
               kind: "lead_lm_received",
               category: "lead",
-              label: `Lead Leroy Merlin reçu — ${l.number}`,
+              label: `Atmolead reçu — ${l.number}`,
               description: `${l.region} · ${l.product_summary}${l.amount ? ` · ~${l.amount}€` : ""}`,
               occurredAt: l.created_at,
               severity: "info",

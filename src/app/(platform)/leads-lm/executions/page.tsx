@@ -29,7 +29,7 @@ export default async function ExecutionsPage({
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Leads Leroy Merlin" },
+          { label: "Atmoleads" },
           { label: "Exécutions" },
         ]}
       />

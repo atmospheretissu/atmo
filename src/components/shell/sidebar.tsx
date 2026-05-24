@@ -22,6 +22,7 @@ import {
   Rss,
   LogOut,
   Lock,
+  FlaskConical,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
@@ -53,13 +54,14 @@ const navSecondary: Item[] = [
   { label: "Caisse", href: "/caisse", icon: Receipt, tone: "lime" },
   { label: "Collection Atmosphère", href: "/collection", icon: Library, tone: "amber" },
   { label: "Clients", href: "/clients", icon: Users, tone: "ink" },
-  { label: "Leads Leroy Merlin", href: "/leads-lm", icon: Inbox, tone: "orange" },
+  { label: "Atmoleads", href: "/leads-lm", icon: Inbox, tone: "orange" },
 ];
 
 const navAdmin: Item[] = [
   { label: "Paramètres", href: "/parametres", icon: Settings, tone: "ink" },
   { label: "Templates", href: "/templates", icon: MessageSquare, tone: "violet" },
   { label: "Architecture", href: "/architecture", icon: Zap, tone: "amber" },
+  { label: "Test parcours", href: "/test", icon: FlaskConical, tone: "pink" },
 ];
 
 function NavLink({ item, allowed }: { item: Item; allowed: boolean }) {
