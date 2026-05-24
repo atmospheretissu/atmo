@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
-import { longDate } from "@/lib/formatters";
+import { longDate, time } from "@/lib/formatters";
 import type { AtmoleadExecution } from "@/lib/db/atmolead";
 
 const statusTone: Record<AtmoleadExecution["status"], StatusTone> = {
@@ -70,9 +70,12 @@ export function AtmoleadExecutionsList({ executions }: { executions: AtmoleadExe
                 <td className="px-5 py-3">
                   <Link
                     href={`/leads-lm/executions/${e.id}`}
-                    className="block text-[12.5px] text-ink-2"
+                    className="block"
                   >
-                    {longDate(e.started_at)}
+                    <div className="text-[12.5px] text-ink-2">{longDate(e.started_at)}</div>
+                    <div className="font-mono text-[11px] text-muted tabular-nums">
+                      {time(e.started_at)}
+                    </div>
                   </Link>
                 </td>
                 <td className="px-5 py-3">

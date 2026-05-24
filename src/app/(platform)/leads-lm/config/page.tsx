@@ -7,7 +7,7 @@ import { AtmoleadConfigForm } from "@/components/lm-leads/atmolead-config-form";
 import { AtmoleadWorkerStatusCard } from "@/components/lm-leads/atmolead-worker-status-card";
 import { AtmoleadTestNowButton } from "@/components/lm-leads/atmolead-test-now-button";
 import { describeCron } from "@/lib/atmolead-cron";
-import { longDate } from "@/lib/formatters";
+import { longDate, time } from "@/lib/formatters";
 import {
   getAtmoleadConfig,
   listAtmoleadExecutions,
@@ -74,7 +74,7 @@ export default async function ConfigPage() {
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Leads Leroy Merlin" },
+          { label: "Atmoleads" },
           { label: "Configuration" },
         ]}
         actions={<AtmoleadTestNowButton />}
@@ -136,9 +136,14 @@ export default async function ConfigPage() {
                       <td className="px-5 py-2.5">
                         <Link
                           href={`/leads-lm/executions/${e.id}`}
-                          className="text-muted hover:text-ink-2"
+                          className="block hover:text-ink-2"
                         >
-                          {longDate(e.started_at)}
+                          <div className="text-[12.5px] text-ink-2">
+                            {longDate(e.started_at)}
+                          </div>
+                          <div className="font-mono text-[11px] text-muted tabular-nums">
+                            {time(e.started_at)}
+                          </div>
                         </Link>
                       </td>
                       <td className="px-5 py-2.5">

@@ -7,7 +7,7 @@ import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { AtmoleadTimeline } from "@/components/lm-leads/atmolead-timeline";
 import { AtmoleadRawLeadsTable } from "@/components/lm-leads/atmolead-raw-leads-table";
-import { longDate } from "@/lib/formatters";
+import { longDate, time } from "@/lib/formatters";
 import { getAtmoleadExecution, listAtmoleadRawLeads } from "@/lib/db/atmolead";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +62,7 @@ export default async function ExecutionDetailPage({
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Leads Leroy Merlin", href: "/leads-lm" },
+          { label: "Atmoleads", href: "/leads-lm" },
           { label: "Exécutions", href: "/leads-lm/executions" },
           { label: execution.id.slice(0, 8) },
         ]}
@@ -83,6 +83,9 @@ export default async function ExecutionDetailPage({
               <p className="eyebrow mb-3">Pipeline LM · Exécution</p>
               <h1 className="text-[28px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
                 Run du {longDate(execution.started_at)}
+                <span className="ml-2 font-mono text-[18px] font-medium text-muted tabular-nums">
+                  {time(execution.started_at)}
+                </span>
               </h1>
               <p className="text-[13.5px] text-muted">
                 Déclenché : <strong className="text-ink-2 font-medium">{triggerLabel[execution.triggered_by] ?? execution.triggered_by}</strong>
