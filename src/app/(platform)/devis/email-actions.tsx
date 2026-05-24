@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDevisDetail } from "@/lib/db/devis";
 import { DevisPDF } from "@/lib/pdf/devis-pdf";
 import { sendBrevoEmail, isBrevoConfigured } from "@/lib/brevo/client";
+import { createStripeCheckoutAction } from "./stripe-actions";
 
 export type SendDevisEmailResult =
   | { ok: true; messageId: string; emailedTo: string }
@@ -66,6 +67,29 @@ export async function sendDevisEmailAction(
   const firstName = client.display_name.split(",")[1]?.trim() ?? client.display_name;
   const pdfLink = `${appUrl}/devis/${devis.id}/pdf`;
 
+  // Génère le lien Stripe d'acompte (best-effort — si Stripe indispo, l'email
+  // part quand même, juste sans bouton de paiement).
+  let stripeUrl: string | null = null;
+  try {
+    const stripeResult = await createStripeCheckoutAction(devisId);
+    if (stripeResult.ok) stripeUrl = stripeResult.url;
+  } catch (err) {
+    console.warn("[devis email] Stripe link non généré:", err);
+  }
+
+  const payButtonHtml = stripeUrl
+    ? `<p style="margin:20px 0 12px 0">
+        <a href="${stripeUrl}" style="display:inline-block;padding:14px 22px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
+          ✓ Accepter et payer l'acompte ${eur(acompte)}
+        </a>
+      </p>
+      <p style="margin:0 0 16px 0;font-size:11.5px;color:#9ca3af">
+        Paiement 100% sécurisé via Stripe. Carte bancaire — encaissement immédiat.
+      </p>`
+    : `<p style="margin:8px 0 16px 0;font-size:12px;color:#9ca3af;font-style:italic">
+        Pour valider et payer l'acompte, contactez Atmosphère Tissus au 05 56 XX XX XX.
+      </p>`;
+
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8f7fb;padding:24px;margin:0;color:#111111">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
     <div style="padding:20px 24px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center">
@@ -88,8 +112,9 @@ export async function sendDevisEmailAction(
         Le devis détaillé est en pièce jointe. Pour le valider, un acompte de 50% est requis
         à la commande, le solde est dû avant la pose.
       </p>
+      ${payButtonHtml}
       <p style="margin:16px 0">
-        <a href="${pdfLink}" style="display:inline-block;padding:10px 16px;background:#111111;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Télécharger le PDF</a>
+        <a href="${pdfLink}" style="display:inline-block;padding:10px 16px;background:#111111;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Télécharger le PDF du devis</a>
       </p>
       <p style="margin:24px 0 0 0;font-size:12px;color:#6b7280">
         À très vite,<br/>L'équipe Atmosphère Tissus
@@ -108,7 +133,7 @@ Voici votre devis ${devis.number} pour ${devis.product_summary}.
 Total TTC : ${eur(totalTtc)}
 Acompte 50% à la validation : ${eur(acompte)}
 
-PDF détaillé en pièce jointe.
+${stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}PDF détaillé en pièce jointe.
 
 L'équipe Atmosphère Tissus`;
 

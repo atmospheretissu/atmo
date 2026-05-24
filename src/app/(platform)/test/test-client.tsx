@@ -608,6 +608,15 @@ export default function TestClient({
             vrai client ou un vrai devis à n'importe quelle étape.
           </p>
 
+          <div className="mt-4 inline-flex items-start gap-2 rounded-lg border border-amber/30 bg-amber-soft/50 px-3 py-2 text-[12px] text-amber max-w-2xl">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" strokeWidth={2.2} />
+            <span>
+              <strong>Mode test sûr</strong> — tous les SMS et emails déclenchés par ce wizard
+              sont <strong>forcés sur {TEST_PHONE} / {TEST_EMAIL}</strong>, même si tu reprends
+              un vrai client. Aucun risque de spammer un client réel.
+            </span>
+          </div>
+
           {/* Progress bar */}
           <div className="mt-6 rounded-xl border border-line bg-white p-4">
             <div className="flex items-center justify-between mb-2 text-[12px] text-muted">

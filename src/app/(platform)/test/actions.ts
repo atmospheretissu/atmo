@@ -7,6 +7,7 @@ import {
   changeDevisStatusAction,
   markAcompteRecuAction,
 } from "@/app/(platform)/devis/actions";
+import { sendDevisEmailAction } from "@/app/(platform)/devis/email-actions";
 import { receiveByQrAction } from "@/app/(platform)/reception/actions";
 import {
   createPoseForDossierAction,
@@ -31,6 +32,84 @@ export type TestResult<T = Record<string, unknown>> =
   | ({ ok: true } & T)
   | { ok: false; message: string };
 
+/**
+ * Destinataires forcés en mode test : SMS et emails partent TOUJOURS sur ces
+ * coordonnées pendant un parcours /test, même si on réutilise un vrai client.
+ */
+const TEST_PHONE_E164 = "+33667699490";
+const TEST_EMAIL_INTERNAL = "dmanscour70@gmail.com";
+
+/**
+ * Force temporairement les coordonnées d'un client (phone + email) sur les
+ * valeurs test, exécute la callback (qui va déclencher des triggerEvent
+ * lisant client.phone/email), puis restaure les valeurs originelles.
+ *
+ * Cas d'usage : éviter de spammer un vrai client quand un opérateur passe
+ * son dossier dans le wizard /test.
+ */
+async function withTestRecipients<T>(
+  clientId: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const supabase = await createClient();
+  const { data: original } = await supabase
+    .from("clients")
+    .select("phone, email")
+    .eq("id", clientId)
+    .maybeSingle();
+
+  await supabase
+    .from("clients")
+    .update({ phone: TEST_PHONE_E164, email: TEST_EMAIL_INTERNAL })
+    .eq("id", clientId);
+
+  try {
+    return await run();
+  } finally {
+    await supabase
+      .from("clients")
+      .update({
+        phone: original?.phone ?? null,
+        email: original?.email ?? null,
+      })
+      .eq("id", clientId);
+  }
+}
+
+/** Récupère le client_id d'un devis (helper interne). */
+async function clientIdOfDevis(devisId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("devis")
+    .select("client_id")
+    .eq("id", devisId)
+    .maybeSingle();
+  return data?.client_id ?? null;
+}
+
+/** Récupère le client_id d'un dossier (helper interne). */
+async function clientIdOfDossier(dossierId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("dossiers")
+    .select("client_id")
+    .eq("id", dossierId)
+    .maybeSingle();
+  return data?.client_id ?? null;
+}
+
+/** Récupère le client_id d'une pose (via son dossier). */
+async function clientIdOfPose(poseId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data: pose } = await supabase
+    .from("poses")
+    .select("dossier_id")
+    .eq("id", poseId)
+    .maybeSingle();
+  if (!pose) return null;
+  return clientIdOfDossier(pose.dossier_id);
+}
+
 /** Crée un client de test (sans redirect — contrairement à createClientAction). */
 export async function testCreateClient(input: {
   display_name: string;
@@ -45,10 +124,17 @@ export async function testCreateClient(input: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "Session expirée." };
 
+  // Normalise le téléphone en E.164 (Brevo SMS exige +33...).
+  // 0612345678 → +33612345678
+  let phoneNormalized = input.phone.trim();
+  if (/^0[1-9]\d{8}$/.test(phoneNormalized)) {
+    phoneNormalized = "+33" + phoneNormalized.slice(1);
+  }
+
   const row = clientToDbRow({
     display_name: input.display_name,
     email: input.email,
-    phone: input.phone,
+    phone: phoneNormalized,
     channel: input.channel,
     address_pose: input.address_pose ?? "",
     city: input.city ?? "",
@@ -140,11 +226,30 @@ export async function testCreateDevis(input: {
   };
 }
 
-/** Envoie le devis (status → envoye, trigger SMS/email automatiques). */
-export async function testSendDevis(devisId: string): Promise<TestResult> {
-  const r = await changeDevisStatusAction(devisId, "envoye");
-  if (!r || r.ok) return { ok: true };
-  return { ok: false, message: r.message ?? "Échec" };
+/** Envoie le devis : email complet avec PDF + trigger SMS automation.
+ *  Destinataires forcés sur les contacts test. */
+export async function testSendDevis(
+  devisId: string,
+): Promise<TestResult<{ emailedTo?: string; smsOk: boolean }>> {
+  const clientId = await clientIdOfDevis(devisId);
+  if (!clientId) return { ok: false, message: "Devis sans client" };
+
+  return withTestRecipients(clientId, async () => {
+    // 1. Email complet avec PDF (passe par sendDevisEmailAction qui marque
+    //    aussi le devis comme envoye et fixe sent_at).
+    const mail = await sendDevisEmailAction(devisId);
+    if (!mail.ok) {
+      return { ok: false, message: `Email : ${mail.message}` };
+    }
+
+    // 2. Trigger SMS automation (devis_envoye). Idempotent : si le statut est
+    //    déjà 'envoye' (set par sendDevisEmailAction), changeDevisStatusAction
+    //    ne refait que le trigger event sans re-stamp.
+    const status = await changeDevisStatusAction(devisId, "envoye");
+    const smsOk = !status || status.ok;
+
+    return { ok: true, emailedTo: mail.emailedTo, smsOk };
+  });
 }
 
 /** Valide le devis (status → valide). */
@@ -154,11 +259,17 @@ export async function testValidateDevis(devisId: string): Promise<TestResult> {
   return { ok: false, message: r.message ?? "Échec" };
 }
 
-/** Marque l'acompte reçu (virement manuel). Crée le dossier + BCs auto. */
+/** Marque l'acompte reçu (virement manuel). Crée le dossier + BCs auto.
+ *  Destinataires forcés sur les contacts test. */
 export async function testMarkAcomptePaid(
   devisId: string,
 ): Promise<TestResult<{ dossierId: string; bcCount: number; itemCount: number }>> {
-  const r = await markAcompteRecuAction(devisId);
+  const clientId = await clientIdOfDevis(devisId);
+  if (!clientId) return { ok: false, message: "Devis sans client" };
+
+  const r = await withTestRecipients(clientId, () =>
+    markAcompteRecuAction(devisId),
+  );
   if (!r || !r.ok || !r.dossierId) {
     return {
       ok: false,
@@ -224,31 +335,38 @@ export async function testListDossierItems(
   };
 }
 
-/** Réceptionne TOUS les items d'un dossier via leur QR. */
+/** Réceptionne TOUS les items d'un dossier via leur QR.
+ *  Destinataires forcés sur les contacts test (le dernier scan déclenche le
+ *  SMS "tous_recus" → arrive sur le téléphone test). */
 export async function testReceiveAllItems(
   dossierId: string,
 ): Promise<TestResult<{ received: number; skipped: number; total: number }>> {
-  const supabase = await createClient();
-  const { data: items, error } = await supabase
-    .from("dossier_items")
-    .select("qr_code, status")
-    .eq("dossier_id", dossierId);
-  if (error) return { ok: false, message: error.message };
-  if (!items || items.length === 0) {
-    return { ok: false, message: "Aucun item dans ce dossier" };
-  }
+  const clientId = await clientIdOfDossier(dossierId);
+  if (!clientId) return { ok: false, message: "Dossier sans client" };
 
-  let received = 0;
-  let skipped = 0;
-  for (const it of items) {
-    if (it.status === "recu") {
-      skipped += 1;
-      continue;
+  return withTestRecipients(clientId, async () => {
+    const supabase = await createClient();
+    const { data: items, error } = await supabase
+      .from("dossier_items")
+      .select("qr_code, status")
+      .eq("dossier_id", dossierId);
+    if (error) return { ok: false, message: error.message };
+    if (!items || items.length === 0) {
+      return { ok: false, message: "Aucun item dans ce dossier" };
     }
-    const r = await receiveByQrAction(it.qr_code);
-    if (r.ok) received += 1;
-  }
-  return { ok: true, received, skipped, total: items.length };
+
+    let received = 0;
+    let skipped = 0;
+    for (const it of items) {
+      if (it.status === "recu") {
+        skipped += 1;
+        continue;
+      }
+      const r = await receiveByQrAction(it.qr_code);
+      if (r.ok) received += 1;
+    }
+    return { ok: true, received, skipped, total: items.length };
+  });
 }
 
 /** Réceptionne un seul item via son QR (utile pour démontrer un scan). */
@@ -279,11 +397,17 @@ export async function testCreateAndSchedulePose(
   return { ok: true, poseId: c.poseId };
 }
 
-/** Marque la pose comme effectuée (déclenche SMS satisfaction). */
+/** Marque la pose comme effectuée (déclenche SMS satisfaction).
+ *  Destinataires forcés sur les contacts test. */
 export async function testMarkPoseDone(
   poseId: string,
 ): Promise<TestResult> {
-  const r = await markPoseDoneAction(poseId);
+  const clientId = await clientIdOfPose(poseId);
+  if (!clientId) return { ok: false, message: "Pose sans client" };
+
+  const r = await withTestRecipients(clientId, () =>
+    markPoseDoneAction(poseId),
+  );
   if (!r.ok) return { ok: false, message: r.message };
   return { ok: true };
 }
@@ -320,16 +444,17 @@ export async function testMarkSoldePaid(
   if (e2) return { ok: false, message: e2.message };
 
   // Trigger éventuel event de solde (si configuré dans automation_rules).
+  // Destinataires forcés sur les contacts test.
   try {
     const { data: client } = await supabase
       .from("clients")
-      .select("phone, email, display_name")
+      .select("display_name")
       .eq("id", devis.client_id)
       .maybeSingle();
     if (client) {
       await triggerEvent("solde_recu", {
-        toPhone: client.phone,
-        toEmail: client.email,
+        toPhone: TEST_PHONE_E164,
+        toEmail: TEST_EMAIL_INTERNAL,
         toName: client.display_name,
         clientId: devis.client_id,
         vars: {
