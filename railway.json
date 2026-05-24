@@ -1,7 +1,20 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "watchPatterns": [
+      "src/**",
+      "public/**",
+      "supabase/**",
+      "scripts/**",
+      "package.json",
+      "package-lock.json",
+      "next.config.ts",
+      "tsconfig.json",
+      "postcss.config.mjs",
+      "railway.json",
+      ".env.example"
+    ]
   },
   "deploy": {
     "startCommand": "npm start",
