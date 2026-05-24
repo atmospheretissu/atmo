@@ -13,6 +13,7 @@ import { eur } from "@/lib/formatters";
 import { listLmLeads, getLmLeadStats, getLastAtmoleadRun } from "@/lib/db/lm-leads";
 import { processPendingLmLeadAlerts } from "@/lib/events/process-pending";
 import { LmLeadsTable } from "@/components/lm-leads/lm-leads-table";
+import { AtmoleadTabs } from "@/components/lm-leads/atmolead-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -97,7 +98,9 @@ export default async function LeadsLmPage() {
           </p>
         </section>
 
-        <section className="px-8 pb-6">
+        <AtmoleadTabs />
+
+        <section className="px-8 pt-6 pb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <MiniStat
               tone="violet"
