@@ -75,14 +75,41 @@ export async function receiveByQrAction(qrCode: string): Promise<ReceiveResult> 
     : { data: null };
 
   // Trigger "tous_recus" si on vient de basculer en pret_pose
+  // → templates SMS/email peuvent utiliser {{lien_portail}} pour pointer
+  //   sur l'espace client (où le bouton "Payer le solde" est affiché).
   if (!wasAlreadyReceived && dossier?.status === "pret_pose" && client) {
     try {
+      // Récupère le devis pour calculer le solde + le token portail
+      const { data: devis } = await supabase
+        .from("devis")
+        .select("client_access_token, total_ttc, acompte_ttc")
+        .eq("id", (await supabase.from("dossiers").select("devis_id").eq("id", dossier.id).maybeSingle()).data?.devis_id ?? "")
+        .maybeSingle();
+
+      const totalTtc = Number(devis?.total_ttc ?? 0);
+      const acompteTtc = Number(devis?.acompte_ttc ?? totalTtc * 0.5);
+      const soldeTtc = Math.max(0, totalTtc - acompteTtc);
+
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL ??
+        (process.env.RAILWAY_PUBLIC_DOMAIN
+          ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+          : "https://atmospheretissus.fr");
+      const portalLink = devis?.client_access_token
+        ? `${appUrl}/client/${devis.client_access_token}`
+        : null;
+
       await triggerEvent("tous_recus", {
         toPhone: client.phone,
         toEmail: client.email,
         toName: client.display_name,
         clientId: dossier.client_id,
-        vars: { prenom: firstNameOf(client.display_name) },
+        vars: {
+          prenom: firstNameOf(client.display_name),
+          solde: String(Math.round(soldeTtc)),
+          lien_portail: portalLink ?? "",
+          numero_dossier: dossier.number,
+        },
         triggerSource: "action:receive-by-qr",
       });
     } catch (err) {

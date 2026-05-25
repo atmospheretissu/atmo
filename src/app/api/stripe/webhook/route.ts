@@ -43,11 +43,88 @@ export async function POST(request: NextRequest) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const devisId = session.metadata?.devis_id;
+    const paymentKind = (session.metadata?.kind ?? "acompte") as "acompte" | "solde";
 
     if (!devisId) {
       return NextResponse.json({ received: true, note: "no devis_id metadata" });
     }
 
+    // Lit le devis pour calculer les montants et trigger les events
+    const { data: devis } = await supabase
+      .from("devis")
+      .select("client_id, acompte_ttc, total_ttc, channel, number")
+      .eq("id", devisId)
+      .maybeSingle();
+    if (!devis) {
+      return NextResponse.json({ error: "Devis introuvable" }, { status: 404 });
+    }
+
+    const totalTtc = Number(devis.total_ttc ?? 0);
+    const acompteTtc = Number(devis.acompte_ttc ?? totalTtc * 0.5);
+    const soldeTtc = Math.max(0, totalTtc - acompteTtc);
+    const piId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id ?? null;
+
+    if (paymentKind === "solde") {
+      // ── SOLDE : encaissement final
+      const amount = Number(session.amount_total ?? 0) / 100 || soldeTtc;
+
+      // 1. Insert payment kind=solde
+      await supabase.from("payments").insert({
+        devis_id: devisId,
+        client_id: devis.client_id,
+        kind: "solde",
+        method: "stripe",
+        amount_ttc: amount,
+        stripe_payment_intent_id: piId,
+        notes: `Solde Stripe — ${session.id}`,
+      });
+
+      // 2. Update dossier.solde_paid
+      const { data: dossier } = await supabase
+        .from("dossiers")
+        .select("id")
+        .eq("devis_id", devisId)
+        .maybeSingle();
+      if (dossier?.id) {
+        await supabase
+          .from("dossiers")
+          .update({ solde_paid: true, solde_paid_at: new Date().toISOString() })
+          .eq("id", dossier.id);
+      }
+
+      // 3. Trigger event interne (alerte admin "solde encaissé")
+      try {
+        const { data: client } = await supabase
+          .from("clients")
+          .select("phone, email, display_name")
+          .eq("id", devis.client_id)
+          .maybeSingle();
+        if (client) {
+          await triggerEvent("solde_recu", {
+            toPhone: client.phone,
+            toEmail: client.email,
+            toName: client.display_name,
+            clientId: devis.client_id,
+            vars: {
+              prenom: firstNameOf(client.display_name),
+              solde: String(Math.round(amount)),
+              numero_devis: devis.number,
+            },
+            criteriaContext: { amount: totalTtc, channel: devis.channel ?? undefined },
+            triggerSource: "stripe:checkout-completed",
+          });
+        }
+      } catch (err) {
+        console.warn("[trigger stripe → solde_recu]", err);
+      }
+
+      return NextResponse.json({ received: true, devisId, paymentKind: "solde" });
+    }
+
+    // ── ACOMPTE : flow original
     // 1. Update devis status
     const { error: e1 } = await supabase
       .from("devis")
@@ -60,56 +137,41 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Insert payment record
-    const { data: devis } = await supabase
-      .from("devis")
-      .select("client_id, acompte_ttc")
-      .eq("id", devisId)
-      .maybeSingle();
-
-    if (devis) {
-      await supabase.from("payments").insert({
-        devis_id: devisId,
-        client_id: devis.client_id,
-        kind: "acompte",
-        method: "stripe",
-        amount_ttc: Number(devis.acompte_ttc ?? 0),
-        stripe_payment_intent_id:
-          typeof session.payment_intent === "string"
-            ? session.payment_intent
-            : session.payment_intent?.id ?? null,
-        notes: `Stripe Checkout — ${session.id}`,
-      });
-    }
+    await supabase.from("payments").insert({
+      devis_id: devisId,
+      client_id: devis.client_id,
+      kind: "acompte",
+      method: "stripe",
+      amount_ttc: acompteTtc,
+      stripe_payment_intent_id: piId,
+      notes: `Acompte Stripe — ${session.id}`,
+    });
 
     // 2b. Trigger event "acompte_recu" (SMS et/ou email selon règle)
-    if (devis) {
-      try {
-        const { data: client } = await supabase
-          .from("clients")
-          .select("phone, email, display_name")
-          .eq("id", devis.client_id)
-          .maybeSingle();
-        if (client) {
-          await triggerEvent("acompte_recu", {
-            toPhone: client.phone,
-            toEmail: client.email,
-            toName: client.display_name,
-            clientId: devis.client_id,
-            vars: {
-              prenom: firstNameOf(client.display_name),
-              acompte: String(Math.round(Number(devis.acompte_ttc ?? 0))),
-            },
-            triggerSource: "stripe:checkout-completed",
-          });
-        }
-      } catch (err) {
-        console.warn("[trigger stripe → acompte_recu]", err);
+    try {
+      const { data: client } = await supabase
+        .from("clients")
+        .select("phone, email, display_name")
+        .eq("id", devis.client_id)
+        .maybeSingle();
+      if (client) {
+        await triggerEvent("acompte_recu", {
+          toPhone: client.phone,
+          toEmail: client.email,
+          toName: client.display_name,
+          clientId: devis.client_id,
+          vars: {
+            prenom: firstNameOf(client.display_name),
+            acompte: String(Math.round(acompteTtc)),
+          },
+          triggerSource: "stripe:checkout-completed",
+        });
       }
+    } catch (err) {
+      console.warn("[trigger stripe → acompte_recu]", err);
     }
 
     // 3. Auto-création (ou récupération) du dossier — idempotent.
-    //    Si la fiche existait déjà (créée à la création du devis depuis la boutique),
-    //    on flip simplement acompte_paid à true.
     //    On passe le service-role client car le webhook n'a pas de session user
     //    et les RLS dossiers/items/bons_commande exigent un rôle 'staff'.
     const dossierResult = await createDossierFromDevis(devisId, supabase);
@@ -126,6 +188,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       received: true,
       devisId,
+      paymentKind: "acompte",
       dossierCreated: dossierResult.ok ? dossierResult.created : false,
     });
   }
