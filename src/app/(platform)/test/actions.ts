@@ -834,78 +834,221 @@ export async function testSendCustomEmail(input: {
   return { ok: false, message: r.message };
 }
 
-/** Historique des SMS + emails (loggés en base) — affiché en bas du wizard
- *  pour donner la traçabilité complète des envois récents. */
-export type TestHistoryEntry = {
-  id: string;
-  channel: "sms" | "email";
-  createdAt: string;
-  to: string;
-  status: string;
-  triggerSource: string | null;
-  eventKey: string | null;
-  templateKey: string | null;
-  brevoMessageId: string | null;
-  error: string | null;
-  preview: string;
+// =====================================================================
+// TEST RUNS — historique des parcours exécutés depuis /test
+// =====================================================================
+
+export type TestRunMode = "manual" | "auto";
+export type TestRunStatus = "running" | "success" | "partial" | "failed" | "cancelled";
+
+export type TestRunStep = {
+  key: string;
+  label?: string;
+  status: "pending" | "running" | "done" | "error";
+  message?: string;
+  detail?: string;
+  logs?: TestLog[];
+  at: string; // ISO timestamp
 };
 
-export async function getTestHistory(
-  limit = 30,
-): Promise<TestHistoryEntry[]> {
+export type TestRunSummary = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  mode: TestRunMode;
+  status: TestRunStatus;
+  clientLabel: string | null;
+  clientId: string | null;
+  devisId: string | null;
+  dossierId: string | null;
+  poseId: string | null;
+  stepsTotal: number;
+  stepsDone: number;
+  stepsError: number;
+  durationMs: number | null;
+};
+
+export type TestRunDetail = TestRunSummary & {
+  steps: TestRunStep[];
+  notes: string | null;
+};
+
+/** Crée une nouvelle exécution. Appelée au premier "run*" du wizard. */
+export async function startTestRun(input: {
+  mode: TestRunMode;
+  clientLabel?: string;
+}): Promise<TestResult<{ runId: string }>> {
   const supabase = await createClient();
-  const [{ data: sms }, { data: emails }] = await Promise.all([
-    supabase
-      .from("sms_log")
-      .select(
-        "id, created_at, to_phone, body, status, trigger_source, event_key, template_key, brevo_message_id, error",
-      )
-      .order("created_at", { ascending: false })
-      .limit(limit),
-    supabase
-      .from("email_log")
-      .select(
-        "id, created_at, to_email, subject, status, trigger_source, event_key, template_key, brevo_message_id, error",
-      )
-      .order("created_at", { ascending: false })
-      .limit(limit),
-  ]);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Session expirée." };
 
-  const all: TestHistoryEntry[] = [
-    ...(sms ?? []).map(
-      (s): TestHistoryEntry => ({
-        id: `sms:${s.id}`,
-        channel: "sms",
-        createdAt: s.created_at,
-        to: s.to_phone ?? "—",
-        status: s.status ?? "?",
-        triggerSource: s.trigger_source ?? null,
-        eventKey: s.event_key ?? null,
-        templateKey: s.template_key ?? null,
-        brevoMessageId: s.brevo_message_id ?? null,
-        error: s.error ?? null,
-        preview: (s.body ?? "").slice(0, 100),
-      }),
-    ),
-    ...(emails ?? []).map(
-      (e): TestHistoryEntry => ({
-        id: `email:${e.id}`,
-        channel: "email",
-        createdAt: e.created_at,
-        to: e.to_email ?? "—",
-        status: e.status ?? "?",
-        triggerSource: e.trigger_source ?? null,
-        eventKey: e.event_key ?? null,
-        templateKey: e.template_key ?? null,
-        brevoMessageId: e.brevo_message_id ?? null,
-        error: e.error ?? null,
-        preview: e.subject ?? "",
-      }),
-    ),
-  ];
+  const { data, error } = await supabase
+    .from("test_runs" as never)
+    .insert({
+      mode: input.mode,
+      status: "running",
+      started_by: user.id,
+      client_label: input.clientLabel ?? null,
+    } as never)
+    .select("id")
+    .single();
 
-  all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  return all.slice(0, limit);
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "Échec création run" };
+  }
+  return { ok: true, runId: (data as { id: string }).id };
+}
+
+/** Append une étape au run. Met à jour les compteurs + entités créées. */
+export async function appendTestStep(input: {
+  runId: string;
+  step: TestRunStep;
+  entityPatch?: {
+    client_id?: string | null;
+    devis_id?: string | null;
+    dossier_id?: string | null;
+    pose_id?: string | null;
+    client_label?: string | null;
+  };
+}): Promise<TestResult> {
+  const supabase = await createClient();
+
+  // Lit le run pour append la step (pas d'opérateur array_append côté supabase-js).
+  const { data: existing, error: e1 } = await supabase
+    .from("test_runs" as never)
+    .select("steps, steps_total, steps_done, steps_error")
+    .eq("id", input.runId)
+    .maybeSingle();
+  if (e1) return { ok: false, message: e1.message };
+  if (!existing) return { ok: false, message: "Run introuvable" };
+
+  const existingRow = existing as unknown as { steps: unknown };
+  const steps = Array.isArray(existingRow.steps)
+    ? (existingRow.steps as TestRunStep[])
+    : [];
+  // Si une étape avec cette key existe déjà, on la remplace (idempotence).
+  const idx = steps.findIndex((s) => s.key === input.step.key);
+  if (idx >= 0) steps[idx] = input.step;
+  else steps.push(input.step);
+
+  const stepsDone = steps.filter((s) => s.status === "done").length;
+  const stepsError = steps.filter((s) => s.status === "error").length;
+
+  const patch: Record<string, unknown> = {
+    steps,
+    steps_total: steps.length,
+    steps_done: stepsDone,
+    steps_error: stepsError,
+    ...(input.entityPatch ?? {}),
+  };
+
+  const { error: e2 } = await supabase
+    .from("test_runs" as never)
+    .update(patch as never)
+    .eq("id", input.runId);
+  if (e2) return { ok: false, message: e2.message };
+  return { ok: true };
+}
+
+/** Marque le run comme terminé avec son statut final. */
+export async function finishTestRun(input: {
+  runId: string;
+  status: TestRunStatus;
+  notes?: string;
+}): Promise<TestResult> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("test_runs" as never)
+    .update({
+      status: input.status,
+      ended_at: new Date().toISOString(),
+      notes: input.notes ?? null,
+    } as never)
+    .eq("id", input.runId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/test");
+  return { ok: true };
+}
+
+/** Forme brute d'une ligne test_runs telle qu'elle vient de la base. */
+type TestRunRow = {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  mode: TestRunMode;
+  status: TestRunStatus;
+  client_label: string | null;
+  client_id: string | null;
+  devis_id: string | null;
+  dossier_id: string | null;
+  pose_id: string | null;
+  steps_total: number | null;
+  steps_done: number | null;
+  steps_error: number | null;
+  steps: unknown;
+  notes: string | null;
+};
+
+function rowToSummary(r: TestRunRow): TestRunSummary {
+  return {
+    id: r.id,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+    mode: r.mode,
+    status: r.status,
+    clientLabel: r.client_label,
+    clientId: r.client_id,
+    devisId: r.devis_id,
+    dossierId: r.dossier_id,
+    poseId: r.pose_id,
+    stepsTotal: r.steps_total ?? 0,
+    stepsDone: r.steps_done ?? 0,
+    stepsError: r.steps_error ?? 0,
+    durationMs: r.ended_at
+      ? new Date(r.ended_at).getTime() - new Date(r.started_at).getTime()
+      : null,
+  };
+}
+
+/** Liste les parcours récents — affiché dans l'onglet "Liste des tests". */
+export async function listTestRuns(limit = 50): Promise<TestRunSummary[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("test_runs" as never)
+    .select(
+      "id, started_at, ended_at, mode, status, client_label, client_id, devis_id, dossier_id, pose_id, steps_total, steps_done, steps_error",
+    )
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as unknown as TestRunRow[]).map(rowToSummary);
+}
+
+/** Détail d'un parcours (timeline complète des étapes). */
+export async function getTestRun(id: string): Promise<TestRunDetail | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("test_runs" as never)
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as unknown as TestRunRow;
+  const summary = rowToSummary(row);
+  return {
+    ...summary,
+    steps: Array.isArray(row.steps) ? (row.steps as TestRunStep[]) : [],
+    notes: row.notes,
+  };
+}
+
+/** Supprime un parcours de l'historique. */
+export async function deleteTestRun(id: string): Promise<TestResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("test_runs" as never).delete().eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/test");
+  return { ok: true };
 }
 
 

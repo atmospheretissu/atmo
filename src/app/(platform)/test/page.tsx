@@ -2,16 +2,16 @@ import { listClients } from "@/lib/db/clients";
 import { listDevis } from "@/lib/db/devis";
 import { listAllDossiers } from "@/lib/db/dossiers";
 import TestClient from "./test-client";
-import { getTestHistory } from "./actions";
+import { listTestRuns } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function TestPage() {
-  const [clients, devis, dossiers, history] = await Promise.all([
+  const [clients, devis, dossiers, runs] = await Promise.all([
     listClients({ limit: 100 }),
     listDevis({ limit: 50 }),
     listAllDossiers(),
-    getTestHistory(30),
+    listTestRuns(50),
   ]);
 
   return (
@@ -39,7 +39,7 @@ export default async function TestPage() {
         items_received: d.itemsReceived,
         items_total: d.itemsTotal,
       }))}
-      initialHistory={history}
+      initialRuns={runs}
     />
   );
 }

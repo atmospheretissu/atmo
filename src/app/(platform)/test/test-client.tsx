@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   testCreateClient,
   testCreateDevis,
@@ -34,10 +35,18 @@ import {
   testMarkSoldePaid,
   testSendCustomSms,
   testSendCustomEmail,
-  getTestHistory,
+  startTestRun,
+  appendTestStep,
+  finishTestRun,
+  listTestRuns,
+  getTestRun,
+  deleteTestRun,
   type TestLog,
-  type TestHistoryEntry,
+  type TestRunSummary,
+  type TestRunDetail,
+  type TestRunStep,
 } from "./actions";
+import { Trash2, ChevronLeft } from "lucide-react";
 
 const TEST_PHONE = "0667699490";
 const TEST_EMAIL = "dmanscour70@gmail.com";
@@ -108,12 +117,12 @@ export default function TestClient({
   clients,
   devis,
   dossiers,
-  initialHistory,
+  initialRuns,
 }: {
   clients: ClientLite[];
   devis: DevisLite[];
   dossiers: DossierLite[];
-  initialHistory: TestHistoryEntry[];
+  initialRuns: TestRunSummary[];
 }) {
   // État du parcours (entités créées au fil de l'eau)
   const [clientId, setClientId] = useState<string | null>(null);
@@ -131,16 +140,61 @@ export default function TestClient({
   const [openStep, setOpenStep] = useState<StepKey>("client");
   const [pending, startTransition] = useTransition();
   const [autoRunning, setAutoRunning] = useState(false);
-  const [history, setHistory] = useState<TestHistoryEntry[]>(initialHistory);
-  const [refreshingHistory, setRefreshingHistory] = useState(false);
+  const [tab, setTab] = useState<"new" | "history">("new");
+  const [runs, setRuns] = useState<TestRunSummary[]>(initialRuns);
+  const [refreshingRuns, setRefreshingRuns] = useState(false);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRun, setSelectedRun] = useState<TestRunDetail | null>(null);
 
-  const refreshHistory = () => {
-    setRefreshingHistory(true);
+  const refreshRuns = () => {
+    setRefreshingRuns(true);
     startTransition(async () => {
-      const h = await getTestHistory(30);
-      setHistory(h);
-      setRefreshingHistory(false);
+      const r = await listTestRuns(50);
+      setRuns(r);
+      setRefreshingRuns(false);
     });
+  };
+
+  /** Crée le run en BDD au premier step si pas encore créé. */
+  const ensureRun = async (mode: "manual" | "auto"): Promise<string | null> => {
+    if (runId) return runId;
+    const r = await startTestRun({ mode });
+    if (!r.ok) return null;
+    setRunId(r.runId);
+    return r.runId;
+  };
+
+  /** Persist une étape en BDD (best-effort). */
+  const persistStep = async (
+    key: StepKey,
+    state: StepState,
+    entityPatch?: Parameters<typeof appendTestStep>[0]["entityPatch"],
+    mode: "manual" | "auto" = "manual",
+  ) => {
+    const id = await ensureRun(mode);
+    if (!id) return;
+    const step: TestRunStep = {
+      key,
+      label: ALL_STEPS.find((s) => s.key === key)?.label ?? key,
+      status: state.status,
+      message: state.message,
+      detail: state.detail,
+      logs: state.logs,
+      at: new Date().toISOString(),
+    };
+    await appendTestStep({ runId: id, step, entityPatch });
+  };
+
+  /** Helper compact : setStep + persistStep + optionnel refreshRuns. */
+  const recordStep = async (
+    key: StepKey,
+    state: StepState,
+    entityPatch?: Parameters<typeof appendTestStep>[0]["entityPatch"],
+  ) => {
+    setStep(key, state);
+    await persistStep(key, state, entityPatch);
+    refreshRuns();
   };
 
   const setStep = (key: StepKey, patch: Partial<StepState>) =>
@@ -152,6 +206,15 @@ export default function TestClient({
   }, [steps]);
 
   const reset = () => {
+    // Si un run est en cours, on le marque comme annulé.
+    const currentRunId = runId;
+    if (currentRunId) {
+      startTransition(async () => {
+        await finishTestRun({ runId: currentRunId, status: "cancelled" });
+        refreshRuns();
+      });
+    }
+    setRunId(null);
     setClientId(null);
     setClientLabel("");
     setDevisId(null);
@@ -182,13 +245,19 @@ export default function TestClient({
       if (payload.mode === "existing" && payload.existingId) {
         const c = clients.find((x) => x.id === payload.existingId);
         if (!c) {
-          setStep("client", { status: "error", message: "Client introuvable" });
+          const errState: StepState = { status: "error", message: "Client introuvable" };
+          setStep("client", errState);
+          await persistStep("client", errState);
           return;
         }
         setClientId(c.id);
-        setClientLabel(`${c.display_name} · ${c.id.slice(0, 8)}…`);
-        setStep("client", { status: "done", message: `Client réutilisé : ${c.display_name}` });
+        const label = `${c.display_name} · ${c.id.slice(0, 8)}…`;
+        setClientLabel(label);
+        const okState: StepState = { status: "done", message: `Client réutilisé : ${c.display_name}` };
+        setStep("client", okState);
+        await persistStep("client", okState, { client_id: c.id, client_label: c.display_name });
         setOpenStep("devis");
+        refreshRuns();
         return;
       }
       const r = await testCreateClient({
@@ -200,11 +269,20 @@ export default function TestClient({
       });
       if (r.ok) {
         setClientId(r.id);
-        setClientLabel(`${payload.display_name ?? "Client Test"} (nouveau)`);
-        setStep("client", { status: "done", message: `Client créé · id ${r.id.slice(0, 8)}…` });
+        const label = `${payload.display_name ?? "Client Test"} (nouveau)`;
+        setClientLabel(label);
+        const okState: StepState = { status: "done", message: `Client créé · id ${r.id.slice(0, 8)}…` };
+        setStep("client", okState);
+        await persistStep("client", okState, {
+          client_id: r.id,
+          client_label: payload.display_name ?? "Client Test",
+        });
         setOpenStep("devis");
+        refreshRuns();
       } else {
-        setStep("client", { status: "error", message: r.message });
+        const errState: StepState = { status: "error", message: r.message };
+        setStep("client", errState);
+        await persistStep("client", errState);
       }
     });
   };
@@ -222,20 +300,24 @@ export default function TestClient({
       if (payload.mode === "existing" && payload.existingId) {
         const d = devis.find((x) => x.id === payload.existingId);
         if (!d) {
-          setStep("devis", { status: "error", message: "Devis introuvable" });
+          await recordStep("devis", { status: "error", message: "Devis introuvable" });
           return;
         }
         setDevisId(d.id);
         setDevisNumber(d.number);
-        setStep("devis", {
-          status: "done",
-          message: `Devis réutilisé : ${d.number} (${d.total_ttc}€ TTC)`,
-        });
+        await recordStep(
+          "devis",
+          {
+            status: "done",
+            message: `Devis réutilisé : ${d.number} (${d.total_ttc}€ TTC)`,
+          },
+          { devis_id: d.id },
+        );
         setOpenStep("send");
         return;
       }
       if (!clientId) {
-        setStep("devis", { status: "error", message: "Crée d'abord un client (étape 1)." });
+        await recordStep("devis", { status: "error", message: "Crée d'abord un client (étape 1)." });
         return;
       }
       const r = await testCreateDevis({
@@ -254,13 +336,14 @@ export default function TestClient({
       if (r.ok) {
         setDevisId(r.id);
         setDevisNumber(r.number);
-        setStep("devis", {
-          status: "done",
-          message: `Devis créé · ${r.number} · ${r.total_ttc}€ TTC`,
-        });
+        await recordStep(
+          "devis",
+          { status: "done", message: `Devis créé · ${r.number} · ${r.total_ttc}€ TTC` },
+          { devis_id: r.id },
+        );
         setOpenStep("send");
       } else {
-        setStep("devis", { status: "error", message: r.message });
+        await recordStep("devis", { status: "error", message: r.message });
       }
     });
   };
@@ -274,16 +357,15 @@ export default function TestClient({
     startTransition(async () => {
       const r = await testSendDevis(devisId);
       if (r.ok) {
-        setStep("send", {
+        await recordStep("send", {
           status: "done",
           message: r.emailedTo ? `Email envoyé à ${r.emailedTo}` : "Devis envoyé",
           logs: r.logs,
         });
         setOpenStep("validate");
       } else {
-        setStep("send", { status: "error", message: r.message, logs: r.logs });
+        await recordStep("send", { status: "error", message: r.message, logs: r.logs });
       }
-      refreshHistory();
     });
   };
 
@@ -296,10 +378,10 @@ export default function TestClient({
     startTransition(async () => {
       const r = await testValidateDevis(devisId);
       if (r.ok) {
-        setStep("validate", { status: "done", message: "Devis marqué validé" });
+        await recordStep("validate", { status: "done", message: "Devis marqué validé" });
         setOpenStep("acompte");
       } else {
-        setStep("validate", { status: "error", message: r.message });
+        await recordStep("validate", { status: "error", message: r.message });
       }
     });
   };
@@ -314,17 +396,20 @@ export default function TestClient({
       const r = await testMarkAcomptePaid(devisId);
       if (r.ok) {
         setDossierId(r.dossierId);
-        setStep("acompte", {
-          status: "done",
-          message: `Acompte encaissé · dossier créé`,
-          detail: `Dossier ${r.dossierId.slice(0, 8)}… · ${r.itemCount} items · ${r.bcCount} BC fournisseurs auto-générés`,
-          logs: r.logs,
-        });
+        await recordStep(
+          "acompte",
+          {
+            status: "done",
+            message: `Acompte encaissé · dossier créé`,
+            detail: `Dossier ${r.dossierId.slice(0, 8)}… · ${r.itemCount} items · ${r.bcCount} BC fournisseurs auto-générés`,
+            logs: r.logs,
+          },
+          { dossier_id: r.dossierId },
+        );
         setOpenStep("reception");
       } else {
-        setStep("acompte", { status: "error", message: r.message, logs: r.logs });
+        await recordStep("acompte", { status: "error", message: r.message, logs: r.logs });
       }
-      refreshHistory();
     });
   };
 
@@ -342,7 +427,7 @@ export default function TestClient({
       }
       const r = await testReceiveAllItems(dossierId);
       if (r.ok) {
-        setStep("reception", {
+        await recordStep("reception", {
           status: "done",
           message: `${r.received} colis reçus (${r.skipped} déjà reçus)`,
           detail: `Total items du dossier : ${r.total} · QR codes scannés en cascade`,
@@ -350,9 +435,8 @@ export default function TestClient({
         });
         setOpenStep("pose-plan");
       } else {
-        setStep("reception", { status: "error", message: r.message, logs: r.logs });
+        await recordStep("reception", { status: "error", message: r.message, logs: r.logs });
       }
-      refreshHistory();
     });
   };
 
@@ -366,13 +450,17 @@ export default function TestClient({
       const r = await testCreateAndSchedulePose(dossierId, payload.scheduledAt);
       if (r.ok) {
         setPoseId(r.poseId);
-        setStep("pose-plan", {
-          status: "done",
-          message: `Pose planifiée le ${new Date(payload.scheduledAt).toLocaleString("fr-FR")}`,
-        });
+        await recordStep(
+          "pose-plan",
+          {
+            status: "done",
+            message: `Pose planifiée le ${new Date(payload.scheduledAt).toLocaleString("fr-FR")}`,
+          },
+          { pose_id: r.poseId },
+        );
         setOpenStep("pose-done");
       } else {
-        setStep("pose-plan", { status: "error", message: r.message });
+        await recordStep("pose-plan", { status: "error", message: r.message });
       }
     });
   };
@@ -386,16 +474,15 @@ export default function TestClient({
     startTransition(async () => {
       const r = await testMarkPoseDone(poseId);
       if (r.ok) {
-        setStep("pose-done", {
+        await recordStep("pose-done", {
           status: "done",
           message: "Pose marquée effectuée · SMS satisfaction déclenché",
           logs: r.logs,
         });
         setOpenStep("solde");
       } else {
-        setStep("pose-done", { status: "error", message: r.message, logs: r.logs });
+        await recordStep("pose-done", { status: "error", message: r.message, logs: r.logs });
       }
-      refreshHistory();
     });
   };
 
@@ -408,16 +495,15 @@ export default function TestClient({
     startTransition(async () => {
       const r = await testMarkSoldePaid(devisId);
       if (r.ok) {
-        setStep("solde", {
+        await recordStep("solde", {
           status: "done",
           message: `Solde encaissé · ${Math.round(r.amount)}€`,
           logs: r.logs,
         });
         setOpenStep("sms-libre");
       } else {
-        setStep("solde", { status: "error", message: r.message, logs: r.logs });
+        await recordStep("solde", { status: "error", message: r.message, logs: r.logs });
       }
-      refreshHistory();
     });
   };
 
@@ -426,7 +512,7 @@ export default function TestClient({
     startTransition(async () => {
       const r = await testSendCustomSms({ phone, body });
       if (r.ok) {
-        setStep("sms-libre", {
+        await recordStep("sms-libre", {
           status: "done",
           message: `SMS envoyé à ${phone}`,
           detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined,
@@ -434,13 +520,12 @@ export default function TestClient({
         });
         setOpenStep("email-libre");
       } else {
-        setStep("sms-libre", {
+        await recordStep("sms-libre", {
           status: "error",
           message: r.message,
           logs: [{ level: "error", label: "Échec envoi SMS", detail: r.message }],
         });
       }
-      refreshHistory();
     });
   };
 
@@ -453,20 +538,31 @@ export default function TestClient({
         htmlBody: html,
       });
       if (r.ok) {
-        setStep("email-libre", {
+        await recordStep("email-libre", {
           status: "done",
           message: `Email envoyé à ${toEmail}`,
           detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined,
           logs: [{ level: "success", label: `Email envoyé à ${toEmail}`, detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined }],
         });
+        // Dernière étape : on marque le run comme success (ou partial si erreurs).
+        if (runId) {
+          const hasError = Object.values(steps).some((s) => s.status === "error");
+          await finishTestRun({ runId, status: hasError ? "partial" : "success" });
+          setRunId(null);
+          refreshRuns();
+        }
       } else {
-        setStep("email-libre", {
+        await recordStep("email-libre", {
           status: "error",
           message: r.message,
           logs: [{ level: "error", label: "Échec envoi email", detail: r.message }],
         });
+        if (runId) {
+          await finishTestRun({ runId, status: "partial" });
+          setRunId(null);
+          refreshRuns();
+        }
       }
-      refreshHistory();
     });
   };
 
@@ -476,8 +572,44 @@ export default function TestClient({
     setAutoRunning(true);
     reset();
     startTransition(async () => {
+      // Crée le run en mode "auto" dès le départ.
+      const runStart = await startTestRun({ mode: "auto" });
+      const newRunId = runStart.ok ? runStart.runId : null;
+      if (newRunId) setRunId(newRunId);
+
+      // Helper local : persiste l'étape AVEC le runId capturé en closure.
+      const persist = async (
+        key: StepKey,
+        state: StepState,
+        entityPatch?: Parameters<typeof appendTestStep>[0]["entityPatch"],
+      ) => {
+        setStep(key, state);
+        if (newRunId) {
+          await appendTestStep({
+            runId: newRunId,
+            step: {
+              key,
+              label: ALL_STEPS.find((s) => s.key === key)?.label ?? key,
+              status: state.status,
+              message: state.message,
+              detail: state.detail,
+              logs: state.logs,
+              at: new Date().toISOString(),
+            },
+            entityPatch,
+          });
+        }
+      };
+
+      const finishWith = async (finalStatus: "success" | "partial" | "failed") => {
+        if (newRunId) await finishTestRun({ runId: newRunId, status: finalStatus });
+        setRunId(null);
+        setAutoRunning(false);
+        refreshRuns();
+      };
+
       // 1. Client
-      setStep("client", { status: "running" });
+      await persist("client", { status: "running" });
       const c = await testCreateClient({
         display_name: `Client Test ${new Date().toLocaleTimeString("fr-FR")}`,
         email: TEST_EMAIL,
@@ -486,16 +618,19 @@ export default function TestClient({
         city: "Bordeaux",
       });
       if (!c.ok) {
-        setStep("client", { status: "error", message: c.message });
-        setAutoRunning(false);
-        return;
+        await persist("client", { status: "error", message: c.message });
+        return finishWith("failed");
       }
       setClientId(c.id);
       setClientLabel("Client Test (auto)");
-      setStep("client", { status: "done", message: `Client créé · ${c.id.slice(0, 8)}…` });
+      await persist(
+        "client",
+        { status: "done", message: `Client créé · ${c.id.slice(0, 8)}…` },
+        { client_id: c.id, client_label: `Client Test (auto)` },
+      );
 
       // 2. Devis
-      setStep("devis", { status: "running" });
+      await persist("devis", { status: "running" });
       const d = await testCreateDevis({
         client_id: c.id,
         channel: "magasin",
@@ -507,110 +642,143 @@ export default function TestClient({
         ],
       });
       if (!d.ok) {
-        setStep("devis", { status: "error", message: d.message });
-        setAutoRunning(false);
-        return;
+        await persist("devis", { status: "error", message: d.message });
+        return finishWith("partial");
       }
       setDevisId(d.id);
       setDevisNumber(d.number);
-      setStep("devis", { status: "done", message: `${d.number} · ${d.total_ttc}€ TTC` });
+      await persist(
+        "devis",
+        { status: "done", message: `${d.number} · ${d.total_ttc}€ TTC` },
+        { devis_id: d.id },
+      );
 
       // 3. Envoi
-      setStep("send", { status: "running" });
+      await persist("send", { status: "running" });
       const s = await testSendDevis(d.id);
-      setStep("send", s.ok ? { status: "done", message: "Envoi OK" } : { status: "error", message: s.message });
-      if (!s.ok) {
-        setAutoRunning(false);
-        return;
-      }
+      await persist(
+        "send",
+        s.ok
+          ? { status: "done", message: s.emailedTo ? `Email envoyé à ${s.emailedTo}` : "Envoi OK", logs: s.logs }
+          : { status: "error", message: s.message, logs: s.logs },
+      );
+      if (!s.ok) return finishWith("partial");
 
       // 4. Validation
-      setStep("validate", { status: "running" });
+      await persist("validate", { status: "running" });
       const v = await testValidateDevis(d.id);
-      setStep("validate", v.ok ? { status: "done", message: "Validé" } : { status: "error", message: v.message });
-      if (!v.ok) {
-        setAutoRunning(false);
-        return;
-      }
+      await persist("validate", v.ok ? { status: "done", message: "Validé" } : { status: "error", message: v.message });
+      if (!v.ok) return finishWith("partial");
 
       // 5. Acompte
-      setStep("acompte", { status: "running" });
+      await persist("acompte", { status: "running" });
       const a = await testMarkAcomptePaid(d.id);
       if (!a.ok) {
-        setStep("acompte", { status: "error", message: a.message });
-        setAutoRunning(false);
-        return;
+        await persist("acompte", { status: "error", message: a.message, logs: a.logs });
+        return finishWith("partial");
       }
       setDossierId(a.dossierId);
-      setStep("acompte", {
-        status: "done",
-        message: `Acompte OK · dossier ${a.dossierId.slice(0, 8)}…`,
-        detail: `${a.itemCount} items · ${a.bcCount} BC`,
-      });
+      await persist(
+        "acompte",
+        {
+          status: "done",
+          message: `Acompte OK · dossier ${a.dossierId.slice(0, 8)}…`,
+          detail: `${a.itemCount} items · ${a.bcCount} BC`,
+          logs: a.logs,
+        },
+        { dossier_id: a.dossierId },
+      );
 
       // 6. Réception
-      setStep("reception", { status: "running" });
+      await persist("reception", { status: "running" });
       const r = await testReceiveAllItems(a.dossierId);
       if (!r.ok) {
-        setStep("reception", { status: "error", message: r.message });
-        setAutoRunning(false);
-        return;
+        await persist("reception", { status: "error", message: r.message, logs: r.logs });
+        return finishWith("partial");
       }
-      setStep("reception", {
+      await persist("reception", {
         status: "done",
         message: `${r.received} colis reçus`,
         detail: `Total ${r.total}`,
+        logs: r.logs,
       });
 
       // 7. Pose planifiée
-      setStep("pose-plan", { status: "running" });
+      await persist("pose-plan", { status: "running" });
       const inFiveDays = new Date(Date.now() + 5 * 86400000);
       inFiveDays.setHours(10, 0, 0, 0);
       const p = await testCreateAndSchedulePose(a.dossierId, inFiveDays.toISOString());
       if (!p.ok) {
-        setStep("pose-plan", { status: "error", message: p.message });
-        setAutoRunning(false);
-        return;
+        await persist("pose-plan", { status: "error", message: p.message });
+        return finishWith("partial");
       }
       setPoseId(p.poseId);
-      setStep("pose-plan", {
-        status: "done",
-        message: `Planifiée le ${inFiveDays.toLocaleString("fr-FR")}`,
-      });
+      await persist(
+        "pose-plan",
+        { status: "done", message: `Planifiée le ${inFiveDays.toLocaleString("fr-FR")}` },
+        { pose_id: p.poseId },
+      );
 
       // 8. Pose effectuée
-      setStep("pose-done", { status: "running" });
+      await persist("pose-done", { status: "running" });
       const pd = await testMarkPoseDone(p.poseId);
-      setStep("pose-done", pd.ok ? { status: "done", message: "Pose effectuée" } : { status: "error", message: pd.message });
-      if (!pd.ok) {
-        setAutoRunning(false);
-        return;
-      }
+      await persist(
+        "pose-done",
+        pd.ok
+          ? { status: "done", message: "Pose effectuée", logs: pd.logs }
+          : { status: "error", message: pd.message, logs: pd.logs },
+      );
+      if (!pd.ok) return finishWith("partial");
 
       // 9. Solde
-      setStep("solde", { status: "running" });
+      await persist("solde", { status: "running" });
       const so = await testMarkSoldePaid(d.id);
-      setStep("solde", so.ok ? { status: "done", message: `Solde ${Math.round(so.amount)}€` } : { status: "error", message: so.message });
+      await persist(
+        "solde",
+        so.ok
+          ? { status: "done", message: `Solde ${Math.round(so.amount)}€`, logs: so.logs }
+          : { status: "error", message: so.message, logs: so.logs },
+      );
 
       // 10. SMS libre
-      setStep("sms-libre", { status: "running" });
+      await persist("sms-libre", { status: "running" });
       const sms = await testSendCustomSms({
         phone: TEST_PHONE,
         body: "Test parcours complet — toutes les étapes ont été exécutées sur la plateforme Atmosphère.",
       });
-      setStep("sms-libre", sms.ok ? { status: "done", message: `Envoyé à ${TEST_PHONE}` } : { status: "error", message: sms.message });
+      await persist(
+        "sms-libre",
+        sms.ok
+          ? {
+              status: "done",
+              message: `Envoyé à ${TEST_PHONE}`,
+              logs: [{ level: "success", label: `SMS envoyé à ${TEST_PHONE}`, detail: sms.messageId ? `Brevo ID : ${sms.messageId}` : undefined }],
+            }
+          : { status: "error", message: sms.message, logs: [{ level: "error", label: "Échec SMS", detail: sms.message }] },
+      );
 
       // 11. Email libre
-      setStep("email-libre", { status: "running" });
+      await persist("email-libre", { status: "running" });
       const em = await testSendCustomEmail({
         toEmail: TEST_EMAIL,
         subject: "Atmosphère — test parcours complet",
         htmlBody: `<p>Bonjour,</p><p>Le parcours de test a été exécuté avec succès :</p><ul><li>Client créé</li><li>Devis ${d.number} envoyé puis validé</li><li>Acompte + solde encaissés</li><li>Colis reçus + pose effectuée</li></ul><p>— Plateforme Atmosphère</p>`,
       });
-      setStep("email-libre", em.ok ? { status: "done", message: `Envoyé à ${TEST_EMAIL}` } : { status: "error", message: em.message });
+      await persist(
+        "email-libre",
+        em.ok
+          ? {
+              status: "done",
+              message: `Envoyé à ${TEST_EMAIL}`,
+              logs: [{ level: "success", label: `Email envoyé à ${TEST_EMAIL}`, detail: em.messageId ? `Brevo ID : ${em.messageId}` : undefined }],
+            }
+          : { status: "error", message: em.message, logs: [{ level: "error", label: "Échec email", detail: em.message }] },
+      );
 
       setOpenStep("email-libre");
-      setAutoRunning(false);
+      // On regarde les erreurs accumulées via le state final.
+      const hasError = !sms.ok || !em.ok;
+      await finishWith(hasError ? "partial" : "success");
     });
   };
 
@@ -621,20 +789,72 @@ export default function TestClient({
       <Topbar
         breadcrumb={[{ label: "Atmosphère" }, { label: "Test parcours" }]}
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={reset} disabled={pending || autoRunning}>
-              <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Réinitialiser
+          tab === "new" ? (
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={reset} disabled={pending || autoRunning}>
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Réinitialiser
+              </Button>
+              <Button variant="accent" size="sm" onClick={autoRun} disabled={pending || autoRunning}>
+                <Wand2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Lancer le parcours complet
+              </Button>
+            </div>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={refreshRuns} disabled={refreshingRuns}>
+              <RotateCcw className={cn("h-3.5 w-3.5", refreshingRuns && "animate-spin")} strokeWidth={2.2} />
+              Rafraîchir
             </Button>
-            <Button variant="accent" size="sm" onClick={autoRun} disabled={pending || autoRunning}>
-              <Wand2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Lancer le parcours complet
-            </Button>
-          </div>
+          )
         }
       />
 
       <div className="flex-1 overflow-auto">
+        <div className="px-8 pt-6 border-b border-line bg-canvas/60 sticky top-14 z-20">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "new" | "history")}>
+            <TabsList>
+              <TabsTrigger value="new">Nouveau test</TabsTrigger>
+              <TabsTrigger value="history">
+                Liste des tests
+                <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-canvas-2 text-[10.5px] font-semibold tabular-nums text-muted">
+                  {runs.length}
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {tab === "history" ? (
+          <HistoryTab
+            runs={runs}
+            selectedRunId={selectedRunId}
+            selectedRun={selectedRun}
+            onSelect={(id) => {
+              setSelectedRunId(id);
+              startTransition(async () => {
+                const r = await getTestRun(id);
+                setSelectedRun(r);
+              });
+            }}
+            onClose={() => {
+              setSelectedRunId(null);
+              setSelectedRun(null);
+            }}
+            onDelete={(id) => {
+              startTransition(async () => {
+                const r = await deleteTestRun(id);
+                if (r.ok) {
+                  if (selectedRunId === id) {
+                    setSelectedRunId(null);
+                    setSelectedRun(null);
+                  }
+                  refreshRuns();
+                }
+              });
+            }}
+          />
+        ) : (
+          <>
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">QA · Simulation bout-en-bout</p>
           <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
@@ -889,12 +1109,6 @@ export default function TestClient({
             <EmailForm onRun={runEmailLibre} disabled={pending || autoRunning} />
           </StepCard>
 
-          <HistorySection
-            history={history}
-            refreshing={refreshingHistory}
-            onRefresh={refreshHistory}
-          />
-
           {dossiers.length > 0 && (
             <Card className="mt-6">
               <CardHeader>
@@ -928,6 +1142,8 @@ export default function TestClient({
             </Card>
           )}
         </section>
+          </>
+        )}
       </div>
     </>
   );
@@ -1414,96 +1630,285 @@ function EmailForm({
   );
 }
 
-function HistorySection({
-  history,
-  refreshing,
-  onRefresh,
+function HistoryTab({
+  runs,
+  selectedRunId,
+  selectedRun,
+  onSelect,
+  onClose,
+  onDelete,
 }: {
-  history: TestHistoryEntry[];
-  refreshing: boolean;
-  onRefresh: () => void;
+  runs: TestRunSummary[];
+  selectedRunId: string | null;
+  selectedRun: TestRunDetail | null;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+  onDelete: (id: string) => void;
 }) {
+  if (selectedRunId) {
+    return <HistoryDetail run={selectedRun} onClose={onClose} onDelete={onDelete} />;
+  }
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle>Historique des envois (SMS + email)</CardTitle>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onRefresh}
-          disabled={refreshing}
-        >
-          <RotateCcw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} strokeWidth={2.2} />
-          {refreshing ? "Rafraîchissement…" : "Rafraîchir"}
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {history.length === 0 ? (
-          <p className="text-[12.5px] text-muted text-center py-6">
-            Aucun envoi enregistré pour le moment.
+    <section className="px-8 pt-8 pb-12">
+      <p className="eyebrow mb-3">QA · Historique</p>
+      <h2 className="text-[28px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
+        Tests précédents
+      </h2>
+      <p className="text-[13.5px] text-muted max-w-2xl mb-6">
+        Chaque parcours exécuté depuis l'onglet « Nouveau test » est enregistré ici
+        avec les entités créées, les étapes validées et les logs détaillés.
+      </p>
+
+      {runs.length === 0 ? (
+        <Card className="py-16 px-6 text-center">
+          <Wand2 className="h-8 w-8 text-muted-2 mx-auto mb-3" />
+          <p className="text-[13px] text-muted">Aucun test enregistré pour le moment.</p>
+          <p className="text-[11.5px] text-muted-2 mt-1">
+            Lance un parcours depuis l'onglet « Nouveau test » pour le voir apparaître ici.
           </p>
-        ) : (
-          <div className="rounded-lg border border-line overflow-hidden">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="bg-canvas-2/60 border-b border-line text-left">
-                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Quand</th>
-                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Canal</th>
-                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Destinataire</th>
-                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Sujet / Corps</th>
-                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Source / Event</th>
-                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Statut</th>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="bg-canvas-2/60 border-b border-line text-left">
+                <th className="px-4 py-2.5 eyebrow">Démarré</th>
+                <th className="px-4 py-2.5 eyebrow">Mode</th>
+                <th className="px-4 py-2.5 eyebrow">Statut</th>
+                <th className="px-4 py-2.5 eyebrow">Client</th>
+                <th className="px-4 py-2.5 eyebrow text-right">Étapes</th>
+                <th className="px-4 py-2.5 eyebrow text-right">Durée</th>
+                <th className="px-4 py-2.5 eyebrow"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r) => (
+                <tr
+                  key={r.id}
+                  className="border-b border-line/60 last:border-0 hover:bg-canvas-2/30 cursor-pointer"
+                  onClick={() => onSelect(r.id)}
+                >
+                  <td className="px-4 py-2.5 tabular-nums">
+                    <div className="text-[12.5px] text-ink-2">
+                      {new Date(r.startedAt).toLocaleDateString("fr-FR", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                    </div>
+                    <div className="text-[11px] text-muted-2 font-mono">
+                      {new Date(r.startedAt).toLocaleTimeString("fr-FR")}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <StatusPill tone={r.mode === "auto" ? "violet" : "muted"} dot={false}>
+                      {r.mode === "auto" ? "Auto" : "Manuel"}
+                    </StatusPill>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <RunStatusBadge status={r.status} />
+                  </td>
+                  <td className="px-4 py-2.5 text-ink-2 truncate max-w-[200px]">
+                    {r.clientLabel ?? <span className="text-muted-2">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    <span className="text-emerald font-medium">{r.stepsDone}</span>
+                    <span className="text-muted-2"> / {r.stepsTotal}</span>
+                    {r.stepsError > 0 && (
+                      <span className="ml-1.5 text-pink font-medium">!{r.stepsError}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-muted">
+                    {formatDuration(r.durationMs)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm("Supprimer ce parcours de l'historique ?")) onDelete(r.id);
+                      }}
+                      className="h-7 w-7 rounded-md text-muted-2 hover:text-pink hover:bg-pink-soft/50 inline-flex items-center justify-center"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {history.map((h) => (
-                  <tr key={h.id} className="border-b border-line/60 last:border-0 hover:bg-canvas-2/30">
-                    <td className="px-3 py-2 text-muted tabular-nums whitespace-nowrap">
-                      {new Date(h.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "medium" })}
-                    </td>
-                    <td className="px-3 py-2">
-                      <StatusPill tone={h.channel === "sms" ? "violet" : "blue"} dot={false}>
-                        {h.channel === "sms" ? "SMS" : "Email"}
-                      </StatusPill>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-ink-2 truncate max-w-[180px]">{h.to}</td>
-                    <td className="px-3 py-2 text-muted truncate max-w-[220px]" title={h.preview}>{h.preview}</td>
-                    <td className="px-3 py-2 text-muted-2 text-[11px]">
-                      {h.triggerSource ? <span className="font-mono">{h.triggerSource}</span> : "—"}
-                      {h.eventKey && <span className="block text-violet font-mono">{h.eventKey}</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <HistoryStatusBadge status={h.status} error={h.error} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </section>
   );
 }
 
-function HistoryStatusBadge({ status, error }: { status: string; error: string | null }) {
-  const tone: "emerald" | "amber" | "pink" | "muted" | "blue" =
-    status === "sent" || status === "delivered"
-      ? "emerald"
-      : status === "pending"
-        ? "blue"
-        : status === "skipped"
-          ? "amber"
-          : status === "failed" || status === "bounced"
-            ? "pink"
-            : "muted";
+function HistoryDetail({
+  run,
+  onClose,
+  onDelete,
+}: {
+  run: TestRunDetail | null;
+  onClose: () => void;
+  onDelete: (id: string) => void;
+}) {
+  if (!run) {
+    return (
+      <section className="px-8 pt-8 pb-12">
+        <Button variant="secondary" size="sm" onClick={onClose}>
+          <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+          Retour à la liste
+        </Button>
+        <p className="text-[13px] text-muted mt-6">Chargement…</p>
+      </section>
+    );
+  }
   return (
-    <div title={error ?? undefined} className="inline-flex">
-      <StatusPill tone={tone} dot={false}>
-        {status}
-      </StatusPill>
-    </div>
+    <section className="px-8 pt-8 pb-12 space-y-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+            Retour
+          </Button>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            if (confirm("Supprimer ce parcours ?")) onDelete(run.id);
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+          Supprimer
+        </Button>
+      </div>
+
+      <div>
+        <p className="eyebrow mb-2">Parcours · {run.mode === "auto" ? "exécution automatique" : "manuelle"}</p>
+        <h2 className="text-[24px] font-semibold tracking-tight text-ink leading-tight">
+          Test du {new Date(run.startedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
+        </h2>
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          <RunStatusBadge status={run.status} />
+          <span className="text-[12.5px] text-muted tabular-nums">
+            {run.stepsDone} / {run.stepsTotal} étapes
+            {run.stepsError > 0 && <span className="text-pink ml-2 font-medium">{run.stepsError} en erreur</span>}
+          </span>
+          {run.durationMs != null && (
+            <span className="text-[12.5px] text-muted tabular-nums">
+              Durée : {formatDuration(run.durationMs)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {(run.clientId || run.devisId || run.dossierId || run.poseId) && (
+        <Card className="px-4 py-3">
+          <p className="eyebrow mb-2">Entités créées</p>
+          <div className="flex items-center gap-2 flex-wrap text-[12px]">
+            {run.clientId && (
+              <Link
+                href={`/clients/${run.clientId}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-blue-soft text-blue px-2.5 py-1 font-medium hover:underline"
+              >
+                Client · {run.clientLabel ?? run.clientId.slice(0, 8)} <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+            {run.devisId && (
+              <Link
+                href={`/devis/${run.devisId}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-pink-soft text-pink px-2.5 py-1 font-medium hover:underline"
+              >
+                Devis · {run.devisId.slice(0, 8)} <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+            {run.dossierId && (
+              <Link
+                href={`/confections/${run.dossierId}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-orange-soft text-orange px-2.5 py-1 font-medium hover:underline"
+              >
+                Dossier · {run.dossierId.slice(0, 8)} <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+            {run.poseId && (
+              <Link
+                href={`/poses/${run.poseId}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-emerald-soft text-emerald px-2.5 py-1 font-medium hover:underline"
+              >
+                Pose · {run.poseId.slice(0, 8)} <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <div>
+        <h3 className="text-[15px] font-semibold mb-3">Timeline des étapes</h3>
+        {run.steps.length === 0 ? (
+          <p className="text-[12.5px] text-muted">Aucune étape enregistrée.</p>
+        ) : (
+          <div className="space-y-3">
+            {run.steps.map((s, i) => (
+              <Card key={i} className="overflow-hidden">
+                <div className="px-4 py-3 flex items-start gap-3">
+                  <StepIcon status={s.status === "pending" ? "pending" : s.status === "running" ? "running" : s.status === "error" ? "error" : "done"} index={i + 1} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[13px] font-semibold text-ink">{s.label ?? s.key}</p>
+                      <StepBadge status={s.status === "pending" ? "pending" : s.status === "running" ? "running" : s.status === "error" ? "error" : "done"} />
+                      <span className="text-[10.5px] text-muted-2 tabular-nums font-mono ml-auto">
+                        {new Date(s.at).toLocaleTimeString("fr-FR")}
+                      </span>
+                    </div>
+                    {s.message && (
+                      <p className="text-[12px] text-muted mt-0.5">{s.message}</p>
+                    )}
+                    {s.detail && (
+                      <p className="text-[11.5px] text-muted-2 mt-0.5 italic">{s.detail}</p>
+                    )}
+                  </div>
+                </div>
+                {s.logs && s.logs.length > 0 && (
+                  <div className="border-t border-line bg-canvas-2/20 px-4 py-3">
+                    <LogsPanel logs={s.logs} />
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {run.notes && (
+        <Card className="px-4 py-3">
+          <p className="eyebrow mb-1">Notes</p>
+          <p className="text-[12.5px] text-ink-2 whitespace-pre-wrap">{run.notes}</p>
+        </Card>
+      )}
+    </section>
   );
+}
+
+function RunStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { tone: "emerald" | "amber" | "pink" | "violet" | "muted" | "blue"; label: string }> = {
+    success:   { tone: "emerald", label: "Succès" },
+    partial:   { tone: "amber",   label: "Partiel" },
+    failed:    { tone: "pink",    label: "Échec" },
+    running:   { tone: "blue",    label: "En cours" },
+    cancelled: { tone: "muted",   label: "Annulé" },
+  };
+  const m = map[status] ?? { tone: "muted" as const, label: status };
+  return <StatusPill tone={m.tone}>{m.label}</StatusPill>;
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms == null) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  const s = Math.round(ms / 100) / 10;
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = Math.round(s % 60);
+  return `${m}m ${rs}s`;
 }
 
 function ModeToggle({
