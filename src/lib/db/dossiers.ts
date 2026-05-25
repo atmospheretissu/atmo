@@ -1,5 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * Type d'un client Supabase utilisable par les fonctions DB de ce fichier.
+ * On accepte aussi bien la version auth-aware que la version service-role —
+ * utile pour les webhooks / cron qui n'ont pas de session user.
+ */
+type AnySupabaseClient = SupabaseClient<Database>;
 
 export type Dossier = Database["public"]["Tables"]["dossiers"]["Row"];
 export type DossierInsert = Database["public"]["Tables"]["dossiers"]["Insert"];
@@ -10,8 +18,10 @@ export type DossierItemType = Database["public"]["Enums"]["dossier_item_type"];
 /**
  * Génère le prochain numéro de dossier DOS-{year}-{NNNN}.
  */
-export async function getNextDossierNumber(): Promise<string> {
-  const supabase = await createClient();
+export async function getNextDossierNumber(
+  client?: AnySupabaseClient,
+): Promise<string> {
+  const supabase = client ?? (await createClient());
   const year = new Date().getFullYear();
   const prefix = `DOS-${year}-`;
   const { count, error } = await supabase
@@ -64,9 +74,15 @@ function inferItemType(meta: Record<string, unknown> | null | undefined): Dossie
  *   - Couturière : null (assignation semi-auto en Part 2)
  */
 export async function createDossierFromDevis(
-  devisId: string
+  devisId: string,
+  /**
+   * Client Supabase optionnel — passe un service-role client depuis un webhook
+   * ou un cron sans session user, pour bypasser les RLS qui exigent un rôle
+   * 'staff'. Sinon utilise le client auth-aware par défaut.
+   */
+  client?: AnySupabaseClient,
 ): Promise<{ ok: true; dossierId: string; created: boolean } | { ok: false; message: string }> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
 
   // 1. Vérifie si un dossier existe déjà pour ce devis
   const { data: existing, error: e0 } = await supabase
@@ -96,7 +112,7 @@ export async function createDossierFromDevis(
   if (e2) return { ok: false, message: e2.message };
 
   // 3. Crée le dossier
-  const number = await getNextDossierNumber();
+  const number = await getNextDossierNumber(supabase);
   const { data: dossier, error: e3 } = await supabase
     .from("dossiers")
     .insert({
@@ -151,7 +167,7 @@ export async function createDossierFromDevis(
   // 5. Auto-création des BC fournisseurs (best-effort, ne bloque pas)
   try {
     const { autoCreateBcsForDossier } = await import("@/lib/db/bons-commande");
-    await autoCreateBcsForDossier(dossier.id);
+    await autoCreateBcsForDossier(dossier.id, supabase);
   } catch (err) {
     console.warn("autoCreateBcsForDossier failed:", err);
   }

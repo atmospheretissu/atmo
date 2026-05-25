@@ -110,7 +110,9 @@ export async function POST(request: NextRequest) {
     // 3. Auto-création (ou récupération) du dossier — idempotent.
     //    Si la fiche existait déjà (créée à la création du devis depuis la boutique),
     //    on flip simplement acompte_paid à true.
-    const dossierResult = await createDossierFromDevis(devisId);
+    //    On passe le service-role client car le webhook n'a pas de session user
+    //    et les RLS dossiers/items/bons_commande exigent un rôle 'staff'.
+    const dossierResult = await createDossierFromDevis(devisId, supabase);
     if (!dossierResult.ok) {
       console.error("Webhook: failed to create dossier", dossierResult.message);
     } else {

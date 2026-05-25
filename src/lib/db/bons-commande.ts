@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type AnySupabaseClient = SupabaseClient<Database>;
 
 export type BonCommande = Database["public"]["Tables"]["bons_commande"]["Row"];
 export type BCInsert = Database["public"]["Tables"]["bons_commande"]["Insert"];
@@ -75,8 +78,10 @@ export async function recomputeBcAmount(bcId: string): Promise<number> {
   return total;
 }
 
-export async function getNextBcNumber(): Promise<string> {
-  const supabase = await createClient();
+export async function getNextBcNumber(
+  client?: AnySupabaseClient,
+): Promise<string> {
+  const supabase = client ?? (await createClient());
   const year = new Date().getFullYear();
   const prefix = `BC-${year}-`;
   const { count } = await supabase
@@ -189,9 +194,10 @@ export async function getBcStats() {
  * Idempotent : si des BC existent déjà pour ce dossier, on ne crée rien.
  */
 export async function autoCreateBcsForDossier(
-  dossierId: string
+  dossierId: string,
+  client?: AnySupabaseClient,
 ): Promise<{ created: number; existing: number }> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
 
   // Existants ?
   const { data: existing } = await supabase
@@ -254,7 +260,7 @@ export async function autoCreateBcsForDossier(
   // Crée un BC par fournisseur
   let created = 0;
   for (const { supplierId } of grouped.values()) {
-    const number = await getNextBcNumber();
+    const number = await getNextBcNumber(supabase);
     const { error } = await supabase.from("bons_commande").insert({
       number,
       supplier_id: supplierId,
