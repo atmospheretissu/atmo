@@ -362,7 +362,17 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
                     return (
                       <button
                         key={mode}
-                        onClick={() => setPayment(mode)}
+                        onClick={() => {
+                          setPayment(mode);
+                          // Auto-pré-remplit le montant pour les modes "exact"
+                          // (CB/chèque/virement : on prend rarement plus que le TTC).
+                          // Pour espèces, on laisse vide pour que l'opérateur saisisse.
+                          if (mode !== "especes" && totalTtc > 0) {
+                            setCashReceived(String(totalTtc));
+                          } else if (mode === "especes") {
+                            setCashReceived("");
+                          }
+                        }}
                         className={
                           "inline-flex items-center gap-1.5 px-2 h-8 rounded-md text-[12px] font-medium transition-colors " +
                           (active ? "bg-ink text-white" : "bg-white text-muted-2 hover:text-ink border border-line")
@@ -375,19 +385,50 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
                   })}
                 </div>
                 {payment === "especes" && (
-                  <div className="mt-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={cashReceived}
-                      onChange={(e) => setCashReceived(e.target.value)}
-                      placeholder={`Montant remis (>= ${eur(totalTtc)})`}
-                      className="h-9 text-[12.5px] tabular-nums"
-                    />
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-stretch gap-1.5">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={cashReceived}
+                        onChange={(e) => setCashReceived(e.target.value)}
+                        placeholder={`Montant remis (>= ${eur(totalTtc)})`}
+                        className="h-9 text-[12.5px] tabular-nums flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCashReceived(String(totalTtc))}
+                        title="Montant exact (pas de rendu)"
+                        className="h-9 px-2.5 rounded-md bg-ink text-white text-[11px] font-semibold whitespace-nowrap hover:bg-ink-2 transition-colors"
+                      >
+                        = TTC
+                      </button>
+                    </div>
+                    {/* Raccourcis billets — calculés selon le total */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {nextBillsAbove(totalTtc).map((amount) => (
+                        <button
+                          key={amount}
+                          type="button"
+                          onClick={() => setCashReceived(String(amount))}
+                          className="h-7 px-2.5 rounded-md bg-white border border-line hover:border-line-strong text-[11.5px] font-medium text-ink-2 tabular-nums transition-colors"
+                        >
+                          {amount}€
+                        </button>
+                      ))}
+                    </div>
                     {cashReceived && Number(cashReceived) >= totalTtc && (
-                      <p className="mt-1.5 text-[11.5px] text-emerald font-medium">
-                        Rendu : <span className="tabular-nums">{eur(Number(cashReceived) - totalTtc)}</span>
+                      <p className="text-[11.5px] text-emerald font-medium">
+                        Rendu :{" "}
+                        <span className="tabular-nums font-semibold">
+                          {eur(Number(cashReceived) - totalTtc)}
+                        </span>
+                      </p>
+                    )}
+                    {cashReceived && Number(cashReceived) < totalTtc && (
+                      <p className="text-[11.5px] text-amber">
+                        Manque {eur(totalTtc - Number(cashReceived))}
                       </p>
                     )}
                   </div>
@@ -460,6 +501,27 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
       )}
     </>
   );
+}
+
+/**
+ * Renvoie les 3 billets / coupures arrondies utiles au-dessus du total
+ * (raccourcis pour la saisie espèces). Ex: total=187,40 → [190, 200, 250].
+ */
+function nextBillsAbove(total: number): number[] {
+  if (total <= 0) return [10, 20, 50];
+  const rounded = Math.ceil(total);
+  const candidates = [
+    Math.ceil(rounded / 10) * 10,
+    Math.ceil(rounded / 20) * 20,
+    Math.ceil(rounded / 50) * 50,
+    Math.ceil(rounded / 100) * 100,
+  ];
+  // Dédup + min strict au-dessus du total
+  const unique = Array.from(new Set(candidates))
+    .filter((v) => v > total)
+    .sort((a, b) => a - b)
+    .slice(0, 3);
+  return unique.length > 0 ? unique : [rounded + 10];
 }
 
 function StatCard({

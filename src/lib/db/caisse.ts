@@ -134,6 +134,8 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
     throw new Error(e1?.message ?? "Échec création ticket");
   }
 
+  // NOTE : caisse_ticket_lines.total_ht est une colonne GENERATED ALWAYS
+  // (qty * unit_price_ht côté Postgres) — ne PAS l'insérer manuellement.
   const lines = input.lines.map((l, idx) => ({
     ticket_id: ticket.id,
     catalog_product_id: l.catalog_product_id ?? null,
@@ -142,7 +144,6 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
     qty: l.qty,
     unit_label: l.unit_label,
     unit_price_ht: l.unit_price_ht,
-    total_ht: Number((Number(l.qty) * Number(l.unit_price_ht)).toFixed(2)),
     position: idx,
   }));
 
