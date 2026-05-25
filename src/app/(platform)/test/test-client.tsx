@@ -787,7 +787,15 @@ export default function TestClient({
   return (
     <>
       <Topbar
-        breadcrumb={[{ label: "Atmosphère" }, { label: "Test parcours" }]}
+        breadcrumb={
+          tab === "history" && selectedRunId
+            ? [
+                { label: "Atmosphère" },
+                { label: "Test parcours", href: "/test" },
+                { label: "Détail run" },
+              ]
+            : [{ label: "Atmosphère" }, { label: "Test parcours" }]
+        }
         actions={
           tab === "new" ? (
             <div className="flex items-center gap-2">
@@ -800,6 +808,18 @@ export default function TestClient({
                 Lancer le parcours complet
               </Button>
             </div>
+          ) : selectedRunId ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setSelectedRunId(null);
+                setSelectedRun(null);
+              }}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Retour à la liste
+            </Button>
           ) : (
             <Button variant="secondary" size="sm" onClick={refreshRuns} disabled={refreshingRuns}>
               <RotateCcw className={cn("h-3.5 w-3.5", refreshingRuns && "animate-spin")} strokeWidth={2.2} />
@@ -810,7 +830,7 @@ export default function TestClient({
       />
 
       <div className="flex-1 overflow-auto">
-        <div className="px-8 pt-3 bg-canvas sticky top-14 z-20 backdrop-blur-md border-b border-line">
+        <div className="px-8 pt-3 bg-canvas sticky top-0 z-20 border-b border-line">
           <Tabs value={tab} onValueChange={(v) => setTab(v as "new" | "history")}>
             <TabsList className="border-b-0">
               <TabsTrigger value="new">Nouveau test</TabsTrigger>
