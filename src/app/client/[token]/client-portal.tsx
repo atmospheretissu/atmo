@@ -20,7 +20,6 @@ import {
   Banknote,
   CalendarCheck,
 } from "lucide-react";
-import { Logo } from "@/components/ui/logo";
 import { createStripeCheckoutForToken } from "./actions";
 
 type DevisVM = {
@@ -160,7 +159,14 @@ export function ClientPortal({
     <div className="min-h-screen bg-canvas">
       <header className="bg-white border-b border-line">
         <div className="max-w-2xl mx-auto px-5 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <Logo />
+          <div className="min-w-0">
+            <p className="text-[9.5px] font-mono tracking-[0.18em] uppercase text-muted-2">
+              Décoration sur mesure · Bordeaux
+            </p>
+            <p className="text-[18px] font-semibold tracking-tight text-ink leading-tight">
+              Atmosphère Tissus
+            </p>
+          </div>
           <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-muted-2">
             <Shield className="h-3 w-3" strokeWidth={2.2} />
             Espace sécurisé
@@ -449,11 +455,14 @@ export function ClientPortal({
           </div>
         </section>
 
-        <div className="text-center pt-4 pb-6 space-y-2">
-          <div className="inline-flex items-center justify-center">
-            <Logo />
-          </div>
-          <p className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-2">
+        <div className="text-center pt-4 pb-6 space-y-1.5">
+          <p className="text-[9.5px] font-mono tracking-[0.18em] uppercase text-muted-2">
+            Décoration sur mesure · Bordeaux
+          </p>
+          <p className="text-[15px] font-semibold tracking-tight text-ink leading-tight">
+            Atmosphère Tissus
+          </p>
+          <p className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-2 pt-1">
             <MapPin className="h-3 w-3" strokeWidth={2.2} />
             33 cours du Maréchal Foch, 33000 Bordeaux
           </p>

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { XCircle, Mail, Phone, RotateCcw } from "lucide-react";
-import { Logo } from "@/components/ui/logo";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -88,11 +87,14 @@ export default async function AnnulePage({
           </div>
         </div>
 
-        <div className="px-8 py-5 bg-canvas-2/40 border-t border-line">
-          <div className="flex items-center justify-center mb-2">
-            <Logo />
-          </div>
-          <p className="text-[11.5px] text-muted-2 text-center">
+        <div className="px-8 py-5 bg-canvas-2/40 border-t border-line text-center space-y-1">
+          <p className="text-[9.5px] font-mono tracking-[0.18em] uppercase text-muted-2">
+            Décoration sur mesure · Bordeaux
+          </p>
+          <p className="text-[14px] font-semibold tracking-tight text-ink">
+            Atmosphère Tissus
+          </p>
+          <p className="text-[11.5px] pt-1">
             <Link
               href="https://atmospheretissus.fr"
               className="text-violet hover:underline"
