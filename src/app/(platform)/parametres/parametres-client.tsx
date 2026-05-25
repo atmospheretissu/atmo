@@ -7,6 +7,7 @@ import {
   Plug,
   Truck,
   FlaskConical,
+  Hammer,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { SuppliersTab } from "@/components/parametres/suppliers-tab";
@@ -14,11 +15,13 @@ import { UsersTab } from "@/components/parametres/users-tab";
 import { RolesTab } from "@/components/parametres/roles-tab";
 import { IntegrationsTab } from "@/components/parametres/integrations-tab";
 import { TestTab } from "@/components/parametres/test-tab";
+import { EquipeTab } from "@/components/parametres/equipe-tab";
 import type { Supplier } from "@/lib/db/suppliers";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import type { EmailTemplate } from "@/lib/db/email-templates-shared";
-type TabKey = "fournisseurs" | "utilisateurs" | "roles" | "test" | "integrations";
+import type { Poseur, Atelier } from "@/lib/db/equipe";
+type TabKey = "fournisseurs" | "equipe" | "utilisateurs" | "roles" | "test" | "integrations";
 
 type Props = {
   suppliers: Supplier[];
@@ -32,6 +35,8 @@ type Props = {
     brevoSms: boolean;
     pennylane: boolean;
   };
+  poseurs: Poseur[];
+  ateliers: Atelier[];
 };
 
 export default function ParametresClient({
@@ -41,8 +46,10 @@ export default function ParametresClient({
   emailTemplates,
   roleCounts,
   envFlags,
+  poseurs,
+  ateliers,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("fournisseurs");
+  const [tab, setTab] = useState<TabKey>("equipe");
 
   return (
     <>
@@ -66,6 +73,7 @@ export default function ParametresClient({
 
         <section className="px-8 pb-6">
           <nav className="flex items-center gap-1 border-b border-line">
+            <TabBtn active={tab === "equipe"} onClick={() => setTab("equipe")} icon={Hammer} label="Équipe" count={poseurs.length + ateliers.length} />
             <TabBtn active={tab === "fournisseurs"} onClick={() => setTab("fournisseurs")} icon={Truck} label="Fournisseurs" count={suppliers.length} />
             <TabBtn active={tab === "utilisateurs"} onClick={() => setTab("utilisateurs")} icon={Users} label="Utilisateurs" count={profiles.length} />
             <TabBtn active={tab === "roles"} onClick={() => setTab("roles")} icon={Shield} label="Rôles & accès" count={6} />
@@ -75,6 +83,7 @@ export default function ParametresClient({
         </section>
 
         <section className="px-8 pb-10">
+          {tab === "equipe" && <EquipeTab initialPoseurs={poseurs} initialAteliers={ateliers} />}
           {tab === "fournisseurs" && <SuppliersTab suppliers={suppliers} />}
           {tab === "utilisateurs" && <UsersTab profiles={profiles} />}
           {tab === "roles" && <RolesTab counts={roleCounts} />}

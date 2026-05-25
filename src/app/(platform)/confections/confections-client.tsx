@@ -46,6 +46,7 @@ const columns: { key: string; label: string; tone: "muted" | "blue" | "amber" | 
   { key: "reception_partielle", label: "Réception partielle", tone: "amber", dot: "bg-amber" },
   { key: "en_confection", label: "En confection", tone: "violet", dot: "bg-violet" },
   { key: "pret_pose", label: "Prêt pour pose", tone: "emerald", dot: "bg-emerald" },
+  { key: "planifie", label: "Pose planifiée", tone: "pink", dot: "bg-pink" },
   { key: "pose", label: "Posé / Livré", tone: "neutral", dot: "bg-muted-2" },
 ];
 

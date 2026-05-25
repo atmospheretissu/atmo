@@ -22,7 +22,9 @@ import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { PlanPoseButton } from "@/components/confections/plan-pose-button";
 import { ItemReceptionToggle } from "@/components/confections/item-reception-toggle";
+import { AtelierAssignCard } from "@/components/confections/atelier-assign";
 import { getDossierDetail } from "@/lib/db/dossiers";
+import { listAteliers, getAtelier } from "@/lib/db/equipe";
 import { eur, shortDate } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +84,13 @@ export default async function DossierDetailPage({
   const result = await getDossierDetail(id);
   if (!result) notFound();
   const { dossier, client, items } = result;
+
+  // Ateliers (liste pour sélection) + atelier déjà assigné (s'il y en a un)
+  const ateliers = await listAteliers();
+  const currentAtelier =
+    (dossier as { atelier_id?: string | null }).atelier_id
+      ? await getAtelier((dossier as { atelier_id: string }).atelier_id)
+      : null;
 
   const initial = client?.display_name?.[0] ?? "?";
   const itemsReceived = items.filter((i) => i.status === "recu").length;
@@ -251,6 +260,23 @@ export default async function DossierDetailPage({
           </Card>
 
           <div className="space-y-4">
+            <AtelierAssignCard
+              dossierId={dossier.id}
+              ateliers={ateliers}
+              currentAtelier={
+                currentAtelier
+                  ? {
+                      id: currentAtelier.id,
+                      name: currentAtelier.name,
+                      contact_name: currentAtelier.contact_name,
+                      city: currentAtelier.city,
+                      internal: currentAtelier.internal,
+                    }
+                  : null
+              }
+              sentAt={(dossier as { atelier_sent_at?: string | null }).atelier_sent_at ?? null}
+            />
+
             <Card className="p-5">
               <p className="eyebrow mb-3">Paiement</p>
               <div className="space-y-3">

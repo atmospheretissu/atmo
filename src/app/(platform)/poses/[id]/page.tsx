@@ -20,6 +20,7 @@ import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { PoseScheduleForm } from "@/components/poses/pose-schedule-form";
 import { MarkPoseDoneButton } from "@/components/poses/mark-pose-done-button";
 import { getPoseDetail } from "@/lib/db/poses";
+import { listPoseurs } from "@/lib/db/equipe";
 import { shortDate, time } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export default async function PoseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const result = await getPoseDetail(id);
+  const [result, poseurs] = await Promise.all([getPoseDetail(id), listPoseurs()]);
   if (!result) notFound();
   const { pose, dossier, client, items } = result;
 
@@ -143,6 +144,8 @@ export default async function PoseDetailPage({
                   initialScheduledAt={pose.scheduled_at}
                   initialDuration={pose.duration_minutes}
                   initialNotes={pose.notes ?? ""}
+                  initialPoseurId={pose.poseur_id}
+                  poseurs={poseurs}
                 />
               </div>
             </Card>

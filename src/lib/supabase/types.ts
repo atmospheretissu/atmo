@@ -63,6 +63,63 @@ export interface Database {
         };
         Relationships: [];
       };
+      ateliers: {
+        Row: {
+          id: string;
+          name: string;
+          contact_name: string | null;
+          phone: string | null;
+          email: string | null;
+          address: string | null;
+          city: string | null;
+          postal_code: string | null;
+          country: string;
+          internal: boolean;
+          specialties: string[];
+          capacity: string | null;
+          active: boolean;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          contact_name?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          city?: string | null;
+          postal_code?: string | null;
+          country?: string;
+          internal?: boolean;
+          specialties?: string[];
+          capacity?: string | null;
+          active?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          contact_name?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          address?: string | null;
+          city?: string | null;
+          postal_code?: string | null;
+          country?: string;
+          internal?: boolean;
+          specialties?: string[];
+          capacity?: string | null;
+          active?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       atmolead_config: {
         Row: {
           id: boolean;
@@ -902,6 +959,8 @@ export interface Database {
           workshop_notes: string | null;
           created_at: string;
           updated_at: string;
+          atelier_id: string | null;
+          atelier_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -919,6 +978,8 @@ export interface Database {
           workshop_notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          atelier_id?: string | null;
+          atelier_sent_at?: string | null;
         };
         Update: {
           id?: string;
@@ -936,6 +997,8 @@ export interface Database {
           workshop_notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          atelier_id?: string | null;
+          atelier_sent_at?: string | null;
         };
         Relationships: [];
       };
@@ -1288,6 +1351,48 @@ export interface Database {
           client_confirmed?: boolean;
           client_confirmed_at?: string | null;
           satisfaction_sent?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      poseurs: {
+        Row: {
+          id: string;
+          profile_id: string | null;
+          name: string;
+          phone: string | null;
+          email: string | null;
+          zone: string | null;
+          internal: boolean;
+          active: boolean;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id?: string | null;
+          name: string;
+          phone?: string | null;
+          email?: string | null;
+          zone?: string | null;
+          internal?: boolean;
+          active?: boolean;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          profile_id?: string | null;
+          name?: string;
+          phone?: string | null;
+          email?: string | null;
+          zone?: string | null;
+          internal?: boolean;
+          active?: boolean;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };

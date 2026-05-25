@@ -2,18 +2,20 @@ import { listSuppliers } from "@/lib/db/suppliers";
 import { listProfiles } from "@/lib/db/profiles";
 import { listSmsTemplates } from "@/lib/db/sms-templates";
 import { listEmailTemplates } from "@/lib/db/email-templates";
+import { listPoseurs, listAteliers } from "@/lib/db/equipe";
 import ParametresClient from "./parametres-client";
 import type { UserRole } from "@/lib/db/profiles-shared";
 
 export const dynamic = "force-dynamic";
 
 export default async function ParametresPage() {
-  // Templates SMS/Email sont passés pour le Test tab (Envoi & Test)
-  const [suppliers, profiles, smsTemplates, emailTemplates] = await Promise.all([
+  const [suppliers, profiles, smsTemplates, emailTemplates, poseurs, ateliers] = await Promise.all([
     listSuppliers(),
     listProfiles(),
     listSmsTemplates(),
     listEmailTemplates(),
+    listPoseurs(),
+    listAteliers(),
   ]);
 
   const roleCounts: Record<UserRole, number> = {
@@ -44,6 +46,8 @@ export default async function ParametresPage() {
       emailTemplates={emailTemplates}
       roleCounts={roleCounts}
       envFlags={envFlags}
+      poseurs={poseurs}
+      ateliers={ateliers}
     />
   );
 }
