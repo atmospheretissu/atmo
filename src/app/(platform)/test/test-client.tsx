@@ -810,9 +810,9 @@ export default function TestClient({
       />
 
       <div className="flex-1 overflow-auto">
-        <div className="px-8 pt-6 border-b border-line bg-canvas/60 sticky top-14 z-20">
+        <div className="px-8 pt-3 bg-canvas sticky top-14 z-20 backdrop-blur-md border-b border-line">
           <Tabs value={tab} onValueChange={(v) => setTab(v as "new" | "history")}>
-            <TabsList>
+            <TabsList className="border-b-0">
               <TabsTrigger value="new">Nouveau test</TabsTrigger>
               <TabsTrigger value="history">
                 Liste des tests
