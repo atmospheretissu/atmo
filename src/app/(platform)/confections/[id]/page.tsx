@@ -21,6 +21,7 @@ import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { PlanPoseButton } from "@/components/confections/plan-pose-button";
+import { ItemReceptionToggle } from "@/components/confections/item-reception-toggle";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { eur, shortDate } from "@/lib/formatters";
 
@@ -231,11 +232,12 @@ export default async function DossierDetailPage({
                         </p>
                       </div>
 
-                      <div className="hidden md:flex items-center gap-2 shrink-0">
-                        <div className="h-9 w-9 rounded-md bg-canvas-2 border border-line inline-flex items-center justify-center">
-                          <QrCode className="h-4 w-4 text-ink-3" strokeWidth={2} />
-                        </div>
-                        <span className="ref">{item.qr_code}</span>
+                      <div className="shrink-0">
+                        <ItemReceptionToggle
+                          itemId={item.id}
+                          initialStatus={item.status}
+                          qrCode={item.qr_code}
+                        />
                       </div>
 
                       <StatusPill tone={itemStatusTones[item.status]}>

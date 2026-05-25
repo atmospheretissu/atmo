@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Zap,
   ExternalLink,
+  Scissors,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
@@ -82,6 +83,14 @@ export default async function DevisDetailPage({
               <MarkAcompteButton devisId={devis.id} />
             )}
             <SendEmailButton devisId={devis.id} />
+            {dossier && (
+              <Link href={`/confections/${dossier.id}`}>
+                <Button variant="accent" size="sm">
+                  <Scissors className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Fiche confection
+                </Button>
+              </Link>
+            )}
             <Button variant="ghost" size="icon-sm" aria-label="Plus">
               <MoreHorizontal className="h-4 w-4" />
             </Button>

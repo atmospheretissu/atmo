@@ -17,7 +17,6 @@ import {
   X,
   Loader2,
 } from "lucide-react";
-import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
@@ -182,27 +181,23 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
 
   return (
     <>
-      <Topbar
-        breadcrumb={[{ label: "Atmosphère" }, { label: "Caisse" }]}
-        actions={
+      <div>
+        <section className="px-8 pt-8 pb-6 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="eyebrow mb-2">Module · Caisse &amp; Ventes Comptoir</p>
+            <h1 className="text-[28px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Caisse en direct
+              <span className="ml-3 text-[20px] text-muted-2 font-semibold tabular-nums">
+                {eur(todayStats.totalTtc, true)}
+              </span>
+            </h1>
+            <p className="text-[13.5px] text-muted mt-1">
+              {todayStats.ticketCount} ticket{todayStats.ticketCount > 1 ? "s" : ""} aujourd'hui · Clôture en fin de journée pour export Pennylane.
+            </p>
+          </div>
           <Button variant="primary" size="sm" onClick={() => setClosureOpen(true)}>
             <Receipt className="h-3.5 w-3.5" strokeWidth={2.4} /> Clôture jour
           </Button>
-        }
-      />
-
-      <div className="flex-1 overflow-auto">
-        <section className="px-8 pt-10 pb-6">
-          <p className="eyebrow mb-3">Module · Caisse & Ventes Comptoir</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Caisse en direct
-            <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
-              {eur(todayStats.totalTtc, true)}
-            </span>
-          </h1>
-          <p className="text-[13.5px] text-muted max-w-2xl">
-            {todayStats.ticketCount} ticket{todayStats.ticketCount > 1 ? "s" : ""} aujourd'hui · Clôture en fin de journée pour export Pennylane.
-          </p>
         </section>
 
         <section className="px-8 pb-6">
