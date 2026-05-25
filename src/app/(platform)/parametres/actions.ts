@@ -515,7 +515,7 @@ export async function createEventAlertAction(input: {
     sms_body: input.sms_body?.trim() || null,
     email_subject: input.email_subject?.trim() || null,
     email_html: input.email_html?.trim() || null,
-    criteria: (input.criteria as Record<string, unknown>) ?? {},
+    criteria: ((input.criteria as Record<string, unknown>) ?? {}) as never,
     active: input.active ?? true,
   };
   const { error } = await supabase.from("event_alerts").insert(payload);
@@ -563,7 +563,7 @@ export async function updateEventAlertAction(
     sanitized.email_subject = input.email_subject?.trim() || null;
   if (input.email_html !== undefined) sanitized.email_html = input.email_html?.trim() || null;
   if (input.criteria !== undefined)
-    sanitized.criteria = input.criteria as Record<string, unknown>;
+    sanitized.criteria = (input.criteria as Record<string, unknown>) as never;
   sanitized.updated_at = new Date().toISOString();
 
   const { error } = await supabase.from("event_alerts").update(sanitized).eq("id", id);

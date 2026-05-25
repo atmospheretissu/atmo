@@ -6,6 +6,24 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     Tables: {
+      _schema_migrations: {
+        Row: {
+          filename: string;
+          applied_at: string;
+          sha256: string | null;
+        };
+        Insert: {
+          filename: string;
+          applied_at?: string;
+          sha256?: string | null;
+        };
+        Update: {
+          filename?: string;
+          applied_at?: string;
+          sha256?: string | null;
+        };
+        Relationships: [];
+      };
       alerts: {
         Row: {
           id: string;
@@ -45,6 +63,171 @@ export interface Database {
         };
         Relationships: [];
       };
+      atmolead_config: {
+        Row: {
+          id: boolean;
+          target_url: string;
+          cron_expression: string;
+          enabled: boolean;
+          css_selectors: Json;
+          last_run_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          target_url?: string;
+          cron_expression?: string;
+          enabled?: boolean;
+          css_selectors?: Json;
+          last_run_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: boolean;
+          target_url?: string;
+          cron_expression?: string;
+          enabled?: boolean;
+          css_selectors?: Json;
+          last_run_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      atmolead_executions: {
+        Row: {
+          id: string;
+          status: Database["public"]["Enums"]["atmolead_execution_status"];
+          triggered_by: Database["public"]["Enums"]["atmolead_trigger"];
+          started_at: string;
+          finished_at: string | null;
+          duration_ms: number | null;
+          leads_found: number;
+          leads_inserted: number;
+          leads_skipped: number;
+          error_message: string | null;
+          worker_version: string | null;
+          logs: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          status?: Database["public"]["Enums"]["atmolead_execution_status"];
+          triggered_by: Database["public"]["Enums"]["atmolead_trigger"];
+          started_at?: string;
+          finished_at?: string | null;
+          duration_ms?: number | null;
+          leads_found?: number;
+          leads_inserted?: number;
+          leads_skipped?: number;
+          error_message?: string | null;
+          worker_version?: string | null;
+          logs?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          status?: Database["public"]["Enums"]["atmolead_execution_status"];
+          triggered_by?: Database["public"]["Enums"]["atmolead_trigger"];
+          started_at?: string;
+          finished_at?: string | null;
+          duration_ms?: number | null;
+          leads_found?: number;
+          leads_inserted?: number;
+          leads_skipped?: number;
+          error_message?: string | null;
+          worker_version?: string | null;
+          logs?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      atmolead_jobs: {
+        Row: {
+          id: string;
+          status: Database["public"]["Enums"]["atmolead_job_status"];
+          triggered_by: Database["public"]["Enums"]["atmolead_trigger"];
+          scheduled_at: string;
+          picked_at: string | null;
+          finished_at: string | null;
+          execution_id: string | null;
+          requested_by: string | null;
+          payload: Json | null;
+          error_message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          status?: Database["public"]["Enums"]["atmolead_job_status"];
+          triggered_by: Database["public"]["Enums"]["atmolead_trigger"];
+          scheduled_at?: string;
+          picked_at?: string | null;
+          finished_at?: string | null;
+          execution_id?: string | null;
+          requested_by?: string | null;
+          payload?: Json | null;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          status?: Database["public"]["Enums"]["atmolead_job_status"];
+          triggered_by?: Database["public"]["Enums"]["atmolead_trigger"];
+          scheduled_at?: string;
+          picked_at?: string | null;
+          finished_at?: string | null;
+          execution_id?: string | null;
+          requested_by?: string | null;
+          payload?: Json | null;
+          error_message?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      atmolead_leads_raw: {
+        Row: {
+          id: string;
+          execution_id: string | null;
+          external_ref: string | null;
+          raw_data: Json;
+          source_url: string | null;
+          client_id: string | null;
+          lm_lead_id: string | null;
+          inserted: boolean;
+          skip_reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          execution_id?: string | null;
+          external_ref?: string | null;
+          raw_data: Json;
+          source_url?: string | null;
+          client_id?: string | null;
+          lm_lead_id?: string | null;
+          inserted?: boolean;
+          skip_reason?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          execution_id?: string | null;
+          external_ref?: string | null;
+          raw_data?: Json;
+          source_url?: string | null;
+          client_id?: string | null;
+          lm_lead_id?: string | null;
+          inserted?: boolean;
+          skip_reason?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       audit_log: {
         Row: {
           id: string;
@@ -78,6 +261,45 @@ export interface Database {
           ip_address?: string | null;
           user_agent?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      automation_rules: {
+        Row: {
+          id: string;
+          event_key: string;
+          label: string;
+          description: string | null;
+          module: string | null;
+          sms_enabled: boolean;
+          sms_template_key: string | null;
+          email_enabled: boolean;
+          email_template_key: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_key: string;
+          label: string;
+          description?: string | null;
+          module?: string | null;
+          sms_enabled?: boolean;
+          sms_template_key?: string | null;
+          email_enabled?: boolean;
+          email_template_key?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_key?: string;
+          label?: string;
+          description?: string | null;
+          module?: string | null;
+          sms_enabled?: boolean;
+          sms_template_key?: string | null;
+          email_enabled?: boolean;
+          email_template_key?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -470,6 +692,7 @@ export interface Database {
           valid_until: string | null;
           created_at: string;
           updated_at: string;
+          client_access_token: string;
         };
         Insert: {
           id?: string;
@@ -493,6 +716,7 @@ export interface Database {
           valid_until?: string | null;
           created_at?: string;
           updated_at?: string;
+          client_access_token?: string;
         };
         Update: {
           id?: string;
@@ -516,6 +740,7 @@ export interface Database {
           valid_until?: string | null;
           created_at?: string;
           updated_at?: string;
+          client_access_token?: string;
         };
         Relationships: [];
       };
@@ -714,48 +939,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      email_templates: {
-        Row: {
-          id: string;
-          key: string;
-          label: string;
-          subject: string;
-          html_body: string;
-          text_body: string | null;
-          sender_email: string | null;
-          sender_name: string | null;
-          trigger_description: string | null;
-          active: boolean;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          key: string;
-          label: string;
-          subject: string;
-          html_body: string;
-          text_body?: string | null;
-          sender_email?: string | null;
-          sender_name?: string | null;
-          trigger_description?: string | null;
-          active?: boolean;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          key?: string;
-          label?: string;
-          subject?: string;
-          html_body?: string;
-          text_body?: string | null;
-          sender_email?: string | null;
-          sender_name?: string | null;
-          trigger_description?: string | null;
-          active?: boolean;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
       email_log: {
         Row: {
           id: string;
@@ -807,6 +990,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      email_templates: {
+        Row: {
+          id: string;
+          key: string;
+          label: string;
+          subject: string;
+          html_body: string;
+          text_body: string | null;
+          sender_email: string | null;
+          sender_name: string | null;
+          trigger_description: string | null;
+          active: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          label: string;
+          subject: string;
+          html_body: string;
+          text_body?: string | null;
+          sender_email?: string | null;
+          sender_name?: string | null;
+          trigger_description?: string | null;
+          active?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          label?: string;
+          subject?: string;
+          html_body?: string;
+          text_body?: string | null;
+          sender_email?: string | null;
+          sender_name?: string | null;
+          trigger_description?: string | null;
+          active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       event_alerts: {
         Row: {
           id: string;
@@ -822,7 +1047,7 @@ export interface Database {
           sms_body: string | null;
           email_subject: string | null;
           email_html: string | null;
-          criteria: Record<string, unknown>;
+          criteria: Json;
           created_at: string;
           updated_at: string;
         };
@@ -840,7 +1065,7 @@ export interface Database {
           sms_body?: string | null;
           email_subject?: string | null;
           email_html?: string | null;
-          criteria?: Record<string, unknown>;
+          criteria?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -858,47 +1083,8 @@ export interface Database {
           sms_body?: string | null;
           email_subject?: string | null;
           email_html?: string | null;
-          criteria?: Record<string, unknown>;
+          criteria?: Json;
           created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      automation_rules: {
-        Row: {
-          id: string;
-          event_key: string;
-          label: string;
-          description: string | null;
-          module: string | null;
-          sms_enabled: boolean;
-          sms_template_key: string | null;
-          email_enabled: boolean;
-          email_template_key: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          event_key: string;
-          label: string;
-          description?: string | null;
-          module?: string | null;
-          sms_enabled?: boolean;
-          sms_template_key?: string | null;
-          email_enabled?: boolean;
-          email_template_key?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          event_key?: string;
-          label?: string;
-          description?: string | null;
-          module?: string | null;
-          sms_enabled?: boolean;
-          sms_template_key?: string | null;
-          email_enabled?: boolean;
-          email_template_key?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -917,9 +1103,9 @@ export interface Database {
           poseur_id: string | null;
           amount: number | null;
           notes: string | null;
-          alerts_sent_at: string | null;
           created_at: string;
           updated_at: string;
+          alerts_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -934,9 +1120,9 @@ export interface Database {
           poseur_id?: string | null;
           amount?: number | null;
           notes?: string | null;
-          alerts_sent_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          alerts_sent_at?: string | null;
         };
         Update: {
           id?: string;
@@ -951,9 +1137,9 @@ export interface Database {
           poseur_id?: string | null;
           amount?: number | null;
           notes?: string | null;
-          alerts_sent_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          alerts_sent_at?: string | null;
         };
         Relationships: [];
       };
@@ -1201,9 +1387,9 @@ export interface Database {
           label: string;
           body: string;
           trigger_description: string | null;
-          sender: string | null;
           active: boolean;
           updated_at: string;
+          sender: string | null;
         };
         Insert: {
           id?: string;
@@ -1211,9 +1397,9 @@ export interface Database {
           label: string;
           body: string;
           trigger_description?: string | null;
-          sender?: string | null;
           active?: boolean;
           updated_at?: string;
+          sender?: string | null;
         };
         Update: {
           id?: string;
@@ -1221,9 +1407,9 @@ export interface Database {
           label?: string;
           body?: string;
           trigger_description?: string | null;
-          sender?: string | null;
           active?: boolean;
           updated_at?: string;
+          sender?: string | null;
         };
         Relationships: [];
       };
@@ -1272,10 +1458,70 @@ export interface Database {
         };
         Relationships: [];
       };
+      test_runs: {
+        Row: {
+          id: string;
+          started_at: string;
+          ended_at: string | null;
+          started_by: string | null;
+          mode: string;
+          status: string;
+          client_id: string | null;
+          devis_id: string | null;
+          dossier_id: string | null;
+          pose_id: string | null;
+          client_label: string | null;
+          notes: string | null;
+          steps: Json;
+          steps_total: number;
+          steps_done: number;
+          steps_error: number;
+        };
+        Insert: {
+          id?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          started_by?: string | null;
+          mode?: string;
+          status?: string;
+          client_id?: string | null;
+          devis_id?: string | null;
+          dossier_id?: string | null;
+          pose_id?: string | null;
+          client_label?: string | null;
+          notes?: string | null;
+          steps?: Json;
+          steps_total?: number;
+          steps_done?: number;
+          steps_error?: number;
+        };
+        Update: {
+          id?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          started_by?: string | null;
+          mode?: string;
+          status?: string;
+          client_id?: string | null;
+          devis_id?: string | null;
+          dossier_id?: string | null;
+          pose_id?: string | null;
+          client_label?: string | null;
+          notes?: string | null;
+          steps?: Json;
+          steps_total?: number;
+          steps_done?: number;
+          steps_error?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: {};
     Functions: {};
     Enums: {
+      atmolead_execution_status: "running" | "success" | "failed" | "partial";
+      atmolead_job_status: "pending" | "running" | "done" | "failed" | "cancelled";
+      atmolead_trigger: "cron" | "manual" | "startup";
       bc_status: "brouillon" | "envoye" | "confirme" | "expedie" | "recu" | "probleme";
       channel: "magasin" | "leroy_merlin" | "ecommerce" | "decoratrice" | "visio";
       devis_status: "brouillon" | "envoye" | "valide" | "acompte_recu" | "refuse" | "expire";

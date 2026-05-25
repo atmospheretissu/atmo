@@ -13,6 +13,7 @@ import type { UserRole } from "@/lib/db/profiles-shared";
  *   - Forbidden access : redirect to /403 with `from=<original-path>`
  */
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl;
   let response = NextResponse.next({ request });
 
   if (
@@ -47,13 +48,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   const publicRoutes = ["/", "/auth"];
   const isPublic =
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/paiement/") ||
+    pathname.startsWith("/client/") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/api/webhooks/") ||

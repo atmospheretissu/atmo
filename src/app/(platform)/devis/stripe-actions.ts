@@ -54,7 +54,7 @@ export async function createStripeCheckoutAction(
   const supabase = await createClient();
   const { data: devis, error } = await supabase
     .from("devis")
-    .select("id, number, client_id, total_ttc, acompte_ttc, product_summary")
+    .select("id, number, client_id, total_ttc, acompte_ttc, product_summary, client_access_token")
     .eq("id", devisId)
     .maybeSingle();
 
@@ -103,8 +103,14 @@ export async function createStripeCheckoutAction(
         kind: "acompte",
         atmosphere_app_version: "1",
       },
-      success_url: `${appUrl}/paiement/merci/${devis.id}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/paiement/annule/${devis.id}`,
+      // Redirige vers l'espace client si possible (parcours public + suivi commande),
+      // sinon vers la page de remerciement publique.
+      success_url: (devis as { client_access_token?: string }).client_access_token
+        ? `${appUrl}/client/${(devis as { client_access_token: string }).client_access_token}?paid=success&session_id={CHECKOUT_SESSION_ID}`
+        : `${appUrl}/paiement/merci/${devis.id}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: (devis as { client_access_token?: string }).client_access_token
+        ? `${appUrl}/client/${(devis as { client_access_token: string }).client_access_token}?paid=cancel`
+        : `${appUrl}/paiement/annule/${devis.id}`,
       locale: "fr",
     });
 

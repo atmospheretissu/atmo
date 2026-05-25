@@ -36,6 +36,9 @@ export async function sendDevisEmailAction(
   if (!result) return { ok: false, message: "Devis introuvable." };
   const { devis, client, lines } = result;
 
+  // Token d'accès espace client (généré auto par la migration ; backfill au besoin).
+  const clientToken = (devis as unknown as { client_access_token?: string }).client_access_token ?? null;
+
   if (!client?.email) {
     return {
       ok: false,
@@ -72,6 +75,7 @@ export async function sendDevisEmailAction(
 
   const firstName = client.display_name.split(",")[1]?.trim() ?? client.display_name;
   const pdfLink = `${appUrl}/devis/${devis.id}/pdf`;
+  const portalLink = clientToken ? `${appUrl}/client/${clientToken}` : null;
 
   // Génère le lien Stripe d'acompte (best-effort — si Stripe indispo, l'email
   // part quand même, juste sans bouton de paiement).
@@ -89,18 +93,27 @@ export async function sendDevisEmailAction(
     console.warn("[devis email] Stripe link non généré:", err);
   }
 
-  const payButtonHtml = stripeUrl
-    ? `<p style="margin:20px 0 12px 0">
-        <a href="${stripeUrl}" style="display:inline-block;padding:14px 22px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
-          ✓ Accepter et payer l'acompte ${eur(acompte)}
+  // CTA principal : si l'on a un token portail, on envoie le client sur son
+  // espace dédié (qui contient le bouton Stripe + le suivi de commande).
+  // Sinon on garde le lien Stripe direct ou un message contact.
+  const ctaHtml = portalLink
+    ? `<p style="margin:20px 0 8px 0">
+        <a href="${portalLink}" style="display:inline-block;padding:14px 22px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
+          → Voir mon devis et payer en ligne
         </a>
       </p>
       <p style="margin:0 0 16px 0;font-size:11.5px;color:#9ca3af">
-        Paiement 100% sécurisé via Stripe. Carte bancaire — encaissement immédiat.
+        Espace personnel sécurisé · paiement Stripe · suivi de votre commande en temps réel
       </p>`
-    : `<p style="margin:8px 0 16px 0;font-size:12px;color:#9ca3af;font-style:italic">
-        Pour valider et payer l'acompte, contactez Atmosphère Tissus au 05 56 XX XX XX.
-      </p>`;
+    : stripeUrl
+      ? `<p style="margin:20px 0 12px 0">
+          <a href="${stripeUrl}" style="display:inline-block;padding:14px 22px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
+            ✓ Accepter et payer l'acompte ${eur(acompte)}
+          </a>
+        </p>`
+      : `<p style="margin:8px 0 16px 0;font-size:12px;color:#9ca3af;font-style:italic">
+          Pour valider et payer l'acompte, contactez Atmosphère Tissus au 05 56 XX XX XX.
+        </p>`;
 
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8f7fb;padding:24px;margin:0;color:#111111">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
@@ -124,7 +137,7 @@ export async function sendDevisEmailAction(
         Le devis détaillé est en pièce jointe. Pour le valider, un acompte de 50% est requis
         à la commande, le solde est dû avant la pose.
       </p>
-      ${payButtonHtml}
+      ${ctaHtml}
       <p style="margin:16px 0">
         <a href="${pdfLink}" style="display:inline-block;padding:10px 16px;background:#111111;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Télécharger le PDF du devis</a>
       </p>
@@ -145,7 +158,7 @@ Voici votre devis ${devis.number} pour ${devis.product_summary}.
 Total TTC : ${eur(totalTtc)}
 Acompte 50% à la validation : ${eur(acompte)}
 
-${stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}PDF détaillé en pièce jointe.
+${portalLink ? `Voir mon devis et payer en ligne :\n${portalLink}\n\n` : stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}PDF détaillé en pièce jointe.
 
 L'équipe Atmosphère Tissus`;
 
