@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { XCircle, Mail, Phone, RotateCcw } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -87,13 +88,18 @@ export default async function AnnulePage({
           </div>
         </div>
 
-        <div className="px-8 py-4 bg-canvas-2/40 border-t border-line text-center">
-          <Link
-            href="https://atmospheretissus.fr"
-            className="text-[11.5px] text-violet hover:underline"
-          >
-            atmospheretissus.fr
-          </Link>
+        <div className="px-8 py-5 bg-canvas-2/40 border-t border-line">
+          <div className="flex items-center justify-center mb-2">
+            <Logo />
+          </div>
+          <p className="text-[11.5px] text-muted-2 text-center">
+            <Link
+              href="https://atmospheretissus.fr"
+              className="text-violet hover:underline"
+            >
+              atmospheretissus.fr
+            </Link>
+          </p>
         </div>
       </div>
     </div>

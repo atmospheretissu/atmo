@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2, Mail, Phone, Sparkles } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -152,16 +153,21 @@ export default async function MerciPage({
           </div>
         </div>
 
-        <div className="px-8 py-4 bg-canvas-2/40 border-t border-line text-center">
-          <p className="text-[11.5px] text-muted">
-            <strong className="text-ink-2">Atmosphère Tissus</strong> · 33 cours du Maréchal Foch, 33000 Bordeaux
+        <div className="px-8 py-5 bg-canvas-2/40 border-t border-line">
+          <div className="flex items-center justify-center mb-2">
+            <Logo />
+          </div>
+          <p className="text-[11.5px] text-muted text-center">
+            33 cours du Maréchal Foch, 33000 Bordeaux
           </p>
-          <Link
-            href="https://atmospheretissus.fr"
-            className="text-[11.5px] text-violet hover:underline mt-1 inline-block"
-          >
-            atmospheretissus.fr
-          </Link>
+          <p className="text-[11.5px] text-center mt-0.5">
+            <Link
+              href="https://atmospheretissus.fr"
+              className="text-violet hover:underline"
+            >
+              atmospheretissus.fr
+            </Link>
+          </p>
         </div>
       </div>
     </div>

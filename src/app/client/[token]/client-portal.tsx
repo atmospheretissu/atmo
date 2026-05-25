@@ -20,6 +20,7 @@ import {
   Banknote,
   CalendarCheck,
 } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import { createStripeCheckoutForToken } from "./actions";
 
 type DevisVM = {
@@ -158,21 +159,11 @@ export function ClientPortal({
   return (
     <div className="min-h-screen bg-canvas">
       <header className="bg-white border-b border-line">
-        <div className="max-w-2xl mx-auto px-5 sm:px-6 py-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-pastel-yellow to-amber inline-flex items-center justify-center font-bold text-[16px] text-ink shrink-0 shadow-[inset_0_-1px_0_rgba(0,0,0,0.08)]">
-            A
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14px] font-semibold text-ink leading-tight tracking-tight">
-              Atmosphère Tissus
-            </p>
-            <p className="text-[11px] text-muted leading-tight mt-0.5">
-              Espace personnel sécurisé
-            </p>
-          </div>
+        <div className="max-w-2xl mx-auto px-5 sm:px-6 py-4 flex items-center justify-between gap-3">
+          <Logo />
           <div className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-muted-2">
             <Shield className="h-3 w-3" strokeWidth={2.2} />
-            Sécurisé
+            Espace sécurisé
           </div>
         </div>
       </header>
@@ -458,12 +449,15 @@ export function ClientPortal({
           </div>
         </section>
 
-        <div className="text-center pt-2 pb-6">
+        <div className="text-center pt-4 pb-6 space-y-2">
+          <div className="inline-flex items-center justify-center">
+            <Logo />
+          </div>
           <p className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-2">
             <MapPin className="h-3 w-3" strokeWidth={2.2} />
             33 cours du Maréchal Foch, 33000 Bordeaux
           </p>
-          <p className="text-[11px] text-muted-2 mt-1.5">
+          <p className="text-[11px] text-muted-2">
             <a
               href="https://atmospheretissus.fr"
               className="hover:text-violet transition-colors"
