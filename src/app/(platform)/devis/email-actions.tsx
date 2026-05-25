@@ -9,7 +9,13 @@ import { sendBrevoEmail, isBrevoConfigured } from "@/lib/brevo/client";
 import { createStripeCheckoutAction } from "./stripe-actions";
 
 export type SendDevisEmailResult =
-  | { ok: true; messageId: string; emailedTo: string }
+  | {
+      ok: true;
+      messageId: string;
+      emailedTo: string;
+      stripeUrl: string | null;
+      stripeError: string | null;
+    }
   | { ok: false; message: string };
 
 /**
@@ -70,10 +76,16 @@ export async function sendDevisEmailAction(
   // Génère le lien Stripe d'acompte (best-effort — si Stripe indispo, l'email
   // part quand même, juste sans bouton de paiement).
   let stripeUrl: string | null = null;
+  let stripeError: string | null = null;
   try {
     const stripeResult = await createStripeCheckoutAction(devisId);
-    if (stripeResult.ok) stripeUrl = stripeResult.url;
+    if (stripeResult.ok) {
+      stripeUrl = stripeResult.url;
+    } else {
+      stripeError = stripeResult.message;
+    }
   } catch (err) {
+    stripeError = err instanceof Error ? err.message : "Erreur inconnue";
     console.warn("[devis email] Stripe link non généré:", err);
   }
 
@@ -165,5 +177,11 @@ L'équipe Atmosphère Tissus`;
   revalidatePath("/devis");
   revalidatePath("/dashboard");
 
-  return { ok: true, messageId: sendResult.messageId, emailedTo: client.email };
+  return {
+    ok: true,
+    messageId: sendResult.messageId,
+    emailedTo: client.email,
+    stripeUrl,
+    stripeError,
+  };
 }

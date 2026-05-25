@@ -28,9 +28,17 @@ import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
  * redirect().
  */
 
+/** Log structuré d'une étape — affiché dans le wizard pour donner la
+ *  visibilité complète sur ce qui s'est passé (succès / échec / silence). */
+export type TestLog = {
+  level: "success" | "info" | "warn" | "error";
+  label: string;
+  detail?: string;
+};
+
 export type TestResult<T = Record<string, unknown>> =
-  | ({ ok: true } & T)
-  | { ok: false; message: string };
+  | ({ ok: true; logs?: TestLog[] } & T)
+  | { ok: false; message: string; logs?: TestLog[] };
 
 /**
  * Destinataires forcés en mode test : SMS et emails partent TOUJOURS sur ces
@@ -108,6 +116,75 @@ async function clientIdOfPose(poseId: string): Promise<string | null> {
     .maybeSingle();
   if (!pose) return null;
   return clientIdOfDossier(pose.dossier_id);
+}
+
+/** Relit sms_log + email_log + automation_rules pour produire les logs d'un
+ *  trigger qui vient juste de se déclencher (best-effort, fenêtre 30 s). */
+async function collectAutomationLogs(
+  eventKey: string,
+  sinceMs: number,
+): Promise<TestLog[]> {
+  const logs: TestLog[] = [];
+  const supabase = await createClient();
+  const since = new Date(sinceMs).toISOString();
+
+  const [{ data: smsRows }, { data: emailRows }, { data: rule }] = await Promise.all([
+    supabase
+      .from("sms_log")
+      .select("status, error, brevo_message_id, to_phone")
+      .gte("created_at", since)
+      .eq("event_key", eventKey)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("email_log")
+      .select("status, error, brevo_message_id, to_email")
+      .gte("created_at", since)
+      .eq("event_key", eventKey)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    supabase
+      .from("automation_rules")
+      .select("sms_enabled, email_enabled, sms_template_key, email_template_key")
+      .eq("event_key", eventKey)
+      .maybeSingle(),
+  ]);
+
+  const sms = smsRows?.[0];
+  if (!rule) {
+    logs.push({
+      level: "warn",
+      label: `SMS auto '${eventKey}' non envoyé`,
+      detail: `Aucune règle dans /architecture pour cet événement. Crée la règle pour activer le SMS automatique.`,
+    });
+  } else if (!rule.sms_enabled) {
+    logs.push({ level: "info", label: `SMS '${eventKey}' désactivé`, detail: "Désactivé dans /architecture." });
+  } else if (!rule.sms_template_key) {
+    logs.push({ level: "warn", label: `SMS '${eventKey}' sans template`, detail: "Template SMS non sélectionné dans /architecture." });
+  } else if (!sms) {
+    logs.push({ level: "warn", label: `SMS '${eventKey}' : aucun envoi détecté`, detail: "Vérifie BREVO_API_KEY." });
+  } else if (sms.status === "sent") {
+    logs.push({ level: "success", label: `SMS '${eventKey}' envoyé à ${sms.to_phone}`, detail: `Brevo ID : ${sms.brevo_message_id ?? "?"}` });
+  } else if (sms.status === "skipped") {
+    logs.push({ level: "warn", label: `SMS '${eventKey}' skippé`, detail: sms.error ?? "Probablement BREVO_API_KEY absent" });
+  } else {
+    logs.push({ level: "error", label: `SMS '${eventKey}' échec (${sms.status})`, detail: sms.error ?? "(pas d'erreur)" });
+  }
+
+  const em = emailRows?.[0];
+  if (rule?.email_enabled && rule.email_template_key) {
+    if (!em) {
+      logs.push({ level: "warn", label: `Email '${eventKey}' : aucun envoi détecté` });
+    } else if (em.status === "sent") {
+      logs.push({ level: "success", label: `Email '${eventKey}' envoyé à ${em.to_email}`, detail: `Brevo ID : ${em.brevo_message_id ?? "?"}` });
+    } else if (em.status === "skipped") {
+      logs.push({ level: "warn", label: `Email '${eventKey}' skippé`, detail: em.error ?? "BREVO_API_KEY absent" });
+    } else {
+      logs.push({ level: "error", label: `Email '${eventKey}' échec (${em.status})`, detail: em.error ?? "(pas d'erreur)" });
+    }
+  }
+
+  return logs;
 }
 
 /** Crée un client de test (sans redirect — contrairement à createClientAction). */
@@ -226,29 +303,118 @@ export async function testCreateDevis(input: {
   };
 }
 
-/** Envoie le devis : email complet avec PDF + trigger SMS automation.
- *  Destinataires forcés sur les contacts test. */
+/** Envoie le devis : email complet avec PDF + trigger SMS/email automation.
+ *  Destinataires forcés sur les contacts test. Retourne des logs détaillés
+ *  pour chaque sous-action (PDF email, Stripe link, automation SMS/email). */
 export async function testSendDevis(
   devisId: string,
-): Promise<TestResult<{ emailedTo?: string; smsOk: boolean }>> {
+): Promise<TestResult<{ emailedTo?: string }>> {
   const clientId = await clientIdOfDevis(devisId);
   if (!clientId) return { ok: false, message: "Devis sans client" };
 
   return withTestRecipients(clientId, async () => {
-    // 1. Email complet avec PDF (passe par sendDevisEmailAction qui marque
-    //    aussi le devis comme envoye et fixe sent_at).
+    const logs: TestLog[] = [];
+
+    // 1. Email complet avec PDF
     const mail = await sendDevisEmailAction(devisId);
     if (!mail.ok) {
-      return { ok: false, message: `Email : ${mail.message}` };
+      logs.push({ level: "error", label: "Email PDF devis", detail: mail.message });
+      return { ok: false, message: `Email : ${mail.message}`, logs };
     }
 
-    // 2. Trigger SMS automation (devis_envoye). Idempotent : si le statut est
-    //    déjà 'envoye' (set par sendDevisEmailAction), changeDevisStatusAction
-    //    ne refait que le trigger event sans re-stamp.
-    const status = await changeDevisStatusAction(devisId, "envoye");
-    const smsOk = !status || status.ok;
+    logs.push({
+      level: "success",
+      label: `Email PDF envoyé à ${mail.emailedTo}`,
+      detail: `Brevo ID : ${mail.messageId || "(vide)"}`,
+    });
 
-    return { ok: true, emailedTo: mail.emailedTo, smsOk };
+    if (mail.stripeUrl) {
+      logs.push({
+        level: "success",
+        label: "Bouton de paiement Stripe inclus dans l'email",
+        detail: `URL générée — le client peut cliquer "Accepter et payer" depuis sa boîte mail`,
+      });
+    } else {
+      logs.push({
+        level: "warn",
+        label: "Pas de bouton Stripe dans l'email",
+        detail: mail.stripeError ?? "Stripe non configuré (vérifie STRIPE_SECRET_KEY + STRIPE_PUBLISHABLE_KEY sur Railway)",
+      });
+    }
+
+    // 2. Trigger SMS/email automation (devis_envoye)
+    const status = await changeDevisStatusAction(devisId, "envoye");
+    if (status && !status.ok) {
+      logs.push({ level: "error", label: "changeDevisStatusAction", detail: status.message });
+    }
+
+    // 3. Diagnostic du trigger : on relit la dernière entrée sms_log pour ce
+    //    devis afin de surfacer le résultat exact (sent / failed / skipped / no rule).
+    const supabase = await createClient();
+    const sinceMs = Date.now() - 30_000; // 30s
+    const since = new Date(sinceMs).toISOString();
+
+    const [{ data: recentSms }, { data: recentEmail }, { data: rule }] = await Promise.all([
+      supabase
+        .from("sms_log")
+        .select("status, error, brevo_message_id, to_phone")
+        .gte("created_at", since)
+        .eq("event_key", "devis_envoye")
+        .order("created_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("email_log")
+        .select("status, error, brevo_message_id, to_email")
+        .gte("created_at", since)
+        .eq("event_key", "devis_envoye")
+        .order("created_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("automation_rules")
+        .select("sms_enabled, email_enabled, sms_template_key, email_template_key")
+        .eq("event_key", "devis_envoye")
+        .maybeSingle(),
+    ]);
+
+    // Diagnostic SMS automation
+    const sms = recentSms?.[0];
+    if (!rule) {
+      logs.push({
+        level: "warn",
+        label: "SMS auto devis_envoye non envoyé",
+        detail: "Aucune règle d'automation pour 'devis_envoye' dans /architecture. Crée la règle (template SMS + activée) pour qu'un SMS parte automatiquement à chaque envoi de devis.",
+      });
+    } else if (!rule.sms_enabled) {
+      logs.push({ level: "info", label: "SMS auto désactivé", detail: "Règle 'devis_envoye' présente mais SMS désactivé dans /architecture." });
+    } else if (!rule.sms_template_key) {
+      logs.push({ level: "warn", label: "SMS auto sans template", detail: "Règle active mais aucun template SMS sélectionné dans /architecture." });
+    } else if (!sms) {
+      logs.push({ level: "warn", label: "SMS auto : aucun envoi détecté", detail: "Le trigger ne s'est pas exécuté (pas de log récent dans sms_log). Vérifie BREVO_API_KEY." });
+    } else if (sms.status === "sent") {
+      logs.push({ level: "success", label: `SMS auto envoyé à ${sms.to_phone}`, detail: `Brevo ID : ${sms.brevo_message_id ?? "?"}` });
+    } else if (sms.status === "skipped") {
+      logs.push({ level: "warn", label: "SMS auto skippé", detail: sms.error ?? "(raison inconnue) — probablement BREVO_API_KEY absent" });
+    } else {
+      logs.push({ level: "error", label: `SMS auto échec (${sms.status})`, detail: sms.error ?? "(pas de message d'erreur)" });
+    }
+
+    // Diagnostic email automation
+    const em = recentEmail?.[0];
+    if (rule && rule.email_enabled && rule.email_template_key) {
+      if (!em) {
+        logs.push({ level: "warn", label: "Email auto : aucun envoi détecté", detail: "Le trigger ne s'est pas exécuté." });
+      } else if (em.status === "sent") {
+        logs.push({ level: "success", label: `Email auto envoyé à ${em.to_email}`, detail: `Brevo ID : ${em.brevo_message_id ?? "?"}` });
+      } else if (em.status === "skipped") {
+        logs.push({ level: "warn", label: "Email auto skippé", detail: em.error ?? "(raison inconnue)" });
+      } else {
+        logs.push({ level: "error", label: `Email auto échec (${em.status})`, detail: em.error ?? "(pas de message d'erreur)" });
+      }
+    }
+    // Note : l'email PDF a déjà été envoyé en (1), donc même sans rule active
+    // le client reçoit son devis. La rule est complémentaire (notif courte).
+
+    return { ok: true, emailedTo: mail.emailedTo, logs };
   });
 }
 
@@ -267,13 +433,17 @@ export async function testMarkAcomptePaid(
   const clientId = await clientIdOfDevis(devisId);
   if (!clientId) return { ok: false, message: "Devis sans client" };
 
+  const sinceMs = Date.now();
   const r = await withTestRecipients(clientId, () =>
     markAcompteRecuAction(devisId),
   );
+
+  const automationLogs = await collectAutomationLogs("acompte_recu", sinceMs);
   if (!r || !r.ok || !r.dossierId) {
     return {
       ok: false,
       message: r && !r.ok ? r.message ?? "Échec acompte" : "Dossier non créé",
+      logs: automationLogs,
     };
   }
   const supabase = await createClient();
@@ -288,11 +458,21 @@ export async function testMarkAcomptePaid(
       .eq("dossier_id", r.dossierId),
   ]);
 
+  const logs: TestLog[] = [
+    {
+      level: "success",
+      label: `Paiement enregistré (kind=acompte, method=virement)`,
+      detail: `Dossier ${r.dossierId.slice(0, 8)} créé · ${itemCount ?? 0} items · ${bcCount ?? 0} BC fournisseurs auto-générés`,
+    },
+    ...automationLogs,
+  ];
+
   return {
     ok: true,
     dossierId: r.dossierId,
     bcCount: bcCount ?? 0,
     itemCount: itemCount ?? 0,
+    logs,
   };
 }
 
@@ -344,15 +524,16 @@ export async function testReceiveAllItems(
   const clientId = await clientIdOfDossier(dossierId);
   if (!clientId) return { ok: false, message: "Dossier sans client" };
 
-  return withTestRecipients(clientId, async () => {
+  const sinceMs = Date.now();
+  const result = await withTestRecipients(clientId, async () => {
     const supabase = await createClient();
     const { data: items, error } = await supabase
       .from("dossier_items")
       .select("qr_code, status")
       .eq("dossier_id", dossierId);
-    if (error) return { ok: false, message: error.message };
+    if (error) return { ok: false as const, message: error.message };
     if (!items || items.length === 0) {
-      return { ok: false, message: "Aucun item dans ce dossier" };
+      return { ok: false as const, message: "Aucun item dans ce dossier" };
     }
 
     let received = 0;
@@ -365,8 +546,22 @@ export async function testReceiveAllItems(
       const r = await receiveByQrAction(it.qr_code);
       if (r.ok) received += 1;
     }
-    return { ok: true, received, skipped, total: items.length };
+    return { ok: true as const, received, skipped, total: items.length };
   });
+
+  if (!result.ok) return { ok: false, message: result.message };
+
+  // tous_recus se déclenche au dernier item — collecte les logs auto.
+  const automationLogs = await collectAutomationLogs("tous_recus", sinceMs);
+  const logs: TestLog[] = [
+    {
+      level: "success",
+      label: `${result.received} colis scannés (${result.skipped} déjà reçus)`,
+      detail: `Total items : ${result.total}`,
+    },
+    ...automationLogs,
+  ];
+  return { ...result, logs };
 }
 
 /** Réceptionne un seul item via son QR (utile pour démontrer un scan). */
@@ -405,11 +600,20 @@ export async function testMarkPoseDone(
   const clientId = await clientIdOfPose(poseId);
   if (!clientId) return { ok: false, message: "Pose sans client" };
 
+  const sinceMs = Date.now();
   const r = await withTestRecipients(clientId, () =>
     markPoseDoneAction(poseId),
   );
-  if (!r.ok) return { ok: false, message: r.message };
-  return { ok: true };
+  const automationLogs = await collectAutomationLogs("pose_effectuee", sinceMs);
+  if (!r.ok) return { ok: false, message: r.message, logs: automationLogs };
+
+  return {
+    ok: true,
+    logs: [
+      { level: "success", label: "Pose marquée effectuée" },
+      ...automationLogs,
+    ],
+  };
 }
 
 /** Encaisse le solde (paiement manuel kind='solde'). */
@@ -474,7 +678,16 @@ export async function testMarkSoldePaid(
 
   revalidatePath("/devis");
   revalidatePath(`/devis/${devisId}`);
-  return { ok: true, amount: solde };
+
+  const automationLogs = await collectAutomationLogs("solde_recu", Date.now() - 5_000);
+  return {
+    ok: true,
+    amount: solde,
+    logs: [
+      { level: "success", label: `Solde encaissé : ${Math.round(solde)}€` },
+      ...automationLogs,
+    ],
+  };
 }
 
 /** Envoie un SMS libre (utile pour tester un canal isolé). */
@@ -620,3 +833,79 @@ export async function testSendCustomEmail(input: {
   }
   return { ok: false, message: r.message };
 }
+
+/** Historique des SMS + emails (loggés en base) — affiché en bas du wizard
+ *  pour donner la traçabilité complète des envois récents. */
+export type TestHistoryEntry = {
+  id: string;
+  channel: "sms" | "email";
+  createdAt: string;
+  to: string;
+  status: string;
+  triggerSource: string | null;
+  eventKey: string | null;
+  templateKey: string | null;
+  brevoMessageId: string | null;
+  error: string | null;
+  preview: string;
+};
+
+export async function getTestHistory(
+  limit = 30,
+): Promise<TestHistoryEntry[]> {
+  const supabase = await createClient();
+  const [{ data: sms }, { data: emails }] = await Promise.all([
+    supabase
+      .from("sms_log")
+      .select(
+        "id, created_at, to_phone, body, status, trigger_source, event_key, template_key, brevo_message_id, error",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("email_log")
+      .select(
+        "id, created_at, to_email, subject, status, trigger_source, event_key, template_key, brevo_message_id, error",
+      )
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  ]);
+
+  const all: TestHistoryEntry[] = [
+    ...(sms ?? []).map(
+      (s): TestHistoryEntry => ({
+        id: `sms:${s.id}`,
+        channel: "sms",
+        createdAt: s.created_at,
+        to: s.to_phone ?? "—",
+        status: s.status ?? "?",
+        triggerSource: s.trigger_source ?? null,
+        eventKey: s.event_key ?? null,
+        templateKey: s.template_key ?? null,
+        brevoMessageId: s.brevo_message_id ?? null,
+        error: s.error ?? null,
+        preview: (s.body ?? "").slice(0, 100),
+      }),
+    ),
+    ...(emails ?? []).map(
+      (e): TestHistoryEntry => ({
+        id: `email:${e.id}`,
+        channel: "email",
+        createdAt: e.created_at,
+        to: e.to_email ?? "—",
+        status: e.status ?? "?",
+        triggerSource: e.trigger_source ?? null,
+        eventKey: e.event_key ?? null,
+        templateKey: e.template_key ?? null,
+        brevoMessageId: e.brevo_message_id ?? null,
+        error: e.error ?? null,
+        preview: e.subject ?? "",
+      }),
+    ),
+  ];
+
+  all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return all.slice(0, limit);
+}
+
+

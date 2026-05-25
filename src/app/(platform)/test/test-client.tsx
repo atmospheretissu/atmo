@@ -34,6 +34,9 @@ import {
   testMarkSoldePaid,
   testSendCustomSms,
   testSendCustomEmail,
+  getTestHistory,
+  type TestLog,
+  type TestHistoryEntry,
 } from "./actions";
 
 const TEST_PHONE = "0667699490";
@@ -84,6 +87,7 @@ type StepState = {
   status: StepStatus;
   message?: string;
   detail?: string;
+  logs?: TestLog[];
 };
 
 const ALL_STEPS: { key: StepKey; label: string; sub: string }[] = [
@@ -104,10 +108,12 @@ export default function TestClient({
   clients,
   devis,
   dossiers,
+  initialHistory,
 }: {
   clients: ClientLite[];
   devis: DevisLite[];
   dossiers: DossierLite[];
+  initialHistory: TestHistoryEntry[];
 }) {
   // État du parcours (entités créées au fil de l'eau)
   const [clientId, setClientId] = useState<string | null>(null);
@@ -125,6 +131,17 @@ export default function TestClient({
   const [openStep, setOpenStep] = useState<StepKey>("client");
   const [pending, startTransition] = useTransition();
   const [autoRunning, setAutoRunning] = useState(false);
+  const [history, setHistory] = useState<TestHistoryEntry[]>(initialHistory);
+  const [refreshingHistory, setRefreshingHistory] = useState(false);
+
+  const refreshHistory = () => {
+    setRefreshingHistory(true);
+    startTransition(async () => {
+      const h = await getTestHistory(30);
+      setHistory(h);
+      setRefreshingHistory(false);
+    });
+  };
 
   const setStep = (key: StepKey, patch: Partial<StepState>) =>
     setSteps((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -259,12 +276,14 @@ export default function TestClient({
       if (r.ok) {
         setStep("send", {
           status: "done",
-          message: "Devis envoyé · SMS + email déclenchés selon automations",
+          message: r.emailedTo ? `Email envoyé à ${r.emailedTo}` : "Devis envoyé",
+          logs: r.logs,
         });
         setOpenStep("validate");
       } else {
-        setStep("send", { status: "error", message: r.message });
+        setStep("send", { status: "error", message: r.message, logs: r.logs });
       }
+      refreshHistory();
     });
   };
 
@@ -299,11 +318,13 @@ export default function TestClient({
           status: "done",
           message: `Acompte encaissé · dossier créé`,
           detail: `Dossier ${r.dossierId.slice(0, 8)}… · ${r.itemCount} items · ${r.bcCount} BC fournisseurs auto-générés`,
+          logs: r.logs,
         });
         setOpenStep("reception");
       } else {
-        setStep("acompte", { status: "error", message: r.message });
+        setStep("acompte", { status: "error", message: r.message, logs: r.logs });
       }
+      refreshHistory();
     });
   };
 
@@ -325,11 +346,13 @@ export default function TestClient({
           status: "done",
           message: `${r.received} colis reçus (${r.skipped} déjà reçus)`,
           detail: `Total items du dossier : ${r.total} · QR codes scannés en cascade`,
+          logs: r.logs,
         });
         setOpenStep("pose-plan");
       } else {
-        setStep("reception", { status: "error", message: r.message });
+        setStep("reception", { status: "error", message: r.message, logs: r.logs });
       }
+      refreshHistory();
     });
   };
 
@@ -366,11 +389,13 @@ export default function TestClient({
         setStep("pose-done", {
           status: "done",
           message: "Pose marquée effectuée · SMS satisfaction déclenché",
+          logs: r.logs,
         });
         setOpenStep("solde");
       } else {
-        setStep("pose-done", { status: "error", message: r.message });
+        setStep("pose-done", { status: "error", message: r.message, logs: r.logs });
       }
+      refreshHistory();
     });
   };
 
@@ -386,11 +411,13 @@ export default function TestClient({
         setStep("solde", {
           status: "done",
           message: `Solde encaissé · ${Math.round(r.amount)}€`,
+          logs: r.logs,
         });
         setOpenStep("sms-libre");
       } else {
-        setStep("solde", { status: "error", message: r.message });
+        setStep("solde", { status: "error", message: r.message, logs: r.logs });
       }
+      refreshHistory();
     });
   };
 
@@ -403,11 +430,17 @@ export default function TestClient({
           status: "done",
           message: `SMS envoyé à ${phone}`,
           detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined,
+          logs: [{ level: "success", label: `SMS envoyé à ${phone}`, detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined }],
         });
         setOpenStep("email-libre");
       } else {
-        setStep("sms-libre", { status: "error", message: r.message });
+        setStep("sms-libre", {
+          status: "error",
+          message: r.message,
+          logs: [{ level: "error", label: "Échec envoi SMS", detail: r.message }],
+        });
       }
+      refreshHistory();
     });
   };
 
@@ -424,10 +457,16 @@ export default function TestClient({
           status: "done",
           message: `Email envoyé à ${toEmail}`,
           detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined,
+          logs: [{ level: "success", label: `Email envoyé à ${toEmail}`, detail: r.messageId ? `Brevo ID : ${r.messageId}` : undefined }],
         });
       } else {
-        setStep("email-libre", { status: "error", message: r.message });
+        setStep("email-libre", {
+          status: "error",
+          message: r.message,
+          logs: [{ level: "error", label: "Échec envoi email", detail: r.message }],
+        });
       }
+      refreshHistory();
     });
   };
 
@@ -850,6 +889,12 @@ export default function TestClient({
             <EmailForm onRun={runEmailLibre} disabled={pending || autoRunning} />
           </StepCard>
 
+          <HistorySection
+            history={history}
+            refreshing={refreshingHistory}
+            onRefresh={refreshHistory}
+          />
+
           {dossiers.length > 0 && (
             <Card className="mt-6">
               <CardHeader>
@@ -941,9 +986,47 @@ function StepCard({
           {step.detail && (
             <p className="text-[11.5px] text-muted-2 mt-3 italic">{step.detail}</p>
           )}
+          {step.logs && step.logs.length > 0 && <LogsPanel logs={step.logs} />}
         </div>
       )}
     </Card>
+  );
+}
+
+function LogsPanel({ logs }: { logs: TestLog[] }) {
+  return (
+    <div className="mt-4 rounded-lg border border-line bg-white p-3 space-y-1.5">
+      <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-2 mb-1">
+        Logs d'exécution ({logs.length})
+      </p>
+      {logs.map((l, i) => (
+        <LogLine key={i} log={l} />
+      ))}
+    </div>
+  );
+}
+
+function LogLine({ log }: { log: TestLog }) {
+  const icon =
+    log.level === "success" ? (
+      <CheckCircle2 className="h-3.5 w-3.5 text-emerald shrink-0 mt-0.5" strokeWidth={2.4} />
+    ) : log.level === "warn" ? (
+      <AlertTriangle className="h-3.5 w-3.5 text-amber shrink-0 mt-0.5" strokeWidth={2.4} />
+    ) : log.level === "error" ? (
+      <XCircle className="h-3.5 w-3.5 text-pink shrink-0 mt-0.5" strokeWidth={2.4} />
+    ) : (
+      <Circle className="h-3.5 w-3.5 text-blue shrink-0 mt-0.5" strokeWidth={2.4} />
+    );
+  return (
+    <div className="flex items-start gap-2 text-[12px]">
+      {icon}
+      <div className="min-w-0 flex-1">
+        <p className="text-ink-2 font-medium">{log.label}</p>
+        {log.detail && (
+          <p className="text-muted-2 text-[11.5px] mt-0.5 break-words">{log.detail}</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1327,6 +1410,98 @@ function EmailForm({
         <Play className="h-3.5 w-3.5" strokeWidth={2.2} />
         Envoyer l'email
       </Button>
+    </div>
+  );
+}
+
+function HistorySection({
+  history,
+  refreshing,
+  onRefresh,
+}: {
+  history: TestHistoryEntry[];
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>Historique des envois (SMS + email)</CardTitle>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          <RotateCcw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} strokeWidth={2.2} />
+          {refreshing ? "Rafraîchissement…" : "Rafraîchir"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {history.length === 0 ? (
+          <p className="text-[12.5px] text-muted text-center py-6">
+            Aucun envoi enregistré pour le moment.
+          </p>
+        ) : (
+          <div className="rounded-lg border border-line overflow-hidden">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="bg-canvas-2/60 border-b border-line text-left">
+                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Quand</th>
+                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Canal</th>
+                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Destinataire</th>
+                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Sujet / Corps</th>
+                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Source / Event</th>
+                  <th className="px-3 py-2 font-semibold text-muted-2 text-[10.5px] uppercase tracking-wider">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.id} className="border-b border-line/60 last:border-0 hover:bg-canvas-2/30">
+                    <td className="px-3 py-2 text-muted tabular-nums whitespace-nowrap">
+                      {new Date(h.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "medium" })}
+                    </td>
+                    <td className="px-3 py-2">
+                      <StatusPill tone={h.channel === "sms" ? "violet" : "blue"} dot={false}>
+                        {h.channel === "sms" ? "SMS" : "Email"}
+                      </StatusPill>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-ink-2 truncate max-w-[180px]">{h.to}</td>
+                    <td className="px-3 py-2 text-muted truncate max-w-[220px]" title={h.preview}>{h.preview}</td>
+                    <td className="px-3 py-2 text-muted-2 text-[11px]">
+                      {h.triggerSource ? <span className="font-mono">{h.triggerSource}</span> : "—"}
+                      {h.eventKey && <span className="block text-violet font-mono">{h.eventKey}</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      <HistoryStatusBadge status={h.status} error={h.error} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HistoryStatusBadge({ status, error }: { status: string; error: string | null }) {
+  const tone: "emerald" | "amber" | "pink" | "muted" | "blue" =
+    status === "sent" || status === "delivered"
+      ? "emerald"
+      : status === "pending"
+        ? "blue"
+        : status === "skipped"
+          ? "amber"
+          : status === "failed" || status === "bounced"
+            ? "pink"
+            : "muted";
+  return (
+    <div title={error ?? undefined} className="inline-flex">
+      <StatusPill tone={tone} dot={false}>
+        {status}
+      </StatusPill>
     </div>
   );
 }
