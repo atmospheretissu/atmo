@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/auth/") ||
+    pathname.startsWith("/paiement/") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/stripe/webhook") ||
     pathname.startsWith("/api/webhooks/") ||

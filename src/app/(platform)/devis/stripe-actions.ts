@@ -103,8 +103,8 @@ export async function createStripeCheckoutAction(
         kind: "acompte",
         atmosphere_app_version: "1",
       },
-      success_url: `${appUrl}/devis/${devis.id}?stripe=success`,
-      cancel_url: `${appUrl}/devis/${devis.id}?stripe=cancel`,
+      success_url: `${appUrl}/paiement/merci/${devis.id}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/paiement/annule/${devis.id}`,
       locale: "fr",
     });
 

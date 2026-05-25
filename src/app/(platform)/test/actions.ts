@@ -8,6 +8,7 @@ import {
   markAcompteRecuAction,
 } from "@/app/(platform)/devis/actions";
 import { sendDevisEmailAction } from "@/app/(platform)/devis/email-actions";
+import { createStripeCheckoutAction } from "@/app/(platform)/devis/stripe-actions";
 import { receiveByQrAction } from "@/app/(platform)/reception/actions";
 import {
   createPoseForDossierAction,
@@ -1049,6 +1050,132 @@ export async function deleteTestRun(id: string): Promise<TestResult> {
   if (error) return { ok: false, message: error.message };
   revalidatePath("/test");
   return { ok: true };
+}
+
+// =====================================================================
+// VRAI PARCOURS DE TEST — interactions réelles avec Stripe + polling
+// =====================================================================
+
+/** Génère un lien Stripe Checkout pour l'acompte du devis.
+ *  Le wizard ouvre l'URL dans un nouvel onglet — le client peut payer
+ *  avec la carte test 4242 4242 4242 4242. */
+export async function testGetStripeCheckoutUrl(
+  devisId: string,
+): Promise<TestResult<{ url: string }>> {
+  const r = await createStripeCheckoutAction(devisId);
+  if (r.ok) return { ok: true, url: r.url };
+  return { ok: false, message: r.message };
+}
+
+/** Polling du statut du devis — utilisé par le wizard pendant qu'il attend
+ *  que le webhook Stripe ait fini de traiter le paiement client. */
+export type DevisLiveState = {
+  status: string;
+  acompteRecu: boolean;
+  dossierId: string | null;
+  itemCount: number;
+  bcCount: number;
+  paymentCount: number;
+};
+
+export async function pollDevisState(
+  devisId: string,
+): Promise<TestResult<DevisLiveState>> {
+  const supabase = await createClient();
+  const { data: devis, error } = await supabase
+    .from("devis")
+    .select("status")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (error) return { ok: false, message: error.message };
+  if (!devis) return { ok: false, message: "Devis introuvable" };
+
+  const [{ data: dossier }, { count: paymentCount }] = await Promise.all([
+    supabase
+      .from("dossiers")
+      .select("id")
+      .eq("devis_id", devisId)
+      .maybeSingle(),
+    supabase
+      .from("payments")
+      .select("*", { count: "exact", head: true })
+      .eq("devis_id", devisId),
+  ]);
+
+  let itemCount = 0;
+  let bcCount = 0;
+  if (dossier?.id) {
+    const [{ count: ic }, { count: bc }] = await Promise.all([
+      supabase
+        .from("dossier_items")
+        .select("*", { count: "exact", head: true })
+        .eq("dossier_id", dossier.id),
+      supabase
+        .from("bons_commande")
+        .select("*", { count: "exact", head: true })
+        .eq("dossier_id", dossier.id),
+    ]);
+    itemCount = ic ?? 0;
+    bcCount = bc ?? 0;
+  }
+
+  return {
+    ok: true,
+    status: devis.status,
+    acompteRecu: devis.status === "acompte_recu",
+    dossierId: dossier?.id ?? null,
+    itemCount,
+    bcCount,
+    paymentCount: paymentCount ?? 0,
+  };
+}
+
+/** Polling du statut d'un dossier — pour les étapes réception (attendre que
+ *  des items soient scannés depuis /reception) et pose (attendre marquage
+ *  manuel depuis /poses/[id]). */
+export type DossierLiveState = {
+  status: string;
+  itemsTotal: number;
+  itemsReceived: number;
+  hasPose: boolean;
+  poseId: string | null;
+  poseStatus: string | null;
+};
+
+export async function pollDossierState(
+  dossierId: string,
+): Promise<TestResult<DossierLiveState>> {
+  const supabase = await createClient();
+  const { data: dossier, error } = await supabase
+    .from("dossiers")
+    .select("status")
+    .eq("id", dossierId)
+    .maybeSingle();
+  if (error) return { ok: false, message: error.message };
+  if (!dossier) return { ok: false, message: "Dossier introuvable" };
+
+  const [items, pose] = await Promise.all([
+    supabase
+      .from("dossier_items")
+      .select("status")
+      .eq("dossier_id", dossierId),
+    supabase
+      .from("poses")
+      .select("id, status")
+      .eq("dossier_id", dossierId)
+      .maybeSingle(),
+  ]);
+
+  const list = items.data ?? [];
+  return {
+    ok: true,
+    status: dossier.status,
+    itemsTotal: list.length,
+    itemsReceived: list.filter((i) => i.status === "recu").length,
+    hasPose: Boolean(pose.data?.id),
+    poseId: pose.data?.id ?? null,
+    poseStatus: pose.data?.status ?? null,
+  };
 }
 
 

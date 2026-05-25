@@ -41,12 +41,15 @@ import {
   listTestRuns,
   getTestRun,
   deleteTestRun,
+  testGetStripeCheckoutUrl,
+  pollDevisState,
+  pollDossierState,
   type TestLog,
   type TestRunSummary,
   type TestRunDetail,
   type TestRunStep,
 } from "./actions";
-import { Trash2, ChevronLeft } from "lucide-react";
+import { Trash2, ChevronLeft, CreditCard, ScanLine, Hammer } from "lucide-react";
 
 const TEST_PHONE = "0667699490";
 const TEST_EMAIL = "dmanscour70@gmail.com";
@@ -383,6 +386,165 @@ export default function TestClient({
       } else {
         await recordStep("validate", { status: "error", message: r.message });
       }
+    });
+  };
+
+  /** Vrai paiement Stripe : ouvre Checkout, poll jusqu'à confirmation
+   *  webhook (status devis → acompte_recu), puis marque l'étape done. */
+  const runAcompteReal = () => {
+    if (!devisId) {
+      setStep("acompte", { status: "error", message: "Pas de devis." });
+      return;
+    }
+    setStep("acompte", {
+      status: "running",
+      message: "Génération du lien Stripe…",
+    });
+    startTransition(async () => {
+      const link = await testGetStripeCheckoutUrl(devisId);
+      if (!link.ok) {
+        await recordStep("acompte", {
+          status: "error",
+          message: link.message,
+          logs: [{ level: "error", label: "Échec génération lien Stripe", detail: link.message }],
+        });
+        return;
+      }
+      // Ouvre Stripe dans un nouvel onglet.
+      window.open(link.url, "_blank", "noopener,noreferrer");
+      setStep("acompte", {
+        status: "running",
+        message: "Stripe ouvert dans un nouvel onglet — paie avec la carte test 4242 4242 4242 4242, je détecte automatiquement le paiement.",
+        detail: "Polling toutes les 3s (timeout 5 min)…",
+      });
+
+      const start = Date.now();
+      const TIMEOUT_MS = 5 * 60 * 1000;
+      let detected: Awaited<ReturnType<typeof pollDevisState>> | null = null;
+      while (Date.now() - start < TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const s = await pollDevisState(devisId);
+        if (s.ok && s.acompteRecu) {
+          detected = s;
+          break;
+        }
+      }
+
+      if (!detected || !detected.ok || !detected.dossierId) {
+        await recordStep("acompte", {
+          status: "error",
+          message: "Timeout (5 min) — paiement non détecté",
+          detail: "Vérifie que le webhook Stripe est bien configuré (whsec_…) et que la session Stripe a été complétée.",
+          logs: [{ level: "warn", label: "Polling expiré", detail: "5 minutes sans détecter status=acompte_recu" }],
+        });
+        return;
+      }
+
+      setDossierId(detected.dossierId);
+      await recordStep(
+        "acompte",
+        {
+          status: "done",
+          message: "💳 Paiement Stripe confirmé via webhook",
+          detail: `Dossier ${detected.dossierId.slice(0, 8)} créé · ${detected.itemCount} items · ${detected.bcCount} BC · ${detected.paymentCount} paiement(s) enregistré(s)`,
+          logs: [
+            { level: "success", label: "Webhook Stripe reçu", detail: "checkout.session.completed → devis.status = acompte_recu" },
+            { level: "success", label: `Dossier créé automatiquement (${detected.itemCount} items + ${detected.bcCount} BC)` },
+          ],
+        },
+        { dossier_id: detected.dossierId },
+      );
+      // marquer aussi validate comme fait si pas déjà
+      if (steps.validate.status !== "done") {
+        await recordStep("validate", { status: "done", message: "Implicite : paiement = acceptation" });
+      }
+      setOpenStep("reception");
+    });
+  };
+
+  /** Vrai parcours réception : ouvre /reception dans nouvel onglet, poll
+   *  jusqu'à ce que tous les items du dossier soient reçus. */
+  const runReceptionReal = () => {
+    if (!dossierId) {
+      setStep("reception", { status: "error", message: "Pas de dossier." });
+      return;
+    }
+    setStep("reception", {
+      status: "running",
+      message: "Ouvre l'onglet réception et scanne les QR codes des items du dossier…",
+    });
+    startTransition(async () => {
+      window.open("/reception", "_blank", "noopener,noreferrer");
+
+      const start = Date.now();
+      const TIMEOUT_MS = 10 * 60 * 1000;
+      while (Date.now() - start < TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const s = await pollDossierState(dossierId);
+        if (s.ok && s.itemsTotal > 0 && s.itemsReceived === s.itemsTotal) {
+          await recordStep("reception", {
+            status: "done",
+            message: `Tous les ${s.itemsTotal} items scannés via /reception`,
+            detail: "Dossier passé à 'prêt pour pose'. SMS tous_recus déclenché.",
+            logs: [
+              { level: "success", label: `${s.itemsTotal}/${s.itemsTotal} items reçus`, detail: "Statut dossier: pret_pose" },
+            ],
+          });
+          setOpenStep("pose-plan");
+          return;
+        }
+        // mise à jour live de la progression
+        if (s.ok) {
+          setStep("reception", {
+            status: "running",
+            message: `${s.itemsReceived}/${s.itemsTotal} items scannés — continue les scans…`,
+          });
+        }
+      }
+      await recordStep("reception", {
+        status: "error",
+        message: "Timeout (10 min) — items non tous scannés",
+        logs: [{ level: "warn", label: "Polling expiré", detail: "Reviens et reprends quand les colis sont reçus." }],
+      });
+    });
+  };
+
+  /** Vrai parcours pose : ouvre la fiche pose, poll jusqu'à pose marquée done. */
+  const runPoseDoneReal = () => {
+    if (!poseId) {
+      setStep("pose-done", { status: "error", message: "Pas de pose planifiée." });
+      return;
+    }
+    setStep("pose-done", {
+      status: "running",
+      message: "Ouvre la fiche pose et clique 'Marquer comme posée' depuis l'app poseur…",
+    });
+    startTransition(async () => {
+      window.open(`/poses/${poseId}`, "_blank", "noopener,noreferrer");
+
+      const start = Date.now();
+      const TIMEOUT_MS = 10 * 60 * 1000;
+      while (Date.now() - start < TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, 3000));
+        if (!dossierId) break;
+        const s = await pollDossierState(dossierId);
+        if (s.ok && s.poseStatus === "pose") {
+          await recordStep("pose-done", {
+            status: "done",
+            message: "Pose marquée effectuée depuis l'interface poseur",
+            detail: "SMS satisfaction déclenché automatiquement.",
+            logs: [
+              { level: "success", label: "pose.status = pose", detail: "Trigger pose_effectuee firé" },
+            ],
+          });
+          setOpenStep("solde");
+          return;
+        }
+      }
+      await recordStep("pose-done", {
+        status: "error",
+        message: "Timeout (10 min) — pose non marquée",
+      });
     });
   };
 
@@ -1048,7 +1210,16 @@ export default function TestClient({
             description="Crée le paiement, déclenche la création du dossier de confection (avec QR codes) et les bons de commande fournisseurs."
             disabled={pending || autoRunning}
           >
-            <SimpleAction onRun={runAcompte} label="Encaisser l'acompte (virement)" disabled={pending || autoRunning || !devisId} />
+            <DualModeAction
+              disabled={pending || autoRunning || !devisId}
+              simulateLabel="Simuler (virement manuel)"
+              simulateIcon={<Play className="h-3.5 w-3.5" strokeWidth={2.2} />}
+              onSimulate={runAcompte}
+              realLabel="Tester avec vrai paiement Stripe"
+              realIcon={<CreditCard className="h-3.5 w-3.5" strokeWidth={2.2} />}
+              onReal={runAcompteReal}
+              realHint="Ouvre Stripe Checkout dans un nouvel onglet · carte test 4242 4242 4242 4242 · le webhook valide automatiquement l'étape"
+            />
           </StepCard>
 
           <StepCard
@@ -1061,7 +1232,16 @@ export default function TestClient({
             description="Scanne en cascade tous les QR codes des items du dossier. Au dernier item reçu, le dossier passe « Prêt pour pose » et un SMS est envoyé au client."
             disabled={pending || autoRunning}
           >
-            <SimpleAction onRun={runReception} label="Scanner tous les colis" disabled={pending || autoRunning || !dossierId} />
+            <DualModeAction
+              disabled={pending || autoRunning || !dossierId}
+              simulateLabel="Simuler (scan auto cascade)"
+              simulateIcon={<Play className="h-3.5 w-3.5" strokeWidth={2.2} />}
+              onSimulate={runReception}
+              realLabel="Tester depuis l'écran réception"
+              realIcon={<ScanLine className="h-3.5 w-3.5" strokeWidth={2.2} />}
+              onReal={runReceptionReal}
+              realHint="Ouvre /reception dans un nouvel onglet · scanne ou saisis les QR codes des items du dossier · le polling détecte chaque réception"
+            />
           </StepCard>
 
           <StepCard
@@ -1087,7 +1267,16 @@ export default function TestClient({
             description="Marque la pose comme terminée et envoie le SMS de satisfaction."
             disabled={pending || autoRunning}
           >
-            <SimpleAction onRun={runPoseDone} label="Marquer la pose effectuée" disabled={pending || autoRunning || !poseId} />
+            <DualModeAction
+              disabled={pending || autoRunning || !poseId}
+              simulateLabel="Simuler (clic admin)"
+              simulateIcon={<Play className="h-3.5 w-3.5" strokeWidth={2.2} />}
+              onSimulate={runPoseDone}
+              realLabel="Tester depuis la fiche pose"
+              realIcon={<Hammer className="h-3.5 w-3.5" strokeWidth={2.2} />}
+              onReal={runPoseDoneReal}
+              realHint="Ouvre /poses/[id] dans un nouvel onglet · le poseur clique 'Marquer comme posée' · le polling détecte le passage en statut 'pose'"
+            />
           </StepCard>
 
           <StepCard
@@ -1531,6 +1720,51 @@ function SimpleAction({
       <Play className="h-3.5 w-3.5" strokeWidth={2.2} />
       {label}
     </Button>
+  );
+}
+
+/**
+ * Étape avec deux modes : "Simuler" (action serveur directe) ou "Mode réel"
+ * (interaction utilisateur + polling). Le bouton réel est mis en avant car
+ * c'est le test de référence.
+ */
+function DualModeAction({
+  disabled,
+  simulateLabel,
+  simulateIcon,
+  onSimulate,
+  realLabel,
+  realIcon,
+  onReal,
+  realHint,
+}: {
+  disabled?: boolean;
+  simulateLabel: string;
+  simulateIcon: React.ReactNode;
+  onSimulate: () => void;
+  realLabel: string;
+  realIcon: React.ReactNode;
+  onReal: () => void;
+  realHint?: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-stretch gap-2 flex-wrap">
+        <Button variant="accent" size="sm" disabled={disabled} onClick={onReal}>
+          {realIcon}
+          {realLabel}
+        </Button>
+        <Button variant="secondary" size="sm" disabled={disabled} onClick={onSimulate}>
+          {simulateIcon}
+          {simulateLabel}
+        </Button>
+      </div>
+      {realHint && (
+        <p className="text-[11.5px] text-muted-2 max-w-2xl">
+          <span className="font-semibold text-ink-2">Mode réel</span> · {realHint}
+        </p>
+      )}
+    </div>
   );
 }
 
