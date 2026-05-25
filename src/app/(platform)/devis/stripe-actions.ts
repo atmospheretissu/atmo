@@ -8,6 +8,32 @@ export type StripeCheckoutResult =
   | { ok: false; message: string };
 
 /**
+ * Construit une URL absolue HTTPS pour le success_url / cancel_url Stripe.
+ * Stripe rejette toute URL sans scheme — on se prémunit contre une variable
+ * Railway mal configurée (ex: "atmo-production.up.railway.app" sans https://).
+ */
+function normalizeAppUrl(
+  raw: string | undefined,
+  railwayDomain: string | undefined,
+): string {
+  // Préfère NEXT_PUBLIC_APP_URL si présente et valide.
+  if (raw && raw.trim()) {
+    const trimmed = raw.trim().replace(/\/+$/, "");
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    // Si l'utilisateur a oublié le scheme, on assume HTTPS (sauf localhost).
+    if (trimmed.startsWith("localhost") || trimmed.startsWith("127.0.0.1")) {
+      return `http://${trimmed}`;
+    }
+    return `https://${trimmed}`;
+  }
+  // Fallback : domaine Railway auto-injecté.
+  if (railwayDomain) return `https://${railwayDomain.replace(/\/+$/, "")}`;
+  return "https://atmospheretissus.fr";
+}
+
+/**
  * Crée une Session Checkout Stripe pour l'acompte 50% d'un devis.
  * Renvoie l'URL Checkout — le client redirige le navigateur dessus.
  *
@@ -48,8 +74,10 @@ export async function createStripeCheckoutAction(
   }
 
   const stripe = getStripe();
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = normalizeAppUrl(
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.RAILWAY_PUBLIC_DOMAIN,
+  );
 
   try {
     const session = await stripe.checkout.sessions.create({
