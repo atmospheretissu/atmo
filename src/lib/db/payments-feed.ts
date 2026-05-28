@@ -33,6 +33,9 @@ export type UnifiedPayment = {
   /** Lien vers la fiche associée (devis ou ticket) */
   link: string | null;
   notes: string | null;
+  /** ISO date d'export Pennylane (null si pas encore exporté) */
+  pennylane_exported_at: string | null;
+  pennylane_invoice_id: string | null;
 };
 
 /** Liste consolidée des paiements récents (toutes sources). */
@@ -45,35 +48,48 @@ export async function listAllPayments(opts?: {
   const supabase = await createClient();
   const limit = opts?.limit ?? 200;
 
+  // Note : pennylane_exported_at / pennylane_invoice_id sélectionnés via "*"
+  // car les types Supabase ne sont pas régénérés (migration appliquée plus tard).
+  // Cast en `as never` puis re-typage manuel après la query.
+  type PaymentRow = {
+    id: string; kind: string; method: string | null; amount_ttc: number | string;
+    paid_at: string | null; notes: string | null; devis_id: string | null; client_id: string | null;
+    pennylane_exported_at?: string | null; pennylane_invoice_id?: string | null;
+  };
+  type TicketRow = {
+    id: string; number: string; total_ttc: number | string; payment_method: string;
+    created_at: string; client_id: string | null; receipt_email: string | null;
+    pennylane_exported_at?: string | null; pennylane_invoice_id?: string | null;
+  };
+
   const [paymentsRes, ticketsRes] = await Promise.all([
     supabase
       .from("payments")
-      .select(
-        "id, kind, method, amount_ttc, paid_at, notes, devis_id, client_id",
-      )
+      .select("*")
       .order("paid_at", { ascending: false })
       .limit(limit),
     supabase
       .from("caisse_tickets")
-      .select(
-        "id, number, total_ttc, payment_method, created_at, client_id, receipt_email",
-      )
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(limit),
   ]);
 
+  const paymentsData = (paymentsRes.data ?? []) as unknown as PaymentRow[];
+  const ticketsData = (ticketsRes.data ?? []) as unknown as TicketRow[];
+
   // Récupère les numéros devis et noms clients en batch
   const devisIds = Array.from(
     new Set(
-      (paymentsRes.data ?? [])
+      paymentsData
         .map((p) => p.devis_id)
         .filter((x): x is string => Boolean(x)),
     ),
   );
   const clientIds = Array.from(
     new Set([
-      ...(paymentsRes.data ?? []).map((p) => p.client_id),
-      ...(ticketsRes.data ?? []).map((t) => t.client_id),
+      ...paymentsData.map((p) => p.client_id),
+      ...ticketsData.map((t) => t.client_id),
     ].filter((x): x is string => Boolean(x))),
   );
 
@@ -95,7 +111,7 @@ export async function listAllPayments(opts?: {
 
   const all: UnifiedPayment[] = [];
 
-  for (const p of paymentsRes.data ?? []) {
+  for (const p of paymentsData) {
     if (!p.paid_at) continue;
     all.push({
       id: `p:${p.id}`,
@@ -109,10 +125,12 @@ export async function listAllPayments(opts?: {
       ref: p.devis_id ? devisById.get(p.devis_id) ?? "Devis" : "Devis",
       link: p.devis_id ? `/devis/${p.devis_id}` : null,
       notes: p.notes ?? null,
+      pennylane_exported_at: p.pennylane_exported_at ?? null,
+      pennylane_invoice_id: p.pennylane_invoice_id ?? null,
     });
   }
 
-  for (const t of ticketsRes.data ?? []) {
+  for (const t of ticketsData) {
     all.push({
       id: `t:${t.id}`,
       source: "caisse",
@@ -123,8 +141,10 @@ export async function listAllPayments(opts?: {
       client_id: t.client_id ?? null,
       client_name: t.client_id ? clientNameById.get(t.client_id) ?? null : null,
       ref: t.number,
-      link: null, // Pas de page détail ticket pour l'instant
+      link: null,
       notes: t.receipt_email ? `Ticket envoyé à ${t.receipt_email}` : null,
+      pennylane_exported_at: t.pennylane_exported_at ?? null,
+      pennylane_invoice_id: t.pennylane_invoice_id ?? null,
     });
   }
 
