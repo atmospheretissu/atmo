@@ -6,9 +6,68 @@ import { supabase, getConfig, setConfigLastRun } from './supabase.js';
 
 type Trigger = 'cron' | 'manual' | 'startup';
 
+// A run that exceeds this duration is considered hung and forcibly aborted.
+// The worker then exits so Railway restarts it with a clean Playwright state.
+const RUN_TIMEOUT_MS = Number(process.env.RUN_TIMEOUT_MS ?? 5 * 60_000);
+
+// Stale = a 'running' execution row whose started_at is older than this.
+// Sweep marks them as 'failed' so they don't stay stuck forever in the UI
+// AND so a hung in-memory flag from a previous worker process can't block runs.
+const STALE_THRESHOLD_MS = Math.max(RUN_TIMEOUT_MS * 1.5, 10 * 60_000);
+
 let isRunning = false;
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error(`Timeout après ${Math.round(ms / 1000)}s: ${label}`);
+      (err as Error & { isTimeout?: true }).isTimeout = true;
+      reject(err);
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer!));
+}
+
+export async function sweepStaleExecutions(reason: string): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
+  const { data, error } = await supabase
+    .from('atmolead_executions')
+    .update({
+      status: 'failed',
+      finished_at: new Date().toISOString(),
+      error_message: `Stale: ${reason} (started before ${cutoff})`,
+    })
+    .eq('status', 'running')
+    .lt('started_at', cutoff)
+    .select('id');
+  if (error) {
+    logger.warn({ err: error.message }, 'sweep stale executions failed');
+    return 0;
+  }
+  const count = data?.length ?? 0;
+  if (count > 0) {
+    logger.warn({ count, reason }, 'swept stale running executions');
+    // Also mark any orphan jobs pointing at those executions as failed
+    const ids = data!.map((d) => (d as { id: string }).id);
+    await supabase
+      .from('atmolead_jobs')
+      .update({
+        status: 'failed',
+        finished_at: new Date().toISOString(),
+        error_message: `Stale: ${reason}`,
+      })
+      .in('execution_id', ids);
+  }
+  return count;
+}
+
 export async function runOnce(trigger: Trigger, jobId?: string): Promise<string | null> {
+  // Defensive sweep: clean up any 'running' row left behind by a previous
+  // process that crashed without flushing its status. Cheap query (indexed
+  // status + started_at), runs in < 50ms most of the time.
+  await sweepStaleExecutions('reclaimed at run start').catch(() => {});
+
   if (isRunning) {
     logger.warn({ trigger }, 'run already in progress — skipping');
     return null;
@@ -39,6 +98,7 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
   }
 
   const t0 = Date.now();
+  let timedOut = false;
   try {
     const config = await getConfig();
     if (!config.enabled) {
@@ -60,9 +120,13 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
       return exec.id;
     }
 
-    const result = await scrape(config);
+    const result = await withTimeout(scrape(config), RUN_TIMEOUT_MS, 'scrape');
     const persistT0 = Date.now();
-    const { inserted, skipped } = await persistLeads(exec.id, result.leads);
+    const { inserted, skipped } = await withTimeout(
+      persistLeads(exec.id, result.leads),
+      60_000,
+      'persist',
+    );
     const persistMs = Date.now() - persistT0;
 
     const steps = [
@@ -108,7 +172,8 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const partialSteps = (err as Error & { steps?: unknown }).steps;
-    logger.error({ err: message }, 'scraping failed');
+    timedOut = Boolean((err as Error & { isTimeout?: true }).isTimeout);
+    logger.error({ err: message, timedOut }, 'scraping failed');
     await supabase
       .from('atmolead_executions')
       .update({
@@ -132,5 +197,11 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
     return exec.id;
   } finally {
     isRunning = false;
+    // On timeout we can't trust the Playwright session state — exit so Railway
+    // restarts the container with a fresh Chromium. Give async logs a tick.
+    if (timedOut) {
+      logger.error('exiting process after timeout — Railway will restart');
+      setTimeout(() => process.exit(1), 500);
+    }
   }
 }
