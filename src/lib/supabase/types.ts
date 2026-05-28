@@ -556,6 +556,9 @@ export interface Database {
           receipt_email: string | null;
           closure_id: string | null;
           created_at: string;
+          pennylane_exported_at: string | null;
+          pennylane_invoice_id: string | null;
+          pennylane_export_notes: string | null;
         };
         Insert: {
           id?: string;
@@ -572,6 +575,9 @@ export interface Database {
           receipt_email?: string | null;
           closure_id?: string | null;
           created_at?: string;
+          pennylane_exported_at?: string | null;
+          pennylane_invoice_id?: string | null;
+          pennylane_export_notes?: string | null;
         };
         Update: {
           id?: string;
@@ -588,6 +594,9 @@ export interface Database {
           receipt_email?: string | null;
           closure_id?: string | null;
           created_at?: string;
+          pennylane_exported_at?: string | null;
+          pennylane_invoice_id?: string | null;
+          pennylane_export_notes?: string | null;
         };
         Relationships: [];
       };
@@ -1260,6 +1269,9 @@ export interface Database {
           notes: string | null;
           paid_at: string;
           recorded_by: string | null;
+          pennylane_exported_at: string | null;
+          pennylane_invoice_id: string | null;
+          pennylane_export_notes: string | null;
         };
         Insert: {
           id?: string;
@@ -1278,6 +1290,9 @@ export interface Database {
           notes?: string | null;
           paid_at?: string;
           recorded_by?: string | null;
+          pennylane_exported_at?: string | null;
+          pennylane_invoice_id?: string | null;
+          pennylane_export_notes?: string | null;
         };
         Update: {
           id?: string;
@@ -1296,6 +1311,9 @@ export interface Database {
           notes?: string | null;
           paid_at?: string;
           recorded_by?: string | null;
+          pennylane_exported_at?: string | null;
+          pennylane_invoice_id?: string | null;
+          pennylane_export_notes?: string | null;
         };
         Relationships: [];
       };
