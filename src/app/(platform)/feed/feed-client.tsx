@@ -209,6 +209,9 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
             Historique unifié de tous les événements : leads, devis, paiements, réceptions, poses,
             BC, ventes caisse, SMS et emails. Clique sur un événement pour voir les détails.
           </p>
+          <p className="text-[11.5px] text-muted-2 mt-2">
+            Filtres : un clic ajoute/retire un onglet · double-clic pour n'afficher que celui-là · "Tout" pour réinitialiser.
+          </p>
         </section>
 
         {/* Filters */}

@@ -25,6 +25,7 @@ import { ItemReceptionMenu } from "@/components/confections/item-reception-menu"
 import { AtelierAssignCard } from "@/components/confections/atelier-assign";
 import { DossierNotesCard } from "@/components/confections/dossier-notes";
 import { listDossierNotes } from "@/lib/db/dossier-notes";
+import { NextStepBanner } from "@/components/confections/next-step-banner";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
 import { eur, shortDate } from "@/lib/formatters";
@@ -151,6 +152,20 @@ export default async function DossierDetailPage({
               )}
             </div>
           </div>
+        </section>
+
+        {/* Next step banner */}
+        <section className="px-8 pb-6">
+          <NextStepBanner
+            dossierId={dossier.id}
+            status={dossier.status}
+            devisId={dossier.devis_id ?? null}
+            acomptePaid={dossier.acompte_paid}
+            soldePaid={dossier.solde_paid}
+            itemsTotal={items.length}
+            itemsReceived={itemsReceived}
+            atelierId={(dossier as { atelier_id?: string | null }).atelier_id ?? null}
+          />
         </section>
 
         {/* Progress hero */}
