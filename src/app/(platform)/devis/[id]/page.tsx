@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
+import { PaymentProgress } from "@/components/devis/payment-progress";
 import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
 import { StripeCheckoutButton } from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
@@ -53,15 +54,19 @@ export default async function DevisDetailPage({
     listSources(),
   ]);
   if (!result) notFound();
-  const { devis, client, lines, dossier } = result;
+  const { devis, client, lines, dossier, payments } = result;
 
   const status = devis.status as DevisStatus;
   const channel = devis.channel as Channel;
   const totalHT = Number(devis.total_ht ?? 0);
   const totalTTC = Number(devis.total_ttc ?? 0);
   const tva = totalTTC - totalHT;
-  const acompte = Number(devis.acompte_ttc ?? totalTTC * 0.5);
+  const acomptePct = Number((devis as { acompte_pct?: number }).acompte_pct ?? 50);
+  const acompte = Number(devis.acompte_ttc ?? (totalTTC * acomptePct) / 100);
   const solde = totalTTC - acompte;
+
+  const acomptePayment = payments.find((p) => p.kind === "acompte");
+  const soldePayment = payments.find((p) => p.kind === "solde");
 
   return (
     <>
@@ -75,9 +80,23 @@ export default async function DevisDetailPage({
           <>
             <Link href={`/devis/${devis.id}/pdf?inline=1`} target="_blank">
               <Button variant="ghost" size="sm">
-                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF
+                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF devis
               </Button>
             </Link>
+            {dossier?.acompte_paid && (
+              <Link href={`/devis/${devis.id}/facture?kind=acompte&inline=1`} target="_blank">
+                <Button variant="ghost" size="sm">
+                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Facture acompte
+                </Button>
+              </Link>
+            )}
+            {dossier?.solde_paid && (
+              <Link href={`/devis/${devis.id}/facture?kind=solde&inline=1`} target="_blank">
+                <Button variant="ghost" size="sm">
+                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Facture solde
+                </Button>
+              </Link>
+            )}
             <Link href={`/devis/${devis.id}/edit`}>
               <Button variant="secondary" size="sm">
                 <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
@@ -257,6 +276,21 @@ export default async function DevisDetailPage({
                 </div>
               </Card>
             )}
+
+            {/* Récap paiement */}
+            <PaymentProgress
+              totalTtc={totalTTC}
+              acompteTtc={acompte}
+              acomptePct={acomptePct}
+              payment={{
+                acomptePaid: Boolean(dossier?.acompte_paid),
+                acompteMethod: acomptePayment?.method ?? null,
+                acompteAt: acomptePayment?.paid_at ?? dossier?.acompte_paid_at ?? null,
+                soldePaid: Boolean(dossier?.solde_paid),
+                soldeMethod: soldePayment?.method ?? null,
+                soldeAt: soldePayment?.paid_at ?? dossier?.solde_paid_at ?? null,
+              }}
+            />
 
             {/* Fiche confection liée */}
             {dossier && (

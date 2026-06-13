@@ -52,8 +52,16 @@ export async function sendDevisEmailAction(
   // 1. Génère le PDF
   let pdfBase64: string;
   try {
+    const hideMeasurements = Boolean(
+      (devis as { hide_measurements_for_client?: boolean }).hide_measurements_for_client,
+    );
     const buffer = await renderToBuffer(
-      <DevisPDF devis={devis} client={client} lines={lines} />
+      <DevisPDF
+        devis={devis}
+        client={client}
+        lines={lines}
+        hideMeasurements={hideMeasurements}
+      />,
     );
     pdfBase64 = Buffer.from(buffer).toString("base64");
   } catch (err) {
@@ -74,7 +82,10 @@ export async function sendDevisEmailAction(
     }).format(n);
 
   const firstName = client.display_name.split(",")[1]?.trim() ?? client.display_name;
-  const pdfLink = `${appUrl}/devis/${devis.id}/pdf`;
+  // Lien PDF accessible sans auth via le token portail (sinon route auth-protégée)
+  const pdfLink = clientToken
+    ? `${appUrl}/client/${clientToken}/pdf?inline=1`
+    : `${appUrl}/devis/${devis.id}/pdf?audience=client`;
   const portalLink = clientToken ? `${appUrl}/client/${clientToken}` : null;
 
   // Génère le lien Stripe d'acompte (best-effort — si Stripe indispo, l'email

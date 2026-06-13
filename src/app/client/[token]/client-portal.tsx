@@ -298,7 +298,7 @@ export function ClientPortal({
             </div>
 
             <a
-              href={`/devis/${devis.id}/pdf`}
+              href={`/client/${token}/pdf?inline=1`}
               target="_blank"
               rel="noopener"
               className="inline-flex items-center gap-1.5 text-[12.5px] text-muted hover:text-ink-2 transition-colors pt-1"

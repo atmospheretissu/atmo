@@ -166,20 +166,53 @@ const styles = StyleSheet.create({
   },
 });
 
+/**
+ * Retire les mentions de mesures (laize, dimensions, métrage…) d'une chaîne libre.
+ * Utilisé quand le devis a hide_measurements_for_client=true et qu'on génère
+ * la version client du PDF.
+ */
+function stripMeasurements(input: string | null | undefined): string | null {
+  if (!input) return input ?? null;
+  let s = input;
+  // dimensions "240×250cm" ou "240x250 cm"
+  s = s.replace(/\d+\s*[×x]\s*\d+\s*cm/gi, "");
+  // "laize 140cm"
+  s = s.replace(/laize\s*\d+\s*cm/gi, "");
+  // "métrage 8.70m"
+  s = s.replace(/m[ée]trage\s*\d+[.,]?\d*\s*m/gi, "");
+  // "240 cm linéaire" / "240 cm"
+  s = s.replace(/\d+\s*cm\s*lin[ée]aire/gi, "");
+  // bullets/séparateurs orphelins
+  s = s.replace(/\s*·\s*·\s*/g, " · ");
+  s = s.replace(/^\s*·\s*|\s*·\s*$/g, "");
+  s = s.replace(/\s{2,}/g, " ").trim();
+  return s || null;
+}
+
 export function DevisPDF({
   devis,
   client,
   lines,
+  hideMeasurements = false,
 }: {
   devis: Devis;
   client: Client | null;
   lines: DevisLine[];
+  hideMeasurements?: boolean;
 }) {
   const totalHt = Number(devis.total_ht ?? 0);
   const totalTtc = Number(devis.total_ttc ?? 0);
   const tva = totalTtc - totalHt;
-  const acompte = Number(devis.acompte_ttc ?? totalTtc * 0.5);
+  const acomptePct = Number((devis as { acompte_pct?: number }).acompte_pct ?? 50);
+  const acompte = Number(devis.acompte_ttc ?? (totalTtc * acomptePct) / 100);
   const solde = totalTtc - acompte;
+
+  const visibleLines = hideMeasurements
+    ? lines.map((l) => ({ ...l, detail: stripMeasurements(l.detail) }))
+    : lines;
+  const productDetail = hideMeasurements
+    ? stripMeasurements(devis.product_detail)
+    : devis.product_detail;
 
   return (
     <Document
@@ -237,7 +270,7 @@ export function DevisPDF({
           <Text style={styles.heroValue}>{eur(totalTtc)}</Text>
           <Text style={styles.heroSub}>
             {devis.product_summary}
-            {devis.product_detail ? ` · ${devis.product_detail}` : ""}
+            {productDetail ? ` · ${productDetail}` : ""}
           </Text>
           <Text style={[styles.heroSub, { marginTop: 2 }]}>
             Validité du devis : jusqu'au {date(devis.valid_until)}
@@ -253,7 +286,7 @@ export function DevisPDF({
             <Text style={[styles.tHeadText, styles.cUnit]}>P.U. HT</Text>
             <Text style={[styles.tHeadText, styles.cTotal]}>Total HT</Text>
           </View>
-          {lines.map((l) => (
+          {visibleLines.map((l) => (
             <View style={styles.tRow} key={l.id}>
               <Text style={[styles.cRef, { fontSize: 8, color: "#6B7280" }]}>
                 {l.ref ?? "—"}
@@ -291,17 +324,24 @@ export function DevisPDF({
         <View style={styles.acompte}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <View>
-              <Text style={styles.acompteLabel}>RÈGLE 50 % · ACOMPTE DE VALIDATION</Text>
+              <Text style={styles.acompteLabel}>
+                {acomptePct === 100
+                  ? "PAIEMENT INTÉGRAL À LA COMMANDE"
+                  : `RÈGLE ${acomptePct} % · ACOMPTE DE VALIDATION`}
+              </Text>
               <Text style={styles.acompteValue}>{eur(acompte)}</Text>
               <Text style={styles.acompteSub}>
-                Un acompte de 50 % du montant TTC est requis à la validation pour
-                déclencher la commande des fournitures et la confection. Solde dû avant la pose.
+                {acomptePct === 100
+                  ? "Le montant TTC est à régler intégralement à la commande."
+                  : `Un acompte de ${acomptePct} % du montant TTC est requis à la validation pour déclencher la commande des fournitures et la confection. Solde dû avant la pose.`}
               </Text>
             </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={[styles.acompteLabel, { textAlign: "right" }]}>SOLDE</Text>
-              <Text style={{ color: "#FFFFFF", fontSize: 12 }}>{eur(solde)}</Text>
-            </View>
+            {acomptePct < 100 && (
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[styles.acompteLabel, { textAlign: "right" }]}>SOLDE</Text>
+                <Text style={{ color: "#FFFFFF", fontSize: 12 }}>{eur(solde)}</Text>
+              </View>
+            )}
           </View>
         </View>
 

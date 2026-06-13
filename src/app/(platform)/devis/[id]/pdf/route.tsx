@@ -19,6 +19,9 @@ export async function GET(
   const { id } = await context.params;
   const url = new URL(request.url);
   const inline = url.searchParams.get("inline") === "1";
+  // audience=internal (Atmo, défaut sur la fiche devis) → toujours tout afficher
+  // audience=client → respecte hide_measurements_for_client
+  const audience = url.searchParams.get("audience") ?? "internal";
 
   const result = await getDevisDetail(id);
   if (!result) {
@@ -26,9 +29,17 @@ export async function GET(
   }
 
   const { devis, client, lines } = result;
+  const hideMeasurements =
+    audience === "client" &&
+    Boolean((devis as { hide_measurements_for_client?: boolean }).hide_measurements_for_client);
 
   const buffer = await renderToBuffer(
-    <DevisPDF devis={devis} client={client} lines={lines} />
+    <DevisPDF
+      devis={devis}
+      client={client}
+      lines={lines}
+      hideMeasurements={hideMeasurements}
+    />
   );
 
   const filename = `${devis.number}_v${devis.version}.pdf`;

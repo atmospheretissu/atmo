@@ -760,6 +760,9 @@ export interface Database {
           tva_rate: number;
           acompte_ht: number | null;
           acompte_ttc: number | null;
+          acompte_pct: number;
+          hide_measurements_for_client: boolean;
+          client_viewed_at: string | null;
           pdf_url: string | null;
           workshop_notes: string | null;
           commercial_id: string | null;
@@ -786,6 +789,9 @@ export interface Database {
           tva_rate?: number;
           acompte_ht?: number | null;
           acompte_ttc?: number | null;
+          acompte_pct?: number;
+          hide_measurements_for_client?: boolean;
+          client_viewed_at?: string | null;
           pdf_url?: string | null;
           workshop_notes?: string | null;
           commercial_id?: string | null;
@@ -812,6 +818,9 @@ export interface Database {
           tva_rate?: number;
           acompte_ht?: number | null;
           acompte_ttc?: number | null;
+          acompte_pct?: number;
+          hide_measurements_for_client?: boolean;
+          client_viewed_at?: string | null;
           pdf_url?: string | null;
           workshop_notes?: string | null;
           commercial_id?: string | null;

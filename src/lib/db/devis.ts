@@ -65,6 +65,7 @@ export async function getDevisDetail(id: string) {
     { data: client, error: e2 },
     { data: lines, error: e3 },
     { data: dossier },
+    { data: payments },
   ] = await Promise.all([
     supabase.from("clients").select("*").eq("id", devis.client_id).maybeSingle(),
     supabase
@@ -74,15 +75,26 @@ export async function getDevisDetail(id: string) {
       .order("position", { ascending: true }),
     supabase
       .from("dossiers")
-      .select("id, number, status, acompte_paid, solde_paid")
+      .select("id, number, status, acompte_paid, solde_paid, acompte_paid_at, solde_paid_at")
       .eq("devis_id", id)
       .maybeSingle(),
+    supabase
+      .from("payments")
+      .select("kind, method, paid_at")
+      .eq("devis_id", id)
+      .order("paid_at", { ascending: false }),
   ]);
 
   if (e2) throw e2;
   if (e3) throw e3;
 
-  return { devis, client: client ?? null, lines: lines ?? [], dossier: dossier ?? null };
+  return {
+    devis,
+    client: client ?? null,
+    lines: lines ?? [],
+    dossier: dossier ?? null,
+    payments: payments ?? [],
+  };
 }
 
 /**

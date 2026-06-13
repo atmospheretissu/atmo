@@ -78,6 +78,8 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
 
   // Step 3
   const [workshopNotes, setWorkshopNotes] = useState("");
+  const [acomptePct, setAcomptePct] = useState<50 | 100>(50);
+  const [hideMeasurementsForClient, setHideMeasurementsForClient] = useState(false);
   const tvaRate = 20;
 
   const [submitState, setSubmitState] = useState<BoutiqueFormState>(undefined);
@@ -110,11 +112,12 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
       totalHt,
       tva,
       totalTtc,
-      acompte: Math.round((totalTtc / 2) * 100) / 100,
-      solde: Math.round((totalTtc / 2) * 100) / 100,
+      acompte: Math.round(((totalTtc * acomptePct) / 100) * 100) / 100,
+      solde:
+        Math.round(((totalTtc * (100 - acomptePct)) / 100) * 100) / 100,
       articlesCount: pieces.reduce((acc, p) => acc + p.articles.length, 0),
     };
-  }, [pieces]);
+  }, [pieces, acomptePct]);
 
   const canGoNext = (s: 1 | 2 | 3): boolean => {
     if (s === 1) return Boolean(selectedClient);
@@ -175,6 +178,8 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
           tvaRate,
           workshopNotes,
           pieces,
+          acomptePct,
+          hideMeasurementsForClient,
         });
         if (result && !result.ok) setSubmitState(result);
         // Sinon, la Server Action redirige
@@ -619,9 +624,9 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
               <div className="m-3 rounded-xl overflow-hidden bg-ink text-white p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <p className="text-[10.5px] font-semibold tracking-wider uppercase opacity-70">
-                    Règle 50% · Stripe
+                    Règle {acomptePct}% · Stripe
                   </p>
-                  <div className="text-[24px] font-bold leading-none">50%</div>
+                  <div className="text-[24px] font-bold leading-none">{acomptePct}%</div>
                 </div>
                 <div className="bg-white/10 rounded-lg p-2.5 space-y-1.5 border border-white/10">
                   <div className="flex items-center justify-between text-[12px]">
@@ -630,11 +635,59 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
                       {eurFmt.format(totals.acompte)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[11.5px] opacity-75">
-                    <span>Solde avant pose</span>
-                    <span className="tabular-nums">{eurFmt.format(totals.solde)}</span>
-                  </div>
+                  {acomptePct < 100 && (
+                    <div className="flex items-center justify-between text-[11.5px] opacity-75">
+                      <span>Solde avant pose</span>
+                      <span className="tabular-nums">{eurFmt.format(totals.solde)}</span>
+                    </div>
+                  )}
                 </div>
+                <div className="mt-3 flex gap-1 bg-white/5 rounded-md p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setAcomptePct(50)}
+                    className={`flex-1 text-[11px] py-1 rounded-[5px] font-semibold transition-colors ${
+                      acomptePct === 50 ? "bg-white text-ink" : "text-white/70 hover:text-white"
+                    }`}
+                  >
+                    50% acompte
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAcomptePct(100)}
+                    className={`flex-1 text-[11px] py-1 rounded-[5px] font-semibold transition-colors ${
+                      acomptePct === 100 ? "bg-white text-ink" : "text-white/70 hover:text-white"
+                    }`}
+                  >
+                    100% à la commande
+                  </button>
+                </div>
+                {acomptePct === 100 && (
+                  <p className="mt-2 text-[10.5px] opacity-70 leading-tight">
+                    Petits montants (peinture, papier peint…) — paiement intégral, pas de solde.
+                  </p>
+                )}
+              </div>
+
+              {/* Option masquer mesures sur PDF client */}
+              <div className="m-3 mt-0 rounded-xl border border-line p-3">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hideMeasurementsForClient}
+                    onChange={(e) => setHideMeasurementsForClient(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-line-strong accent-violet"
+                  />
+                  <div className="flex-1">
+                    <p className="text-[12.5px] font-semibold text-ink leading-tight">
+                      Masquer les mesures sur le PDF client
+                    </p>
+                    <p className="text-[11px] text-muted-2 mt-0.5 leading-snug">
+                      Les dimensions / laize ne sont pas affichées au client (visibles
+                      côté Atmosphère).
+                    </p>
+                  </div>
+                </label>
               </div>
             </Card>
 

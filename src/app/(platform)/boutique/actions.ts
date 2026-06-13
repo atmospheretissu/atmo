@@ -45,6 +45,8 @@ export type BoutiqueDevisInput = {
   tvaRate: number;
   workshopNotes?: string;
   pieces: BoutiquePiece[];
+  acomptePct?: number;
+  hideMeasurementsForClient?: boolean;
 };
 
 export type BoutiqueFormState =
@@ -130,6 +132,8 @@ export async function createBoutiqueDevisAction(
       workshop_notes: input.workshopNotes || null,
       valid_until: validUntil,
       commercial_id: user.id,
+      acompte_pct: input.acomptePct ?? 50,
+      hide_measurements_for_client: input.hideMeasurementsForClient ?? false,
     })
     .select("id")
     .single();

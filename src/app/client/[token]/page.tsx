@@ -34,12 +34,20 @@ export default async function ClientSpacePage({
   const { data: devis } = await supabase
     .from("devis")
     .select(
-      "id, number, status, total_ttc, acompte_ttc, product_summary, product_detail, channel, tva_rate, valid_until, created_at, sent_at, client_id",
+      "id, number, status, total_ttc, acompte_ttc, product_summary, product_detail, channel, tva_rate, valid_until, created_at, sent_at, client_id, client_viewed_at",
     )
     .eq("client_access_token" as never, token)
     .maybeSingle();
 
   if (!devis) notFound();
+
+  // 1.b. Marque le devis comme "vu par le client" (1ère ouverture) → log activité
+  if (!(devis as { client_viewed_at?: string | null }).client_viewed_at) {
+    void supabase
+      .from("devis")
+      .update({ client_viewed_at: new Date().toISOString() })
+      .eq("id", devis.id);
+  }
 
   // 2. Charge en parallèle : client, lignes, dossier (s'il existe), items, pose, paiements
   const [

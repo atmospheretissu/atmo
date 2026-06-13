@@ -15,6 +15,7 @@ export type FeedEventKind =
   | "lead_lm_received"
   | "devis_created"
   | "devis_sent"
+  | "devis_viewed_by_client"
   | "devis_validated"
   | "acompte_received"
   | "dossier_created"
@@ -98,7 +99,7 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
     queries.push(
       supabase
         .from("devis")
-        .select("id, number, status, total_ttc, created_at, sent_at, client_id, product_summary, channel")
+        .select("id, number, status, total_ttc, created_at, sent_at, client_viewed_at, client_id, product_summary, channel")
         .order("created_at", { ascending: false })
         .limit(perTable)
         .then(({ data }) => {
@@ -124,6 +125,19 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
                 description: `${d.product_summary} · ${Math.round(Number(d.total_ttc ?? 0))}€ TTC`,
                 occurredAt: d.sent_at,
                 severity: "ok",
+                link: `/devis/${d.id}`,
+                details: { number: d.number, total_ttc: d.total_ttc },
+              });
+            }
+            if ((d as { client_viewed_at?: string | null }).client_viewed_at) {
+              events.push({
+                id: `devis:${d.id}:viewed`,
+                kind: "devis_viewed_by_client",
+                category: "devis",
+                label: `Devis vu par le client — ${d.number}`,
+                description: `${d.product_summary} · ${Math.round(Number(d.total_ttc ?? 0))}€ TTC`,
+                occurredAt: (d as { client_viewed_at: string }).client_viewed_at,
+                severity: "info",
                 link: `/devis/${d.id}`,
                 details: { number: d.number, total_ttc: d.total_ttc },
               });
