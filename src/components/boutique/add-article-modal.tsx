@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Package, Scissors, Layers, ShoppingBag, Search, Loader2, AlertCircle, Disc, Plus } from "lucide-react";
+import { X, Package, Scissors, Layers, ShoppingBag, Search, Loader2, AlertCircle, Disc, Plus, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { StoreForm } from "@/components/boutique/article-store-form";
 import { StoreEnrouleurForm } from "@/components/boutique/article-store-enrouleur-form";
 import { RideauSerieForm } from "@/components/boutique/article-rideau-serie-form";
 import { ArticleLibreForm } from "@/components/boutique/article-libre-form";
+import { ArticleCollectionForm } from "@/components/boutique/article-collection-form";
 
 type ArticleType =
   | "rideau"
@@ -21,7 +22,8 @@ type ArticleType =
   | "store_enrouleur"
   | "produit"
   | "rideau_serie"
-  | "libre";
+  | "libre"
+  | "collection";
 
 const TYPES: {
   key: ArticleType;
@@ -79,6 +81,14 @@ const TYPES: {
     icon: Plus,
     available: true,
   },
+  {
+    key: "collection",
+    label: "Collection Atmosphère",
+    description: "Rideau / store en LIN ou Polyester — routing Pologne/Ukraine auto",
+    tone: "violet",
+    icon: Sparkles,
+    available: true,
+  },
 ];
 
 export function AddArticleModal({
@@ -103,6 +113,7 @@ export function AddArticleModal({
     selectedType === "rideau" ||
     selectedType === "store" ||
     selectedType === "store_enrouleur" ||
+    selectedType === "collection" ||
     selectedType === "libre";
 
   return (
@@ -130,6 +141,8 @@ export function AddArticleModal({
                 ? "Store enrouleur"
                 : selectedType === "libre"
                 ? "Autre produit (champ libre)"
+                : selectedType === "collection"
+                ? "Collection Atmosphère"
                 : "Rideau en série"}
             </h3>
           </div>
@@ -169,6 +182,10 @@ export function AddArticleModal({
 
         {selectedType === "libre" && (
           <ArticleLibreForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
+        {selectedType === "collection" && (
+          <ArticleCollectionForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
       </div>
     </div>

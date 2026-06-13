@@ -212,11 +212,22 @@ function BcTable({ bcs }: { bcs: Awaited<ReturnType<typeof listBons>> }) {
                   </td>
                   <td className="px-4 py-3">
                     {bc.supplier ? (
-                      <div className="flex items-center gap-2">
-                        <p className="text-ink font-medium">{bc.supplier.name}</p>
-                        <span className="text-[10.5px] font-mono font-semibold px-1.5 rounded bg-canvas-2 text-muted">
-                          {bc.supplier.language}
-                        </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-ink font-medium">{bc.supplier.name}</p>
+                          <span className="text-[10.5px] font-mono font-semibold px-1.5 rounded bg-canvas-2 text-muted">
+                            {bc.supplier.language}
+                          </span>
+                        </div>
+                        {(bc as { routing?: string }).routing &&
+                          (bc as { routing?: string }).routing !== "standard" && (
+                            <RoutingBadge
+                              routing={(bc as { routing: string }).routing}
+                              matiere={
+                                (bc as { matiere?: string | null }).matiere ?? null
+                              }
+                            />
+                          )}
                       </div>
                     ) : (
                       <span className="text-muted-2">—</span>
@@ -317,6 +328,31 @@ function EmptyState() {
         </Link>
       </Card>
     </section>
+  );
+}
+
+function RoutingBadge({
+  routing,
+  matiere,
+}: {
+  routing: string;
+  matiere: string | null;
+}) {
+  const label =
+    routing === "pologne"
+      ? "Pologne (Polo)"
+      : routing === "ukraine"
+        ? "Ukraine (XML)"
+        : routing;
+  const flag = flagFor[routing === "pologne" ? "PL" : routing === "ukraine" ? "UA" : "FR"] ?? "";
+  const tone = routing === "ukraine" ? "bg-amber-soft text-amber" : "bg-blue-soft text-blue";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 mt-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded ${tone}`}
+    >
+      {flag} {label}
+      {matiere && <span className="font-mono opacity-70">· {matiere.toUpperCase()}</span>}
+    </span>
   );
 }
 

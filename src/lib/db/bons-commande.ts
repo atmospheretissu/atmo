@@ -296,7 +296,7 @@ export async function autoCreateBcsForDossier(
   // Récupère items + dossier
   const { data: items } = await supabase
     .from("dossier_items")
-    .select("type, label, ref")
+    .select("type, label, ref, collection, matiere")
     .eq("dossier_id", dossierId);
 
   if (!items || items.length === 0) return { created: 0, existing: 0 };
@@ -304,11 +304,10 @@ export async function autoCreateBcsForDossier(
   // Récupère suppliers actifs pour mapping basique (tissu/rail/accessoire)
   const { data: suppliers } = await supabase
     .from("suppliers")
-    .select("id, name, type")
+    .select("id, name, type, country")
     .eq("active", true);
 
   if (!suppliers || suppliers.length === 0) {
-    // Pas de fournisseurs créés en DB encore — on skip silencieusement
     return { created: 0, existing: 0 };
   }
 
@@ -319,10 +318,47 @@ export async function autoCreateBcsForDossier(
     suppByType.set(s.type, arr);
   }
 
-  // Groupe items par type → fournisseur "défaut" pour le type
-  const grouped = new Map<string, { supplierId: string; items: typeof items }>();
-  for (const item of items) {
-    if (item.type === "confection") continue; // Pas de BC fournisseur pour la confection
+  // Cherche un fournisseur dont le pays correspond pour les BC collection
+  // (PL = Pologne, UA = Ukraine). Fallback : premier fournisseur tissu.
+  const tissuSuppliers = suppByType.get("tissu") ?? [];
+  const findCountrySupplier = (iso: string) =>
+    tissuSuppliers.find((s) => s.country === iso) ?? tissuSuppliers[0];
+
+  // Routing pour items collection
+  const collectionItems = items.filter((i) => i.collection);
+  const nonCollectionItems = items.filter((i) => !i.collection);
+
+  type GroupKey = string;
+  type Group = {
+    supplierId: string;
+    matiere: string | null;
+    routing: "standard" | "pologne" | "ukraine";
+    items: typeof items;
+  };
+  const grouped = new Map<GroupKey, Group>();
+
+  // --- Collection : route par matière ---
+  for (const item of collectionItems) {
+    const m = (item.matiere ?? "").toLowerCase();
+    // LIN → Pologne ; Polyester → Ukraine
+    const routing: "pologne" | "ukraine" = m === "polyester" ? "ukraine" : "pologne";
+    const country = routing === "pologne" ? "PL" : "UA";
+    const supplier = findCountrySupplier(country);
+    if (!supplier) continue;
+    const key = `${supplier.id}::${routing}::${m || "mixte"}`;
+    const cur = grouped.get(key) ?? {
+      supplierId: supplier.id,
+      matiere: m || null,
+      routing,
+      items: [],
+    };
+    cur.items.push(item);
+    grouped.set(key, cur);
+  }
+
+  // --- Items classiques : groupage par type fournisseur ---
+  for (const item of nonCollectionItems) {
+    if (item.type === "confection") continue;
     let suppType: string | null = null;
     if (item.type === "tissu") suppType = "tissu";
     else if (item.type === "rail") suppType = "rail";
@@ -331,28 +367,41 @@ export async function autoCreateBcsForDossier(
 
     const candidates = suppByType.get(suppType ?? "") ?? [];
     if (candidates.length === 0) continue;
-    const supplier = candidates[0]; // premier fournisseur du type (admin pourra changer)
-
-    const key = supplier.id;
-    const cur = grouped.get(key) ?? { supplierId: supplier.id, items: [] };
+    const supplier = candidates[0];
+    const key = `${supplier.id}::standard::-`;
+    const cur = grouped.get(key) ?? {
+      supplierId: supplier.id,
+      matiere: null,
+      routing: "standard" as const,
+      items: [],
+    };
     cur.items.push(item);
     grouped.set(key, cur);
   }
 
   if (grouped.size === 0) return { created: 0, existing: 0 };
 
-  // Crée un BC par fournisseur
+  // Crée un BC par groupe (fournisseur × routing)
   let created = 0;
-  for (const { supplierId } of grouped.values()) {
+  for (const g of grouped.values()) {
     const number = await getNextBcNumber(supabase);
+    const routingLabel =
+      g.routing === "pologne"
+        ? "Pologne (Polo)"
+        : g.routing === "ukraine"
+          ? "Ukraine (XML)"
+          : "Standard";
+    const matiereLabel = g.matiere ? ` · matière ${g.matiere.toUpperCase()}` : "";
     const { error } = await supabase.from("bons_commande").insert({
       number,
-      supplier_id: supplierId,
+      supplier_id: g.supplierId,
       dossier_id: dossierId,
       status: "brouillon",
-      amount_ht: 0, // à renseigner manuellement quand on saisira les lignes BC
-      language: "FR",
-      notes: "BC auto-généré depuis dossier — à compléter (lignes + franco)",
+      amount_ht: 0,
+      language: g.routing === "ukraine" ? "UA" : g.routing === "pologne" ? "PL" : "FR",
+      matiere: g.matiere,
+      routing: g.routing,
+      notes: `BC auto-généré · ${routingLabel}${matiereLabel} — à compléter (lignes + franco)`,
     });
     if (!error) created += 1;
   }

@@ -417,6 +417,8 @@ export interface Database {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          matiere: string | null;
+          routing: string;
         };
         Insert: {
           id?: string;
@@ -435,6 +437,8 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          matiere?: string | null;
+          routing?: string;
         };
         Update: {
           id?: string;
@@ -453,6 +457,8 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          matiere?: string | null;
+          routing?: string;
         };
         Relationships: [];
       };
@@ -934,6 +940,8 @@ export interface Database {
           notes: string | null;
           position: number;
           created_at: string;
+          collection: boolean;
+          matiere: string | null;
         };
         Insert: {
           id?: string;
@@ -953,6 +961,8 @@ export interface Database {
           notes?: string | null;
           position?: number;
           created_at?: string;
+          collection?: boolean;
+          matiere?: string | null;
         };
         Update: {
           id?: string;
@@ -972,6 +982,8 @@ export interface Database {
           notes?: string | null;
           position?: number;
           created_at?: string;
+          collection?: boolean;
+          matiere?: string | null;
         };
         Relationships: [];
       };

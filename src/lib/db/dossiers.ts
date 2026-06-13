@@ -57,7 +57,8 @@ function inferItemType(meta: Record<string, unknown> | null | undefined): Dossie
   if (
     ta === "rideau_tissu_confection" ||
     ta === "store_tissu_confection" ||
-    ta === "store_enrouleur_tissu"
+    ta === "store_enrouleur_tissu" ||
+    ta === "collection_atmosphere"
   )
     return "tissu";
   if (ta === "rail") return "rail";
@@ -157,6 +158,11 @@ export async function createDossierFromDevis(
     .map((l, idx) => {
       const meta = (l.meta ?? {}) as Record<string, unknown>;
       const itemType = inferItemType(meta);
+      const isCollection =
+        meta["collection"] === true ||
+        String(meta["typeArticle"]) === "collection_atmosphere";
+      const matiere =
+        typeof meta["matiere"] === "string" ? (meta["matiere"] as string) : null;
       return {
         dossier_id: dossier.id,
         type: itemType,
@@ -168,7 +174,9 @@ export async function createDossierFromDevis(
         unit_label: l.unit_label,
         notes: l.detail ?? null,
         position: idx,
-      };
+        collection: isCollection,
+        matiere: isCollection ? matiere : null,
+      } as DossierItemInsert;
     });
 
   if (items.length > 0) {
