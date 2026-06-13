@@ -113,6 +113,9 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
 
   const number = await getNextTicketNumber();
 
+  const { getCreationStoreId } = await import("@/lib/db/stores");
+  const storeId = await getCreationStoreId();
+
   const { data: ticket, error: e1 } = await supabase
     .from("caisse_tickets")
     .insert({
@@ -126,6 +129,7 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
       cash_received: input.cash_received ?? null,
       change_due,
       receipt_email: input.receipt_email?.trim() || null,
+      store_id: storeId,
     })
     .select("id, number, total_ttc")
     .single();

@@ -8,6 +8,7 @@ import {
   Truck,
   FlaskConical,
   Hammer,
+  Building2,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { SuppliersTab } from "@/components/parametres/suppliers-tab";
@@ -17,13 +18,15 @@ import { IntegrationsTab } from "@/components/parametres/integrations-tab";
 import { TestTab } from "@/components/parametres/test-tab";
 import { EquipeTab } from "@/components/parametres/equipe-tab";
 import { SourcesSection } from "@/components/parametres/sources-section";
+import { StoresSection } from "@/components/parametres/stores-section";
 import type { Supplier } from "@/lib/db/suppliers";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import type { EmailTemplate } from "@/lib/db/email-templates-shared";
 import type { Poseur, Atelier } from "@/lib/db/equipe";
 import type { Source } from "@/lib/db/sources-shared";
-type TabKey = "fournisseurs" | "equipe" | "utilisateurs" | "roles" | "test" | "integrations";
+import type { Store } from "@/lib/db/stores-shared";
+type TabKey = "magasins" | "fournisseurs" | "equipe" | "utilisateurs" | "roles" | "test" | "integrations";
 
 type Props = {
   suppliers: Supplier[];
@@ -40,6 +43,7 @@ type Props = {
   poseurs: Poseur[];
   ateliers: Atelier[];
   sources: Source[];
+  stores: Store[];
 };
 
 export default function ParametresClient({
@@ -52,8 +56,9 @@ export default function ParametresClient({
   poseurs,
   ateliers,
   sources,
+  stores,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("equipe");
+  const [tab, setTab] = useState<TabKey>("magasins");
 
   return (
     <>
@@ -77,6 +82,7 @@ export default function ParametresClient({
 
         <section className="px-8 pb-6">
           <nav className="flex items-center gap-1 border-b border-line">
+            <TabBtn active={tab === "magasins"} onClick={() => setTab("magasins")} icon={Building2} label="Magasins" count={stores.length} />
             <TabBtn active={tab === "equipe"} onClick={() => setTab("equipe")} icon={Hammer} label="Équipe" count={poseurs.length + ateliers.length} />
             <TabBtn active={tab === "fournisseurs"} onClick={() => setTab("fournisseurs")} icon={Truck} label="Fournisseurs" count={suppliers.length} />
             <TabBtn active={tab === "utilisateurs"} onClick={() => setTab("utilisateurs")} icon={Users} label="Utilisateurs" count={profiles.length} />
@@ -87,6 +93,7 @@ export default function ParametresClient({
         </section>
 
         <section className="px-8 pb-10">
+          {tab === "magasins" && <StoresSection initialStores={stores} />}
           {tab === "equipe" && (
             <div className="space-y-10">
               <SourcesSection initialSources={sources} />

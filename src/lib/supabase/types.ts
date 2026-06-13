@@ -559,6 +559,7 @@ export interface Database {
           pennylane_exported_at: string | null;
           pennylane_invoice_id: string | null;
           pennylane_export_notes: string | null;
+          store_id: string | null;
         };
         Insert: {
           id?: string;
@@ -578,6 +579,7 @@ export interface Database {
           pennylane_exported_at?: string | null;
           pennylane_invoice_id?: string | null;
           pennylane_export_notes?: string | null;
+          store_id?: string | null;
         };
         Update: {
           id?: string;
@@ -597,6 +599,7 @@ export interface Database {
           pennylane_exported_at?: string | null;
           pennylane_invoice_id?: string | null;
           pennylane_export_notes?: string | null;
+          store_id?: string | null;
         };
         Relationships: [];
       };
@@ -671,6 +674,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           source_id: string | null;
+          store_id: string | null;
         };
         Insert: {
           id?: string;
@@ -688,6 +692,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           source_id?: string | null;
+          store_id?: string | null;
         };
         Update: {
           id?: string;
@@ -705,6 +710,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           source_id?: string | null;
+          store_id?: string | null;
         };
         Relationships: [];
       };
@@ -763,6 +769,7 @@ export interface Database {
           updated_at: string;
           client_access_token: string;
           source_id: string | null;
+          store_id: string | null;
         };
         Insert: {
           id?: string;
@@ -788,6 +795,7 @@ export interface Database {
           updated_at?: string;
           client_access_token?: string;
           source_id?: string | null;
+          store_id?: string | null;
         };
         Update: {
           id?: string;
@@ -813,6 +821,7 @@ export interface Database {
           updated_at?: string;
           client_access_token?: string;
           source_id?: string | null;
+          store_id?: string | null;
         };
         Relationships: [];
       };
@@ -976,6 +985,7 @@ export interface Database {
           updated_at: string;
           atelier_id: string | null;
           atelier_sent_at: string | null;
+          store_id: string | null;
         };
         Insert: {
           id?: string;
@@ -995,6 +1005,7 @@ export interface Database {
           updated_at?: string;
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
+          store_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1014,6 +1025,7 @@ export interface Database {
           updated_at?: string;
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
+          store_id?: string | null;
         };
         Relationships: [];
       };
@@ -1278,6 +1290,7 @@ export interface Database {
           pennylane_exported_at: string | null;
           pennylane_invoice_id: string | null;
           pennylane_export_notes: string | null;
+          store_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1299,6 +1312,7 @@ export interface Database {
           pennylane_exported_at?: string | null;
           pennylane_invoice_id?: string | null;
           pennylane_export_notes?: string | null;
+          store_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1320,6 +1334,7 @@ export interface Database {
           pennylane_exported_at?: string | null;
           pennylane_invoice_id?: string | null;
           pennylane_export_notes?: string | null;
+          store_id?: string | null;
         };
         Relationships: [];
       };
@@ -1434,6 +1449,7 @@ export interface Database {
           last_seen_at: string | null;
           created_at: string;
           updated_at: string;
+          store_id: string | null;
         };
         Insert: {
           id: string;
@@ -1446,6 +1462,7 @@ export interface Database {
           last_seen_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          store_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1458,6 +1475,7 @@ export interface Database {
           last_seen_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          store_id?: string | null;
         };
         Relationships: [];
       };
@@ -1567,6 +1585,57 @@ export interface Database {
           id?: string;
           key?: string;
           label?: string;
+          color?: string;
+          active?: boolean;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      stores: {
+        Row: {
+          id: string;
+          slug: string;
+          name: string;
+          short_name: string | null;
+          address: string | null;
+          city: string | null;
+          postal_code: string | null;
+          phone: string | null;
+          email: string | null;
+          color: string;
+          active: boolean;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          name: string;
+          short_name?: string | null;
+          address?: string | null;
+          city?: string | null;
+          postal_code?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          color?: string;
+          active?: boolean;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          slug?: string;
+          name?: string;
+          short_name?: string | null;
+          address?: string | null;
+          city?: string | null;
+          postal_code?: string | null;
+          phone?: string | null;
+          email?: string | null;
           color?: string;
           active?: boolean;
           position?: number;
@@ -1696,7 +1765,7 @@ export interface Database {
       payment_method: "stripe" | "especes" | "cb" | "cheque" | "virement";
       pose_status: "a_planifier" | "planifie" | "confirme" | "pose" | "annule";
       supplier_type: "tissu" | "rail" | "accessoire" | "couture" | "autre";
-      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice" | "consultation_lm";
+      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice" | "consultation_lm" | "resp_magasin";
     };
     CompositeTypes: Record<string, Record<string, unknown>>;
   };

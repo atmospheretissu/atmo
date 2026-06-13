@@ -6,6 +6,7 @@ export type UserRole = Database["public"]["Enums"]["user_role"];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Administrateur",
+  resp_magasin: "Responsable magasin",
   commercial: "Commercial · Back-office",
   resp_confection: "Resp. confection",
   couturiere: "Couturière",
@@ -16,6 +17,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ["Accès complet", "Paramétrage", "Utilisateurs", "Rapports", "Clôtures de caisse"],
+  resp_magasin: ["Devis & factures de son magasin", "Caisse", "Clients", "Tarifs paramétrables", "Rapports magasin"],
   commercial: ["Simulateur", "Devis", "Fiches clients", "Suivi commandes", "Tableau de bord"],
   resp_confection: ["Suivi confections", "Assignation couturières", "Réception colis", "Bons de travail"],
   couturiere: ["Ses bons de travail", "Mise à jour statut confection"],
@@ -26,6 +28,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
 
 export const ROLE_COLORS: Record<UserRole, "ink" | "violet" | "orange" | "pink" | "emerald" | "blue" | "amber"> = {
   admin: "ink",
+  resp_magasin: "violet",
   commercial: "violet",
   resp_confection: "orange",
   couturiere: "pink",
@@ -53,6 +56,25 @@ export type RouteAccess = {
 
 export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
   admin: { all: true, homeRoute: "/dashboard" },
+  resp_magasin: {
+    allowed: [
+      "/dashboard",
+      "/boutique",
+      "/devis",
+      "/confections",
+      "/commandes",
+      "/clients",
+      "/caisse",
+      "/feed",
+      "/leads-lm",
+      "/parametres",
+      "/poses",
+      "/agenda",
+      "/reception",
+      "/collection",
+    ],
+    homeRoute: "/dashboard",
+  },
   commercial: {
     allowed: [
       "/dashboard",

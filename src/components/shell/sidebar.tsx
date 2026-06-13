@@ -29,6 +29,8 @@ import { ColorChip, ChipTone } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 import { canAccess, ROLE_LABELS } from "@/lib/db/profiles-shared";
 import type { UserRole } from "@/lib/db/profiles-shared";
+import { WorkspaceSwitcher } from "@/components/shell/workspace-switcher";
+import type { Store } from "@/lib/db/stores-shared";
 
 type Item = {
   label: string;
@@ -146,9 +148,13 @@ function NavSection({
 export function Sidebar({
   role,
   userEmail,
+  stores,
+  currentStoreId,
 }: {
   role: UserRole | null;
   userEmail: string | null;
+  stores: Store[];
+  currentStoreId: string | null;
 }) {
   const initial = (userEmail ?? "?")[0]?.toUpperCase() ?? "?";
   const roleLabel = role ? ROLE_LABELS[role] : "";
@@ -162,20 +168,12 @@ export function Sidebar({
         </Link>
       </div>
 
-      {/* Workspace */}
-      <div className="mx-3 mt-3 flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 border border-line">
-        <div className="h-7 w-7 rounded-md bg-ink text-white flex items-center justify-center text-[11px] font-semibold tracking-wide">
-          AT
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[12.5px] font-semibold text-ink truncate leading-tight">
-            Atmosphère Tissus
-          </p>
-          <p className="text-[10.5px] text-muted mt-0.5 truncate">
-            Magasin Bordeaux · Centre
-          </p>
-        </div>
-      </div>
+      {/* Workspace — vrai switcher multi-magasin */}
+      <WorkspaceSwitcher
+        stores={stores}
+        currentStoreId={currentStoreId}
+        isAdmin={role === "admin"}
+      />
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 pt-2 pb-3 space-y-1">

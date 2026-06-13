@@ -19,6 +19,7 @@ export async function getRoleCounts(): Promise<Record<UserRole, number>> {
   const profiles = await listProfiles();
   const counts: Record<UserRole, number> = {
     admin: 0,
+    resp_magasin: 0,
     commercial: 0,
     resp_confection: 0,
     couturiere: 0,

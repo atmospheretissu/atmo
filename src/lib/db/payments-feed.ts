@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveStoreFilter } from "@/lib/db/stores";
 
 /**
  * Vue unifiée de TOUS les paiements de l'entreprise — quelle que soit l'origine :
@@ -62,18 +63,22 @@ export async function listAllPayments(opts?: {
     pennylane_exported_at?: string | null; pennylane_invoice_id?: string | null;
   };
 
-  const [paymentsRes, ticketsRes] = await Promise.all([
-    supabase
-      .from("payments")
-      .select("*")
-      .order("paid_at", { ascending: false })
-      .limit(limit),
-    supabase
-      .from("caisse_tickets")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(limit),
-  ]);
+  const storeFilter = await getEffectiveStoreFilter();
+  let payQ = supabase
+    .from("payments")
+    .select("*")
+    .order("paid_at", { ascending: false })
+    .limit(limit);
+  let ticketQ = supabase
+    .from("caisse_tickets")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (storeFilter) {
+    payQ = payQ.eq("store_id", storeFilter);
+    ticketQ = ticketQ.eq("store_id", storeFilter);
+  }
+  const [paymentsRes, ticketsRes] = await Promise.all([payQ, ticketQ]);
 
   const paymentsData = (paymentsRes.data ?? []) as unknown as PaymentRow[];
   const ticketsData = (ticketsRes.data ?? []) as unknown as TicketRow[];

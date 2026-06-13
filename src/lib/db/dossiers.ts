@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getEffectiveStoreFilter } from "@/lib/db/stores";
 
 /**
  * Type d'un client Supabase utilisable par les fonctions DB de ce fichier.
@@ -201,10 +202,13 @@ export type DossierWithClient = Dossier & {
 
 export async function listAllDossiers(): Promise<DossierWithClient[]> {
   const supabase = await createClient();
-  const { data: dossiers, error: e1 } = await supabase
+  const storeFilter = await getEffectiveStoreFilter();
+  let q = supabase
     .from("dossiers")
     .select("*")
     .order("created_at", { ascending: false });
+  if (storeFilter) q = q.eq("store_id", storeFilter);
+  const { data: dossiers, error: e1 } = await q;
   if (e1) throw e1;
   if (!dossiers || dossiers.length === 0) return [];
 

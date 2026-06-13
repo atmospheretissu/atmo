@@ -7,6 +7,7 @@ import type { Database } from "@/lib/supabase/types";
 import { parseDevisForm, computeDevisTotals } from "@/lib/validation/devis";
 import { getNextDevisNumber } from "@/lib/db/devis";
 import { createDossierFromDevis } from "@/lib/db/dossiers";
+import { getCreationStoreId } from "@/lib/db/stores";
 import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
 
 function appBaseUrl(): string {
@@ -54,6 +55,8 @@ export async function createDevisDraftAction(
       ? data.valid_until
       : new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
 
+  const storeId = await getCreationStoreId();
+
   // 1. Insert devis
   const { data: devis, error: e1 } = await supabase
     .from("devis")
@@ -72,6 +75,7 @@ export async function createDevisDraftAction(
       workshop_notes: data.workshop_notes || null,
       valid_until: validUntil,
       commercial_id: user.id,
+      store_id: storeId,
     })
     .select("id")
     .single();

@@ -35,7 +35,7 @@ export function Logo({ className, variant = "full" }: LogoProps) {
           Atmosphère
         </span>
         <span className="font-mono text-[9.5px] tracking-[0.15em] text-muted uppercase mt-1">
-          Tissus · Plateforme
+          Plateforme
         </span>
       </div>
     </div>

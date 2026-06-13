@@ -4,13 +4,14 @@ import { listSmsTemplates } from "@/lib/db/sms-templates";
 import { listEmailTemplates } from "@/lib/db/email-templates";
 import { listPoseurs, listAteliers } from "@/lib/db/equipe";
 import { listSources } from "@/lib/db/sources";
+import { listStores } from "@/lib/db/stores";
 import ParametresClient from "./parametres-client";
 import type { UserRole } from "@/lib/db/profiles-shared";
 
 export const dynamic = "force-dynamic";
 
 export default async function ParametresPage() {
-  const [suppliers, profiles, smsTemplates, emailTemplates, poseurs, ateliers, sources] = await Promise.all([
+  const [suppliers, profiles, smsTemplates, emailTemplates, poseurs, ateliers, sources, stores] = await Promise.all([
     listSuppliers(),
     listProfiles(),
     listSmsTemplates(),
@@ -18,10 +19,12 @@ export default async function ParametresPage() {
     listPoseurs(),
     listAteliers(),
     listSources(),
+    listStores(),
   ]);
 
   const roleCounts: Record<UserRole, number> = {
     admin: 0,
+    resp_magasin: 0,
     commercial: 0,
     resp_confection: 0,
     couturiere: 0,
@@ -51,6 +54,7 @@ export default async function ParametresPage() {
       poseurs={poseurs}
       ateliers={ateliers}
       sources={sources}
+      stores={stores}
     />
   );
 }

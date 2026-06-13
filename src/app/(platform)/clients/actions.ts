@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { parseClientForm, clientToDbRow } from "@/lib/validation/client";
+import { getCreationStoreId } from "@/lib/db/stores";
 
 export type ClientFormState =
   | { ok: true }
@@ -30,9 +31,11 @@ export async function createClientAction(
     return { ok: false, errors: {}, message: "Session expirée." };
   }
 
+  const storeId = await getCreationStoreId();
   const payload = {
     ...clientToDbRow(data),
     created_by: user.id,
+    store_id: storeId,
   };
 
   const { data: inserted, error } = await supabase

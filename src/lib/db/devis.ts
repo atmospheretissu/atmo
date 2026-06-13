@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
+import { getEffectiveStoreFilter } from "@/lib/db/stores";
 
 export type Devis = Database["public"]["Tables"]["devis"]["Row"];
 export type DevisInsert = Database["public"]["Tables"]["devis"]["Insert"];
@@ -21,8 +22,11 @@ export async function listDevis(opts?: {
 }): Promise<DevisWithClient[]> {
   const supabase = await createClient();
 
+  const storeFilter = await getEffectiveStoreFilter();
+
   let q = supabase.from("devis").select("*").order("created_at", { ascending: false });
   if (opts?.status) q = q.eq("status", opts.status);
+  if (storeFilter) q = q.eq("store_id", storeFilter);
   if (opts?.limit) q = q.limit(opts.limit);
 
   const { data: devisRows, error } = await q;
@@ -86,7 +90,10 @@ export async function getDevisDetail(id: string) {
  */
 export async function getDevisStats() {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("devis").select("status, total_ttc");
+  const storeFilter = await getEffectiveStoreFilter();
+  let q = supabase.from("devis").select("status, total_ttc");
+  if (storeFilter) q = q.eq("store_id", storeFilter);
+  const { data, error } = await q;
   if (error) throw error;
 
   const counts: Record<DevisStatus | "all", number> = {
