@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Package, Scissors, Layers, ShoppingBag, Search, Loader2, AlertCircle, Disc, Plus, Sparkles } from "lucide-react";
+import { X, Package, Scissors, Layers, ShoppingBag, Search, Loader2, AlertCircle, Disc, Plus, Sparkles, Sofa } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { StoreEnrouleurForm } from "@/components/boutique/article-store-enrouleu
 import { RideauSerieForm } from "@/components/boutique/article-rideau-serie-form";
 import { ArticleLibreForm } from "@/components/boutique/article-libre-form";
 import { ArticleCollectionForm } from "@/components/boutique/article-collection-form";
+import { ArticleMobilierForm } from "@/components/boutique/article-mobilier-form";
 
 type ArticleType =
   | "rideau"
@@ -23,7 +24,8 @@ type ArticleType =
   | "produit"
   | "rideau_serie"
   | "libre"
-  | "collection";
+  | "collection"
+  | "mobilier";
 
 const TYPES: {
   key: ArticleType;
@@ -89,6 +91,14 @@ const TYPES: {
     icon: Sparkles,
     available: true,
   },
+  {
+    key: "mobilier",
+    label: "Mobilier sur mesure",
+    description: "Tapis · Canapé · Banquette — simulateurs externes Louis Hoste",
+    tone: "blue",
+    icon: Sofa,
+    available: true,
+  },
 ];
 
 export function AddArticleModal({
@@ -114,6 +124,7 @@ export function AddArticleModal({
     selectedType === "store" ||
     selectedType === "store_enrouleur" ||
     selectedType === "collection" ||
+    selectedType === "mobilier" ||
     selectedType === "libre";
 
   return (
@@ -143,6 +154,8 @@ export function AddArticleModal({
                 ? "Autre produit (champ libre)"
                 : selectedType === "collection"
                 ? "Collection Atmosphère"
+                : selectedType === "mobilier"
+                ? "Mobilier sur mesure"
                 : "Rideau en série"}
             </h3>
           </div>
@@ -186,6 +199,10 @@ export function AddArticleModal({
 
         {selectedType === "collection" && (
           <ArticleCollectionForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
+        {selectedType === "mobilier" && (
+          <ArticleMobilierForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
       </div>
     </div>
