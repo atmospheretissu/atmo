@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ageInStatus, STATUS_META, type WorkflowStatus } from "@/lib/workflow/statuses";
 
 type AnySupabaseClient = SupabaseClient<Database>;
 
@@ -97,12 +98,20 @@ export type BCWithRelations = BonCommande & {
   client: { display_name: string } | null;
 };
 
-export async function listBons(): Promise<BCWithRelations[]> {
+export async function listBons(
+  opts: { supplierId?: string | null; lateOnly?: boolean } = {},
+): Promise<BCWithRelations[]> {
   const supabase = await createClient();
-  const { data: bcs } = await supabase
+  let q = supabase
     .from("bons_commande")
     .select("*")
     .order("created_at", { ascending: false });
+  if (opts.supplierId) q = q.eq("supplier_id", opts.supplierId);
+  if (opts.lateOnly) {
+    const today = new Date().toISOString().slice(0, 10);
+    q = q.in("status", ["envoye", "confirme", "expedie"]).lt("expected_at", today);
+  }
+  const { data: bcs } = await q;
   if (!bcs || bcs.length === 0) return [];
 
   const supplierIds = Array.from(new Set(bcs.map((b) => b.supplier_id)));
@@ -145,7 +154,7 @@ export async function getBcStats() {
   const supabase = await createClient();
   const { data: bcs } = await supabase
     .from("bons_commande")
-    .select("status, amount_ht, supplier_id");
+    .select("status, amount_ht, supplier_id, expected_at, sent_at");
   const stats = {
     total: bcs?.length ?? 0,
     brouillon: 0,
@@ -153,12 +162,23 @@ export async function getBcStats() {
     recu: 0,
     totalMonth: 0,
     francoIssues: 0,
+    bcLate: 0,
   };
+  const today = new Date().toISOString().slice(0, 10);
   for (const b of bcs ?? []) {
     if (b.status === "brouillon") stats.brouillon += 1;
     if (b.status === "envoye") stats.envoye += 1;
     if (b.status === "recu") stats.recu += 1;
     stats.totalMonth += Number(b.amount_ht ?? 0);
+    // BC en retard : envoyé/confirmé/expédié, jamais reçu, date attendue passée
+    if (
+      b.status !== "recu" &&
+      b.status !== "brouillon" &&
+      b.expected_at &&
+      String(b.expected_at) < today
+    ) {
+      stats.bcLate += 1;
+    }
   }
   // Compte francos non atteints (besoin de joindre suppliers)
   const { data: bcsWithSupp } = await supabase
@@ -180,6 +200,70 @@ export async function getBcStats() {
     }
   }
   return stats;
+}
+
+/** Liste les dossiers actuellement en retard (attente_matiere >10j, confection >12j). */
+export type LateDossier = {
+  id: string;
+  number: string;
+  status: WorkflowStatus;
+  client_name: string | null;
+  age_days: number;
+  threshold: number;
+};
+
+export async function listLateDossiers(): Promise<LateDossier[]> {
+  const supabase = await createClient();
+  const overdueStatuses = Object.entries(STATUS_META)
+    .filter(([, m]) => m.alertDays !== null)
+    .map(([s]) => s as WorkflowStatus);
+
+  const { data: dossiers } = await supabase
+    .from("dossiers")
+    .select(
+      "id, number, status, client_id, created_at, updated_at, attente_matiere_at, confection_started_at, pret_pose_at, cloture_at",
+    )
+    .in("status", overdueStatuses);
+  if (!dossiers || dossiers.length === 0) return [];
+
+  const out: LateDossier[] = [];
+  for (const d of dossiers) {
+    const age = ageInStatus(String(d.status), d as never);
+    if (!age?.isOverdue || age.threshold === null) continue;
+    out.push({
+      id: d.id,
+      number: d.number,
+      status: d.status as WorkflowStatus,
+      client_name: null,
+      age_days: age.days,
+      threshold: age.threshold,
+    });
+  }
+
+  if (out.length === 0) return [];
+
+  // Récupère les noms clients en un seul batch
+  const clientIds = Array.from(
+    new Set(
+      dossiers
+        .filter((d) => out.some((o) => o.id === d.id))
+        .map((d) => d.client_id),
+    ),
+  );
+  const { data: clients } = await supabase
+    .from("clients")
+    .select("id, display_name")
+    .in("id", clientIds);
+  const byId = new Map((clients ?? []).map((c) => [c.id, c.display_name]));
+
+  for (const o of out) {
+    const dos = dossiers.find((d) => d.id === o.id);
+    if (dos) o.client_name = byId.get(dos.client_id) ?? null;
+  }
+
+  // Tri du plus en retard au moins en retard
+  out.sort((a, b) => b.age_days - a.age_days);
+  return out;
 }
 
 /**

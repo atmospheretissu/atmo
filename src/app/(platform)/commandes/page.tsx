@@ -9,12 +9,21 @@ import {
   CheckCircle2,
   Download,
   MoreHorizontal,
+  Clock,
+  Scissors,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
-import { listBons, getBcStats } from "@/lib/db/bons-commande";
+import {
+  listBons,
+  getBcStats,
+  listLateDossiers,
+  type LateDossier,
+} from "@/lib/db/bons-commande";
+import { listSuppliers } from "@/lib/db/suppliers";
+import { STATUS_META } from "@/lib/workflow/statuses";
 import { eur, shortDate } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
@@ -44,8 +53,24 @@ const flagFor: Record<string, string> = {
   UA: "🇺🇦",
 };
 
-export default async function CommandesPage() {
-  const [bcs, stats] = await Promise.all([listBons(), getBcStats()]);
+export default async function CommandesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ supplier?: string; late?: string }>;
+}) {
+  const sp = await searchParams;
+  const supplierFilter = sp.supplier ?? null;
+  const lateOnly = sp.late === "1";
+
+  const [bcs, stats, suppliers, lateDossiers] = await Promise.all([
+    listBons({ supplierId: supplierFilter, lateOnly }),
+    getBcStats(),
+    listSuppliers(),
+    listLateDossiers(),
+  ]);
+  const activeSuppliers = suppliers.filter((s) => s.active);
+  const currentSupplier =
+    activeSuppliers.find((s) => s.id === supplierFilter) ?? null;
 
   return (
     <>
@@ -83,13 +108,70 @@ export default async function CommandesPage() {
 
         {/* KPIs */}
         <section className="px-8 pb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <MiniStat label="Brouillons" value={String(stats.brouillon)} sub="à compléter / envoyer" tone="amber" icon={AlertTriangle} />
             <MiniStat label="Envoyés" value={String(stats.envoye)} sub="en attente livraison" tone="blue" icon={Send} />
             <MiniStat label="Reçus" value={String(stats.recu)} sub="ce mois" tone="emerald" icon={CheckCircle2} />
             <MiniStat label="Franco non atteint" value={String(stats.francoIssues)} sub="à regrouper" tone="pink" icon={Truck} />
+            <MiniStat
+              label="BC en retard"
+              value={String(stats.bcLate)}
+              sub="livraison dépassée"
+              tone="pink"
+              icon={Clock}
+              href={stats.bcLate > 0 ? "/commandes?late=1" : undefined}
+            />
+            <MiniStat
+              label="Confections en retard"
+              value={String(lateDossiers.length)}
+              sub="seuil atelier dépassé"
+              tone="pink"
+              icon={Scissors}
+              href={lateDossiers.length > 0 ? "/confections" : undefined}
+            />
           </div>
         </section>
+
+        {/* Onglets fournisseurs */}
+        {activeSuppliers.length > 0 && (
+          <section className="px-8 pb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <SupplierChip
+                label="Tous"
+                href="/commandes"
+                active={!supplierFilter && !lateOnly}
+              />
+              <SupplierChip
+                label={`En retard (${stats.bcLate})`}
+                href="/commandes?late=1"
+                active={lateOnly}
+                tone="pink"
+              />
+              <span className="text-muted-2 text-[12px] px-1">·</span>
+              {activeSuppliers.map((s) => (
+                <SupplierChip
+                  key={s.id}
+                  label={s.name}
+                  badge={s.language}
+                  href={`/commandes?supplier=${s.id}`}
+                  active={supplierFilter === s.id}
+                />
+              ))}
+            </div>
+            {currentSupplier && (
+              <p className="text-[11.5px] text-muted mt-2">
+                Filtré : {currentSupplier.name} ·{" "}
+                {currentSupplier.country} ·{" "}
+                {currentSupplier.contact_email ?? "pas d'email contact"}
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Confections en retard (mis en évidence ici aussi) */}
+        {lateDossiers.length > 0 && !supplierFilter && !lateOnly && (
+          <LateConfectionsCard dossiers={lateDossiers} />
+        )}
 
         {bcs.length === 0 ? <EmptyState /> : <BcTable bcs={bcs} />}
       </div>
@@ -244,15 +326,17 @@ function MiniStat({
   tone,
   sub,
   icon: Icon,
+  href,
 }: {
   label: string;
   value: string;
   tone: "violet" | "emerald" | "amber" | "blue" | "pink";
   sub?: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  href?: string;
 }) {
-  return (
-    <Card className="p-4 flex items-start gap-3">
+  const inner = (
+    <Card className="p-4 flex items-start gap-3 hover:border-line-strong transition-colors">
       <ColorChip tone={tone} size="md">
         <Icon className="h-4 w-4" strokeWidth={2.2} />
       </ColorChip>
@@ -262,6 +346,105 @@ function MiniStat({
         {sub && <p className="text-[11px] text-muted mt-0.5">{sub}</p>}
       </div>
     </Card>
+  );
+  if (href) return <Link href={href}>{inner}</Link>;
+  return inner;
+}
+
+function SupplierChip({
+  label,
+  href,
+  active,
+  badge,
+  tone = "neutral",
+}: {
+  label: string;
+  href: string;
+  active: boolean;
+  badge?: string;
+  tone?: "neutral" | "pink";
+}) {
+  const base =
+    "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-medium border transition-colors";
+  const cls = active
+    ? tone === "pink"
+      ? "bg-pink text-white border-pink"
+      : "bg-ink text-white border-ink"
+    : tone === "pink"
+      ? "bg-pink-soft/40 text-pink border-pink/30 hover:bg-pink-soft"
+      : "bg-canvas-2/40 text-ink-2 border-line hover:border-line-strong";
+  return (
+    <Link href={href} className={`${base} ${cls}`}>
+      {label}
+      {badge && (
+        <span
+          className={`font-mono text-[10px] font-semibold px-1 rounded ${
+            active ? "bg-white/15" : "bg-white"
+          }`}
+        >
+          {badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function LateConfectionsCard({ dossiers }: { dossiers: LateDossier[] }) {
+  return (
+    <section className="px-8 pb-6">
+      <Card className="overflow-hidden border-pink/30">
+        <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-line bg-pink-soft/30">
+          <div className="flex items-center gap-2">
+            <ColorChip tone="pink" size="sm">
+              <Scissors className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </ColorChip>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-pink">
+                Confections en retard
+              </p>
+              <h3 className="text-[14px] font-semibold text-ink leading-tight">
+                {dossiers.length} dossier{dossiers.length > 1 ? "s" : ""} dépassé{dossiers.length > 1 ? "s" : ""}
+              </h3>
+            </div>
+          </div>
+        </div>
+        <div className="divide-y divide-line">
+          {dossiers.slice(0, 5).map((d) => {
+            const meta = STATUS_META[d.status];
+            return (
+              <Link
+                key={d.id}
+                href={`/confections/${d.id}`}
+                className="px-5 py-3 flex items-center gap-3 hover:bg-canvas-2/40 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-ink truncate">
+                    {d.client_name ?? "—"}{" "}
+                    <span className="font-mono text-muted-2 font-normal text-[11.5px] ml-1">
+                      {d.number}
+                    </span>
+                  </p>
+                  <p className="text-[11.5px] text-muted">
+                    {meta.label} · seuil {d.threshold}j
+                  </p>
+                </div>
+                <StatusPill tone="pink">
+                  {d.age_days}j en cours (+{d.age_days - d.threshold}j)
+                </StatusPill>
+              </Link>
+            );
+          })}
+          {dossiers.length > 5 && (
+            <Link
+              href="/confections"
+              className="block text-center px-5 py-2.5 text-[12px] text-violet font-medium hover:bg-canvas-2/40"
+            >
+              Voir les {dossiers.length} dossiers en retard →
+            </Link>
+          )}
+        </div>
+      </Card>
+    </section>
   );
 }
 
