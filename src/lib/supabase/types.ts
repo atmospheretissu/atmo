@@ -999,6 +999,7 @@ export interface Database {
           confection_started_at: string | null;
           pret_pose_at: string | null;
           cloture_at: string | null;
+          atelier_deadline_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1023,6 +1024,7 @@ export interface Database {
           confection_started_at?: string | null;
           pret_pose_at?: string | null;
           cloture_at?: string | null;
+          atelier_deadline_at?: string | null;
         };
         Update: {
           id?: string;
@@ -1047,6 +1049,34 @@ export interface Database {
           confection_started_at?: string | null;
           pret_pose_at?: string | null;
           cloture_at?: string | null;
+          atelier_deadline_at?: string | null;
+        };
+        Relationships: [];
+      };
+      dossier_notes: {
+        Row: {
+          id: string;
+          dossier_id: string;
+          author_id: string | null;
+          body: string;
+          kind: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          dossier_id: string;
+          author_id?: string | null;
+          body: string;
+          kind?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          dossier_id?: string;
+          author_id?: string | null;
+          body?: string;
+          kind?: string;
+          created_at?: string;
         };
         Relationships: [];
       };

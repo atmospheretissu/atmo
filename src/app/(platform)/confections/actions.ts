@@ -4,6 +4,62 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
 
+export async function addDossierNoteAction(
+  dossierId: string,
+  body: string,
+): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false, message: "Note vide." };
+  if (trimmed.length > 4000)
+    return { ok: false, message: "Note trop longue (4000 caractères max)." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Session expirée" };
+
+  const { data, error } = await supabase
+    .from("dossier_notes")
+    .insert({
+      dossier_id: dossierId,
+      author_id: user.id,
+      body: trimmed,
+      kind: "internal",
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !data) return { ok: false, message: error?.message ?? "Échec insert" };
+
+  revalidatePath(`/confections/${dossierId}`);
+  return { ok: true, id: data.id };
+}
+
+export async function deleteDossierNoteAction(
+  noteId: string,
+  dossierId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("dossier_notes").delete().eq("id", noteId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(`/confections/${dossierId}`);
+  return { ok: true };
+}
+
+export async function setAtelierDeadlineAction(
+  dossierId: string,
+  iso: string | null,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("dossiers")
+    .update({ atelier_deadline_at: iso })
+    .eq("id", dossierId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(`/confections/${dossierId}`);
+  return { ok: true };
+}
+
 export type ItemNewStatus = "recu" | "en_attente" | "confection";
 
 export type ToggleItemResult =

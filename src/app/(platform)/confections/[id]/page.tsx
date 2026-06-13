@@ -23,6 +23,8 @@ import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { PlanPoseButton } from "@/components/confections/plan-pose-button";
 import { ItemReceptionMenu } from "@/components/confections/item-reception-menu";
 import { AtelierAssignCard } from "@/components/confections/atelier-assign";
+import { DossierNotesCard } from "@/components/confections/dossier-notes";
+import { listDossierNotes } from "@/lib/db/dossier-notes";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
 import { eur, shortDate } from "@/lib/formatters";
@@ -73,6 +75,9 @@ export default async function DossierDetailPage({
     (dossier as { atelier_id?: string | null }).atelier_id
       ? await getAtelier((dossier as { atelier_id: string }).atelier_id)
       : null;
+
+  // Notes/commentaires
+  const notes = await listDossierNotes(id);
 
   const initial = client?.display_name?.[0] ?? "?";
   const itemsReceived = items.filter((i) => i.status === "recu").length;
@@ -264,7 +269,10 @@ export default async function DossierDetailPage({
                   : null
               }
               sentAt={(dossier as { atelier_sent_at?: string | null }).atelier_sent_at ?? null}
+              deadlineAt={(dossier as { atelier_deadline_at?: string | null }).atelier_deadline_at ?? null}
             />
+
+            <DossierNotesCard dossierId={dossier.id} notes={notes} />
 
             <Card className="p-5">
               <p className="eyebrow mb-3">Paiement</p>

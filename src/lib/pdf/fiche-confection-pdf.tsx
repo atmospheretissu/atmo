@@ -447,6 +447,34 @@ export function FicheConfectionPDF({
                       value={hauteurFinie != null ? `${hauteurFinie} cm` : null}
                     />
                     <MetaCell label="Doublure" value={double ? "Occultante" : "Non"} />
+                    {isRideau && (
+                      <>
+                        <MetaCell
+                          label="Nombre de galets"
+                          value={
+                            getNumber(meta, "nombreGalets") != null
+                              ? String(getNumber(meta, "nombreGalets"))
+                              : get(meta, "nombrePlis") ?? null
+                          }
+                        />
+                        <MetaCell
+                          label="Ourlet haut"
+                          value={
+                            getNumber(meta, "ourletHaut") != null
+                              ? `${getNumber(meta, "ourletHaut")} cm`
+                              : null
+                          }
+                        />
+                        <MetaCell
+                          label="Ourlet bas"
+                          value={
+                            getNumber(meta, "ourletBas") != null
+                              ? `${getNumber(meta, "ourletBas")} cm`
+                              : null
+                          }
+                        />
+                      </>
+                    )}
                   </View>
 
                   {/* Table tissu / lés / métrage */}

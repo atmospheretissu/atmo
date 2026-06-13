@@ -46,6 +46,10 @@ type Inputs = {
   couleurRail: string;
   nombreCoudes: number;
   avecPose: boolean;
+  // Fiche atelier — précisions confection
+  nombreGalets: number;
+  ourletHaut: number;
+  ourletBas: number;
 };
 
 const initial: Inputs = {
@@ -64,6 +68,9 @@ const initial: Inputs = {
   couleurRail: "",
   nombreCoudes: 0,
   avecPose: true,
+  nombreGalets: 0,
+  ourletHaut: 5,
+  ourletBas: 10,
 };
 
 export function RideauForm({
@@ -154,6 +161,9 @@ export function RideauForm({
         prixDoublure: calc.prixDoublure,
         prixConfection: calc.prixConfection,
         prixAccessoires: calc.prixAccessoires,
+        nombreGalets: v.nombreGalets,
+        ourletHaut: v.ourletHaut,
+        ourletBas: v.ourletBas,
       },
     });
 
@@ -271,6 +281,43 @@ export function RideauForm({
                   min={1}
                   value={v.panneau || ""}
                   onChange={(e) => update({ panneau: Number(e.target.value) || 1 })}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Fiche atelier — précisions confection */}
+          <section>
+            <p className="eyebrow mb-2">Confection — fiche atelier</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Nombre de galets</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.nombreGalets || ""}
+                  onChange={(e) => update({ nombreGalets: Number(e.target.value) || 0 })}
+                  placeholder="ex. 12"
+                />
+              </div>
+              <div>
+                <Label>Ourlet haut (cm)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.ourletHaut || ""}
+                  onChange={(e) => update({ ourletHaut: Number(e.target.value) || 0 })}
+                  placeholder="5"
+                />
+              </div>
+              <div>
+                <Label>Ourlet bas (cm)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.ourletBas || ""}
+                  onChange={(e) => update({ ourletBas: Number(e.target.value) || 0 })}
+                  placeholder="10"
                 />
               </div>
             </div>

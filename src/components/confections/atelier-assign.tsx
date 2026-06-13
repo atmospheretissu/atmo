@@ -22,11 +22,13 @@ export function AtelierAssignCard({
   ateliers,
   currentAtelier,
   sentAt,
+  deadlineAt,
 }: {
   dossierId: string;
   ateliers: Atelier[];
   currentAtelier: AssignedAtelier | null;
   sentAt: string | null;
+  deadlineAt?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -100,6 +102,7 @@ export function AtelierAssignCard({
               Envoyée le {new Date(assignedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
             </p>
           )}
+          {deadlineAt && <DeadlineBadge deadlineAt={deadlineAt} />}
           <div className="flex gap-2 pt-1">
             <Button
               variant="secondary"
@@ -190,5 +193,38 @@ export function AtelierAssignCard({
         </div>
       )}
     </Card>
+  );
+}
+
+function DeadlineBadge({ deadlineAt }: { deadlineAt: string }) {
+  const d = new Date(deadlineAt);
+  const now = Date.now();
+  const daysLeft = Math.ceil((d.getTime() - now) / 86_400_000);
+  const overdue = daysLeft < 0;
+  const dueSoon = !overdue && daysLeft <= 2;
+
+  const tone = overdue
+    ? "bg-pink-soft text-pink border-pink/30"
+    : dueSoon
+      ? "bg-amber-soft text-amber border-amber/30"
+      : "bg-canvas-2 text-ink-2 border-line";
+  const dateLabel = d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+  });
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 text-[11.5px] font-medium rounded-md border px-2 py-1 ${tone}`}
+    >
+      <span>⏱</span>
+      <span>
+        {overdue
+          ? `Retard de ${-daysLeft}j (${dateLabel})`
+          : daysLeft === 0
+            ? `À rendre aujourd'hui (${dateLabel})`
+            : `Retour attendu ${dateLabel} · J-${daysLeft}`}
+      </span>
+    </div>
   );
 }
