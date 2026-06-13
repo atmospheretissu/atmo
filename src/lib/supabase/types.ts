@@ -986,6 +986,10 @@ export interface Database {
           atelier_id: string | null;
           atelier_sent_at: string | null;
           store_id: string | null;
+          attente_matiere_at: string | null;
+          confection_started_at: string | null;
+          pret_pose_at: string | null;
+          cloture_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1006,6 +1010,10 @@ export interface Database {
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
           store_id?: string | null;
+          attente_matiere_at?: string | null;
+          confection_started_at?: string | null;
+          pret_pose_at?: string | null;
+          cloture_at?: string | null;
         };
         Update: {
           id?: string;
@@ -1026,6 +1034,10 @@ export interface Database {
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
           store_id?: string | null;
+          attente_matiere_at?: string | null;
+          confection_started_at?: string | null;
+          pret_pose_at?: string | null;
+          cloture_at?: string | null;
         };
         Relationships: [];
       };
@@ -1758,7 +1770,7 @@ export interface Database {
       devis_status: "brouillon" | "envoye" | "valide" | "acompte_recu" | "refuse" | "expire";
       dossier_item_status: "en_attente" | "commande" | "expedie" | "recu" | "confection" | "probleme";
       dossier_item_type: "tissu" | "rail" | "accessoire" | "autre" | "confection";
-      dossier_status: "en_cours" | "tout_commande" | "reception_partielle" | "en_confection" | "pret_pose" | "planifie" | "pose";
+      dossier_status: "en_cours" | "tout_commande" | "reception_partielle" | "en_confection" | "pret_pose" | "planifie" | "pose" | "commande_validee" | "attente_matiere" | "confection_en_cours" | "pose_a_planifier" | "pose_a_venir" | "cloture" | "sav";
       lang: "FR" | "EN" | "PL" | "UA" | "DE";
       lead_status: "nouveau" | "visio_planifie" | "echantillons" | "devis_envoye" | "valide" | "perdu";
       payment_kind: "acompte" | "solde" | "comptoir" | "remboursement";

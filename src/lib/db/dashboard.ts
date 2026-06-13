@@ -1,27 +1,80 @@
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveStoreFilter } from "@/lib/db/stores";
+import {
+  STATUS_META,
+  WORKFLOW_STATUSES,
+  ageInStatus,
+  type WorkflowStatus,
+} from "@/lib/workflow/statuses";
+
+export type PeriodKey = "day" | "week" | "month" | "year" | "all";
+
+export type Period = {
+  key: PeriodKey;
+  from: Date;
+  to: Date;
+  label: string;
+};
+
+export function resolvePeriod(key: string | undefined): Period {
+  const k: PeriodKey =
+    key === "day" || key === "week" || key === "year" || key === "all"
+      ? key
+      : "month";
+  const now = new Date();
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  let from: Date;
+  let label: string;
+  switch (k) {
+    case "day":
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      label = "Aujourd'hui";
+      break;
+    case "week": {
+      const day = now.getDay() || 7;
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1), 0, 0, 0);
+      label = "Cette semaine";
+      break;
+    }
+    case "year":
+      from = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+      label = "Cette année";
+      break;
+    case "all":
+      from = new Date(2000, 0, 1);
+      label = "Depuis le début";
+      break;
+    case "month":
+    default:
+      from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      label = "Mois en cours";
+      break;
+  }
+  return { key: k, from, to, label };
+}
 
 export type DashboardStats = {
-  // KPIs hero
+  period: Period;
+
+  // KPIs principaux
+  devisSentCount: number;
+  devisSentAmount: number;
+  devisPendingCount: number;
+  devisPendingAmount: number;
+  commandesActiveCount: number;
+  commandesActiveAmount: number;
+  taux: { converted: number; total: number; pct: number };
+
   caTotal: number;
-  caDelta: number; // % vs période précédente (placeholder pour l'instant)
-  devisCount: number;
-  devisSent: number;
   acomptesPending: number;
   acomptesPendingAmount: number;
-  dossiersActive: number;
   posesUpcoming: number;
 
-  // Flux des dossiers
-  flow: {
-    devis: number; // brouillon + envoye
-    acompte: number; // valide (en attente de paiement)
-    confection: number; // en_confection
-    reception: number; // tout_commande + reception_partielle
-    pret: number; // pret_pose + planifie
-    pose: number; // pose
-  };
+  // Flux par statut
+  flowByStatus: Record<WorkflowStatus, number>;
+  flowAmountByStatus: Record<WorkflowStatus, number>;
 
-  // Compteurs pour le sidebar / nav
+  // Compteurs nav
   counts: {
     clients: number;
     devis: number;
@@ -30,66 +83,98 @@ export type DashboardStats = {
   };
 };
 
-/**
- * Agrège tous les KPIs du dashboard en parallèle.
- */
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(periodKey?: string): Promise<DashboardStats> {
   const supabase = await createClient();
+  const storeFilter = await getEffectiveStoreFilter();
+  const period = resolvePeriod(periodKey);
+
+  const devisQuery = supabase.from("devis").select("status, total_ttc, acompte_ttc, created_at");
+  const dossiersQuery = supabase
+    .from("dossiers")
+    .select(
+      "status, total_ttc, solde_paid, created_at, updated_at, attente_matiere_at, confection_started_at, pret_pose_at, cloture_at"
+    );
+  const clientsQuery = supabase.from("clients").select("id", { count: "exact", head: true });
+  const posesQuery = supabase.from("poses").select("status, scheduled_at");
+
+  if (storeFilter) {
+    devisQuery.eq("store_id", storeFilter);
+    dossiersQuery.eq("store_id", storeFilter);
+    clientsQuery.eq("store_id", storeFilter);
+  }
 
   const [
     { data: devis },
     { data: dossiers },
-    { data: clientsCount },
+    { count: clientsCount },
     { data: poses },
-  ] = await Promise.all([
-    supabase.from("devis").select("status, total_ttc, acompte_ttc"),
-    supabase.from("dossiers").select("status, total_ttc, solde_paid"),
-    supabase.from("clients").select("id", { count: "exact" }),
-    supabase.from("poses").select("status, scheduled_at"),
-  ]);
+  ] = await Promise.all([devisQuery, dossiersQuery, clientsQuery, posesQuery]);
 
-  // CA — montant des devis acompte_recu (rev counted as committed)
-  let caTotal = 0;
-  let devisCount = 0;
-  let devisSent = 0;
-  let acomptesPending = 0;
-  let acomptesPendingAmount = 0;
-
-  const flow = {
-    devis: 0,
-    acompte: 0,
-    confection: 0,
-    reception: 0,
-    pret: 0,
-    pose: 0,
+  const inPeriod = (iso: string | null | undefined) => {
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    return t >= period.from.getTime() && t <= period.to.getTime();
   };
 
+  let devisSentCount = 0;
+  let devisSentAmount = 0;
+  let devisPendingCount = 0;
+  let devisPendingAmount = 0;
+  let acomptesPending = 0;
+  let acomptesPendingAmount = 0;
+  let caTotal = 0;
+
+  let devisInPeriod = 0;
+  let convertedInPeriod = 0;
+
   for (const d of devis ?? []) {
-    devisCount += 1;
     const ttc = Number(d.total_ttc ?? 0);
     const acompte = Number(d.acompte_ttc ?? ttc * 0.5);
+    const status = String(d.status);
 
-    if (d.status === "brouillon" || d.status === "envoye") flow.devis += 1;
-    if (d.status === "envoye") devisSent += 1;
-    if (d.status === "valide") {
-      flow.acompte += 1;
+    if (inPeriod(d.created_at)) {
+      devisInPeriod += 1;
+      if (status === "acompte_recu" || status === "valide") convertedInPeriod += 1;
+    }
+
+    if (status === "envoye") {
+      devisPendingCount += 1;
+      devisPendingAmount += ttc;
+    }
+    if (status === "envoye" && inPeriod(d.created_at)) {
+      devisSentCount += 1;
+      devisSentAmount += ttc;
+    }
+    if (status === "valide") {
       acomptesPending += 1;
       acomptesPendingAmount += acompte;
     }
-    if (d.status === "acompte_recu") caTotal += ttc;
+    if (status === "acompte_recu" && inPeriod(d.created_at)) {
+      caTotal += ttc;
+    }
   }
 
-  // Dossiers — flow + dossiers actifs
-  let dossiersActive = 0;
+  const flowByStatus = Object.fromEntries(
+    WORKFLOW_STATUSES.map((s) => [s, 0])
+  ) as Record<WorkflowStatus, number>;
+  const flowAmountByStatus = Object.fromEntries(
+    WORKFLOW_STATUSES.map((s) => [s, 0])
+  ) as Record<WorkflowStatus, number>;
+
+  let commandesActiveCount = 0;
+  let commandesActiveAmount = 0;
+
   for (const d of dossiers ?? []) {
-    if (d.status === "en_confection") flow.confection += 1;
-    if (d.status === "reception_partielle" || d.status === "tout_commande")
-      flow.reception += 1;
-    if (d.status === "pret_pose") flow.pret += 1;
-    if (d.status === "planifie") flow.pret += 1;
-    if (d.status === "pose") flow.pose += 1;
-    // "Actif" = tout sauf 'pose'
-    if (d.status !== "pose") dossiersActive += 1;
+    const status = String(d.status) as WorkflowStatus;
+    const ttc = Number(d.total_ttc ?? 0);
+    if (status in flowByStatus) {
+      flowByStatus[status] += 1;
+      flowAmountByStatus[status] += ttc;
+    }
+    if (status !== "cloture") {
+      commandesActiveCount += 1;
+      commandesActiveAmount += ttc;
+    }
   }
 
   // Poses à venir (7 prochains jours)
@@ -105,76 +190,118 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }
   }
 
-  // Comptes pour la nav
+  const taux = {
+    converted: convertedInPeriod,
+    total: devisInPeriod,
+    pct: devisInPeriod > 0 ? Math.round((convertedInPeriod / devisInPeriod) * 100) : 0,
+  };
+
   const counts = {
-    clients: clientsCount?.length ?? 0,
-    devis: devisCount,
+    clients: clientsCount ?? 0,
+    devis: devis?.length ?? 0,
     dossiers: dossiers?.length ?? 0,
     poses: poses?.length ?? 0,
   };
 
   return {
+    period,
+    devisSentCount,
+    devisSentAmount,
+    devisPendingCount,
+    devisPendingAmount,
+    commandesActiveCount,
+    commandesActiveAmount,
+    taux,
     caTotal,
-    caDelta: 0, // TODO: comparer avec 30 derniers j vs 30 j précédents
-    devisCount,
-    devisSent,
     acomptesPending,
     acomptesPendingAmount,
-    dossiersActive,
     posesUpcoming,
-    flow,
+    flowByStatus,
+    flowAmountByStatus,
     counts,
   };
 }
 
-/**
- * Liste les alertes actives à afficher sur le dashboard.
- */
-export async function getDashboardAlerts() {
-  const supabase = await createClient();
+export type DashboardAlert = {
+  id: string;
+  kind: "warning" | "danger" | "info";
+  title: string;
+  detail: string;
+  href: string;
+};
 
-  // 1. Devis envoyés sans réponse depuis 7j+ (acompte en attente)
+export async function getDashboardAlerts(): Promise<DashboardAlert[]> {
+  const supabase = await createClient();
+  const storeFilter = await getEffectiveStoreFilter();
+
+  const overdueStatuses = Object.entries(STATUS_META)
+    .filter(([, m]) => m.alertDays !== null)
+    .map(([s]) => s as WorkflowStatus);
+
+  const overdueQuery = supabase
+    .from("dossiers")
+    .select(
+      "id, number, status, client_id, created_at, updated_at, attente_matiere_at, confection_started_at, pret_pose_at, cloture_at"
+    )
+    .in("status", overdueStatuses);
+  if (storeFilter) overdueQuery.eq("store_id", storeFilter);
+  const { data: maybeOverdue } = await overdueQuery;
+
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-  const { data: oldQuotes } = await supabase
+  const oldQuotesQuery = supabase
     .from("devis")
     .select("id, number, total_ttc, updated_at, client_id")
     .eq("status", "envoye")
     .lt("updated_at", sevenDaysAgo)
+    .order("updated_at", { ascending: true })
     .limit(3);
+  if (storeFilter) oldQuotesQuery.eq("store_id", storeFilter);
+  const { data: oldQuotes } = await oldQuotesQuery;
 
-  // 2. Dossiers prêts mais solde non réglé
-  const { data: blockedDossiers } = await supabase
+  const blockedQuery = supabase
     .from("dossiers")
-    .select("id, number, total_ttc, client_id")
+    .select("id, number, client_id")
     .eq("status", "pret_pose")
     .eq("solde_paid", false)
     .limit(3);
+  if (storeFilter) blockedQuery.eq("store_id", storeFilter);
+  const { data: blockedDossiers } = await blockedQuery;
 
-  // Récupère les noms clients
+  const overdueDossiers = (maybeOverdue ?? [])
+    .map((d) => {
+      const age = ageInStatus(String(d.status), d as never);
+      return { d, age };
+    })
+    .filter(({ age }) => age?.isOverdue)
+    .slice(0, 5);
+
   const clientIds = Array.from(
     new Set([
+      ...overdueDossiers.map(({ d }) => d.client_id),
       ...(oldQuotes ?? []).map((q) => q.client_id),
       ...(blockedDossiers ?? []).map((d) => d.client_id),
     ])
   );
 
   const { data: clients } = clientIds.length
-    ? await supabase
-        .from("clients")
-        .select("id, display_name")
-        .in("id", clientIds)
+    ? await supabase.from("clients").select("id, display_name").in("id", clientIds)
     : { data: [] };
 
   const clientName = (id: string) =>
     clients?.find((c) => c.id === id)?.display_name ?? "—";
 
-  const alerts: {
-    id: string;
-    kind: "warning" | "danger" | "info";
-    title: string;
-    detail: string;
-    href: string;
-  }[] = [];
+  const alerts: DashboardAlert[] = [];
+
+  for (const { d, age } of overdueDossiers) {
+    const meta = STATUS_META[d.status as WorkflowStatus];
+    alerts.push({
+      id: `od-${d.id}`,
+      kind: "danger",
+      title: `${meta.label} en retard · ${clientName(d.client_id)}`,
+      detail: `Dossier ${d.number} — ${age?.days}j en ${meta.shortLabel.toLowerCase()} (seuil ${age?.threshold}j).`,
+      href: `/confections/${d.id}`,
+    });
+  }
 
   for (const q of oldQuotes ?? []) {
     alerts.push({
@@ -185,6 +312,7 @@ export async function getDashboardAlerts() {
       href: `/devis/${q.id}`,
     });
   }
+
   for (const d of blockedDossiers ?? []) {
     alerts.push({
       id: `bd-${d.id}`,
@@ -198,16 +326,19 @@ export async function getDashboardAlerts() {
   return alerts;
 }
 
-/**
- * 5 derniers devis créés (avec client embarqué).
- */
 export async function getRecentDevis(limit = 5) {
   const supabase = await createClient();
-  const { data: devis } = await supabase
+  const storeFilter = await getEffectiveStoreFilter();
+
+  const q = supabase
     .from("devis")
-    .select("id, number, status, product_summary, product_detail, total_ttc, created_at, client_id")
+    .select(
+      "id, number, status, product_summary, product_detail, total_ttc, created_at, client_id"
+    )
     .order("created_at", { ascending: false })
     .limit(limit);
+  if (storeFilter) q.eq("store_id", storeFilter);
+  const { data: devis } = await q;
 
   if (!devis || devis.length === 0) return [];
 

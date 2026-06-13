@@ -29,25 +29,7 @@ import { eur, shortDate } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
 
-const dossierStatusLabels: Record<string, string> = {
-  en_cours: "En commande",
-  tout_commande: "Tout commandé",
-  reception_partielle: "Réception partielle",
-  en_confection: "En confection",
-  pret_pose: "Prêt pour pose",
-  planifie: "Planifié",
-  pose: "Posé / Livré",
-};
-
-const dossierStatusTones: Record<string, "muted" | "blue" | "amber" | "violet" | "emerald" | "pink" | "neutral"> = {
-  en_cours: "muted",
-  tout_commande: "blue",
-  reception_partielle: "amber",
-  en_confection: "violet",
-  pret_pose: "emerald",
-  planifie: "pink",
-  pose: "neutral",
-};
+import { statusLabel, statusTone, ageInStatus } from "@/lib/workflow/statuses";
 
 const itemTypeChips: Record<string, { tone: "violet" | "orange" | "blue" | "pink" | "emerald"; label: string }> = {
   tissu: { tone: "violet", label: "Tissu" },
@@ -96,6 +78,8 @@ export default async function DossierDetailPage({
   const itemsReceived = items.filter((i) => i.status === "recu").length;
   const allReceived = itemsReceived === items.length && items.length > 0;
   const alerteSolde = !dossier.solde_paid && allReceived;
+  const age = ageInStatus(dossier.status, dossier as never);
+  const isOverdue = age?.isOverdue ?? false;
 
   return (
     <>
@@ -113,11 +97,16 @@ export default async function DossierDetailPage({
           <div className="flex items-center gap-2 mb-3">
             <p className="eyebrow">Dossier</p>
             <span className="text-muted-2">·</span>
-            <StatusPill tone={dossierStatusTones[dossier.status]} pulse={dossier.status === "pret_pose"}>
-              {dossierStatusLabels[dossier.status]}
+            <StatusPill tone={statusTone(dossier.status)} pulse={dossier.status === "pret_pose"}>
+              {statusLabel(dossier.status)}
             </StatusPill>
             {alerteSolde && (
               <StatusPill tone="danger">⚠ Solde dû</StatusPill>
+            )}
+            {isOverdue && age && (
+              <StatusPill tone="danger">
+                ⏱ En retard · {age.days}j (seuil {age.threshold}j)
+              </StatusPill>
             )}
           </div>
 

@@ -20,35 +20,14 @@ import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import type { DossierWithClient } from "@/lib/db/dossiers";
 import { eur, shortDate } from "@/lib/formatters";
 
-const dossierStatusLabels: Record<string, string> = {
-  en_cours: "En commande",
-  tout_commande: "Tout commandé",
-  reception_partielle: "Réception partielle",
-  en_confection: "En confection",
-  pret_pose: "Prêt pour pose",
-  planifie: "Planifié",
-  pose: "Posé / Livré",
-};
+import { KANBAN_ORDER, STATUS_META, statusLabel, statusTone, ageInStatus } from "@/lib/workflow/statuses";
 
-const dossierStatusTones: Record<string, "muted" | "blue" | "amber" | "violet" | "emerald" | "pink" | "neutral"> = {
-  en_cours: "muted",
-  tout_commande: "blue",
-  reception_partielle: "amber",
-  en_confection: "violet",
-  pret_pose: "emerald",
-  planifie: "pink",
-  pose: "neutral",
-};
-
-const columns: { key: string; label: string; tone: "muted" | "blue" | "amber" | "violet" | "emerald" | "pink" | "neutral"; dot: string }[] = [
-  { key: "en_cours", label: "En commande", tone: "muted", dot: "bg-muted-2" },
-  { key: "tout_commande", label: "Tout commandé", tone: "blue", dot: "bg-blue" },
-  { key: "reception_partielle", label: "Réception partielle", tone: "amber", dot: "bg-amber" },
-  { key: "en_confection", label: "En confection", tone: "violet", dot: "bg-violet" },
-  { key: "pret_pose", label: "Prêt pour pose", tone: "emerald", dot: "bg-emerald" },
-  { key: "planifie", label: "Pose planifiée", tone: "pink", dot: "bg-pink" },
-  { key: "pose", label: "Posé / Livré", tone: "neutral", dot: "bg-muted-2" },
-];
+const columns = KANBAN_ORDER.map((key) => ({
+  key,
+  label: STATUS_META[key].shortLabel,
+  tone: STATUS_META[key].tone,
+  dot: STATUS_META[key].dot,
+}));
 
 export default function ConfectionsClient({ dossiers }: { dossiers: DossierWithClient[] }) {
   const [view, setView] = useState<"kanban" | "liste">("kanban");
@@ -245,6 +224,9 @@ function DossierCard({ dossier }: { dossier: DossierWithClient }) {
   const name = dossier.client?.display_name ?? "—";
   const initial = name.includes(",") ? (name.split(",")[1].trim()[0] ?? name[0]) : name[0];
   const alerteSolde = !dossier.solde_paid && dossier.itemsReceived === dossier.itemsTotal && dossier.itemsTotal > 0;
+  // Alerte temps : >10j en attente matière, >12j en confection
+  const age = ageInStatus(dossier.status, dossier as never);
+  const isOverdue = age?.isOverdue ?? false;
 
   return (
     <Link href={`/confections/${dossier.id}`}>
@@ -292,6 +274,13 @@ function DossierCard({ dossier }: { dossier: DossierWithClient }) {
           <div className="mt-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-soft text-red text-[10.5px] font-semibold">
             <AlertTriangle className="h-3 w-3" strokeWidth={2.4} />
             Solde dû
+          </div>
+        )}
+
+        {isOverdue && age && (
+          <div className="mt-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-pink-soft text-pink text-[10.5px] font-semibold">
+            <AlertTriangle className="h-3 w-3" strokeWidth={2.4} />
+            En retard · {age.days}j (seuil {age.threshold}j)
           </div>
         )}
 
@@ -348,8 +337,8 @@ function ListView({ dossiers }: { dossiers: DossierWithClient[] }) {
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusPill tone={dossierStatusTones[status] ?? "muted"}>
-                      {dossierStatusLabels[status] ?? status}
+                    <StatusPill tone={statusTone(status)}>
+                      {statusLabel(status)}
                     </StatusPill>
                   </td>
                   <td className="px-4 py-3 text-right">
