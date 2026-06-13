@@ -258,6 +258,11 @@ function get(meta: Meta, ...keys: string[]): string | null {
   return null;
 }
 
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function getNumber(meta: Meta, ...keys: string[]): number | null {
   for (const k of keys) {
     const v = meta[k];
@@ -414,6 +419,7 @@ export function FicheConfectionPDF({
               const laizeTissu = getNumber(meta, "laizeTissu");
               const raccordTissu = getNumber(meta, "raccordTissu");
               const double = meta["double"] === true || meta["double"] === "true";
+              const doublure = String(meta["doublure"] ?? "");
 
               return (
                 <View key={line.id} style={styles.article}>
@@ -427,8 +433,24 @@ export function FicheConfectionPDF({
                     {isRideau && (
                       <>
                         <MetaCell label="Type rideau" value={get(meta, "typeRideau")} />
-                        <MetaCell label="Panneau" value={get(meta, "panneau")} />
-                        <MetaCell label="Casse au sol" value={get(meta, "casseSol")} />
+                        <MetaCell
+                          label="Montage"
+                          value={
+                            get(meta, "typeMontage") === "paire"
+                              ? "Paire"
+                              : get(meta, "typeMontage") === "panneau"
+                                ? "Panneau"
+                                : get(meta, "panneau")
+                          }
+                        />
+                        <MetaCell
+                          label="Finition basse"
+                          value={
+                            get(meta, "finitionBasseLabel") ??
+                            get(meta, "finitionBasse") ??
+                            get(meta, "casseSol")
+                          }
+                        />
                       </>
                     )}
                     {isStore && (
@@ -446,7 +468,22 @@ export function FicheConfectionPDF({
                       label="Hauteur finie"
                       value={hauteurFinie != null ? `${hauteurFinie} cm` : null}
                     />
-                    <MetaCell label="Doublure" value={double ? "Occultante" : "Non"} />
+                    <MetaCell
+                      label="Doublure"
+                      value={
+                        doublure && doublure !== "aucune"
+                          ? capitalize(doublure)
+                          : double
+                            ? "Occultante"
+                            : "Non"
+                      }
+                    />
+                    {isRideau && get(meta, "couleurOeillets") && (
+                      <MetaCell
+                        label="Couleur œillets"
+                        value={get(meta, "couleurOeillets")}
+                      />
+                    )}
                     {isRideau && (
                       <>
                         <MetaCell

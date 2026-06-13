@@ -30,22 +30,32 @@ const RAILS: { value: TypeRail; label: string }[] = [
   { value: "Tringle", label: "Tringle (pas de rail)" },
 ];
 
+type TypeMontage = "paire" | "panneau";
+type Doublure = "aucune" | "occultante" | "thermique" | "cotonnade";
+type FinitionBasse = "ras_du_sol" | "reserve_proprete" | "cassant";
+type SensConfectionPref = "auto" | "droit_gauche" | "haut_bas";
+
 type Inputs = {
   typeRideau: TypeRideau;
-  panneau: number;
+  typeMontage: TypeMontage;
+  panneau: number; // conservé pour compat & calcul prix (1 si panneau, 2 si paire)
   referenceTissu: string;
   largeurFinie: number;
   hauteurFinie: number;
   laizeTissu: number;
   raccordTissu: number;
   prixTissu: number;
-  double: boolean;
-  casseSol: number;
+  doublure: Doublure;
+  finitionBasse: FinitionBasse;
+  // cm soustraits (réserve_proprete) ou ajoutés (cassant) — 0 sinon
+  finitionBasseCm: number;
   rail: TypeRail;
   poseRail: TypePose;
   couleurRail: string;
   nombreCoudes: number;
   avecPose: boolean;
+  sensConfectionPref: SensConfectionPref;
+  couleurOeillets: string;
   // Fiche atelier — précisions confection
   nombreGalets: number;
   ourletHaut: number;
@@ -54,6 +64,7 @@ type Inputs = {
 
 const initial: Inputs = {
   typeRideau: "Plis simples",
+  typeMontage: "panneau",
   panneau: 1,
   referenceTissu: "",
   largeurFinie: 240,
@@ -61,17 +72,55 @@ const initial: Inputs = {
   laizeTissu: 140,
   raccordTissu: 0,
   prixTissu: 60,
-  double: false,
-  casseSol: 0,
+  doublure: "aucune",
+  finitionBasse: "ras_du_sol",
+  finitionBasseCm: 0,
   rail: "DS",
   poseRail: "plafond",
   couleurRail: "",
   nombreCoudes: 0,
   avecPose: true,
+  sensConfectionPref: "auto",
+  couleurOeillets: "",
   nombreGalets: 0,
   ourletHaut: 5,
   ourletBas: 10,
 };
+
+const DOUBLURE_OPTIONS: { value: Doublure; label: string }[] = [
+  { value: "aucune", label: "Aucune" },
+  { value: "occultante", label: "Occultante" },
+  { value: "thermique", label: "Thermique" },
+  { value: "cotonnade", label: "Cotonnade" },
+];
+
+const FINITION_OPTIONS: { value: FinitionBasse; label: string }[] = [
+  { value: "ras_du_sol", label: "Ras du sol (+0 cm)" },
+  { value: "reserve_proprete", label: "Réserve de propreté (−x cm)" },
+  { value: "cassant", label: "Cassant (+x cm)" },
+];
+
+const COULEURS_OEILLETS = [
+  "Laiton mat",
+  "Canon de fusil",
+  "Vieux nickel",
+  "Noir brillant",
+  "Noir mat",
+  "Blanc brillant",
+  "Beige",
+];
+
+function finitionBasseDelta(f: FinitionBasse, cm: number): number {
+  if (f === "ras_du_sol") return 0;
+  if (f === "reserve_proprete") return -Math.abs(cm);
+  return Math.abs(cm); // cassant
+}
+
+function finitionBasseLabel(f: FinitionBasse, cm: number): string {
+  if (f === "ras_du_sol") return "Ras du sol";
+  if (f === "reserve_proprete") return `Réserve propreté −${Math.abs(cm)}cm`;
+  return `Cassant +${Math.abs(cm)}cm`;
+}
 
 export function RideauForm({
   onAdd,
@@ -93,14 +142,15 @@ export function RideauForm({
   const calc = useMemo(() => {
     if (validationError) return null;
     try {
+      const delta = finitionBasseDelta(v.finitionBasse, v.finitionBasseCm);
       return calculateRideau({
         typeRideau: v.typeRideau,
         largeurFinie: v.largeurFinie,
-        hauteurFinie: v.hauteurFinie + (v.casseSol || 0),
+        hauteurFinie: v.hauteurFinie + delta,
         laizeTissu: v.laizeTissu,
         raccordTissu: v.raccordTissu || 0,
         prixTissuMetre: v.prixTissu,
-        double: v.double,
+        double: v.doublure !== "aucune",
         rail: v.rail,
         poseRail: v.poseRail,
         nombreCoudes: v.nombreCoudes || 0,
@@ -130,29 +180,39 @@ export function RideauForm({
 
     const prixArticle1 =
       calc.prixTissu + calc.prixDoublure + calc.prixConfection + calc.prixAccessoires;
+    const doublureLabel = v.doublure !== "aucune" ? ` · doublure ${v.doublure}` : "";
+    const typeMontageLabel = v.typeMontage === "paire" ? "Paire" : "Panneau";
+    const finitionLabel = finitionBasseLabel(v.finitionBasse, v.finitionBasseCm);
     articles.push({
       type: "rideau",
       designation: `Rideau ${v.typeRideau} — Tissu & Confection`,
       ref: v.referenceTissu || undefined,
       detail:
         `${baseDetail}${refSlug}` +
+        ` · ${typeMontageLabel} · ${finitionLabel}` +
         ` · métrage ${calc.metrageTotal.toFixed(2)}m (${calc.details.sensConfection}, ${calc.details.nombreLes} lé${calc.details.nombreLes > 1 ? "s" : ""})` +
-        (v.double ? " · doublure occultante" : ""),
+        doublureLabel,
       qty: 1,
       unitLabel: "u",
       unitPriceHt: Math.round(prixArticle1 * 100) / 100,
       meta: {
         typeArticle: "rideau_tissu_confection",
         typeRideau: v.typeRideau,
-        panneau: v.panneau,
+        typeMontage: v.typeMontage,
+        panneau: v.typeMontage === "paire" ? 2 : 1,
         referenceTissu: v.referenceTissu,
         largeurFinie: v.largeurFinie,
         hauteurFinie: v.hauteurFinie,
-        casseSol: v.casseSol,
+        finitionBasse: v.finitionBasse,
+        finitionBasseCm: v.finitionBasseCm,
+        finitionBasseLabel: finitionLabel,
         laizeTissu: v.laizeTissu,
         raccordTissu: v.raccordTissu,
         prixTissuMetre: v.prixTissu,
-        double: v.double,
+        doublure: v.doublure,
+        double: v.doublure !== "aucune", // backward-compat
+        sensConfectionPref: v.sensConfectionPref,
+        couleurOeillets: v.typeRideau === "À œillets" ? v.couleurOeillets || null : null,
         metrageTotal: calc.metrageTotal,
         sensConfection: calc.details.sensConfection,
         nombreLes: calc.details.nombreLes,
@@ -266,23 +326,59 @@ export function RideauForm({
                 />
               </div>
               <div>
-                <Label>Cassé au sol (cm)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={v.casseSol || ""}
-                  onChange={(e) => update({ casseSol: Number(e.target.value) || 0 })}
-                />
+                <Label>Type</Label>
+                <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                  {(["panneau", "paire"] as TypeMontage[]).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => update({ typeMontage: t })}
+                      className={
+                        "text-[12px] font-semibold rounded-[5px] transition-colors " +
+                        (v.typeMontage === t
+                          ? "bg-ink text-white"
+                          : "text-muted hover:text-ink")
+                      }
+                    >
+                      {t === "panneau" ? "Panneau" : "Paire"}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
-                <Label>Nombre de panneaux</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={v.panneau || ""}
-                  onChange={(e) => update({ panneau: Number(e.target.value) || 1 })}
-                />
+                <Label>Finition basse</Label>
+                <Select
+                  value={v.finitionBasse}
+                  onChange={(e) =>
+                    update({ finitionBasse: e.target.value as FinitionBasse })
+                  }
+                >
+                  {FINITION_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
               </div>
+              {v.finitionBasse !== "ras_du_sol" && (
+                <div>
+                  <Label>
+                    {v.finitionBasse === "reserve_proprete"
+                      ? "cm à soustraire"
+                      : "cm à ajouter"}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={v.finitionBasseCm || ""}
+                    onChange={(e) =>
+                      update({ finitionBasseCm: Number(e.target.value) || 0 })
+                    }
+                    placeholder={v.finitionBasse === "reserve_proprete" ? "1.5" : "2"}
+                  />
+                </div>
+              )}
             </div>
           </section>
 
@@ -365,17 +461,59 @@ export function RideauForm({
                   />
                 </div>
               </div>
-              <label className="inline-flex items-center gap-2 text-[13px] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={v.double}
-                  onChange={(e) => update({ double: e.target.checked })}
-                  className="h-4 w-4 rounded border-line-strong"
-                />
-                <span className="text-ink-2">
-                  Doublure occultante (+ {CONFIG.doublureOccultante.prixParMetre} €/m)
-                </span>
-              </label>
+              <div>
+                <Label>Doublure</Label>
+                <div className="grid grid-cols-4 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                  {DOUBLURE_OPTIONS.map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => update({ doublure: o.value })}
+                      className={
+                        "text-[12px] font-semibold rounded-[5px] transition-colors " +
+                        (v.doublure === o.value
+                          ? "bg-ink text-white"
+                          : "text-muted hover:text-ink")
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <Hint>
+                  Le tarif de la doublure est paramétrable côté Atmosphère et n'apparaît
+                  pas sur le devis client.
+                </Hint>
+              </div>
+              <div>
+                <Label>Sens de confection</Label>
+                <Select
+                  value={v.sensConfectionPref}
+                  onChange={(e) =>
+                    update({ sensConfectionPref: e.target.value as SensConfectionPref })
+                  }
+                >
+                  <option value="auto">Auto (selon laize / dimensions)</option>
+                  <option value="droit_gauche">Droit / Gauche</option>
+                  <option value="haut_bas">Haut / Bas</option>
+                </Select>
+              </div>
+              {v.typeRideau === "À œillets" && (
+                <div>
+                  <Label>Couleur œillets</Label>
+                  <Select
+                    value={v.couleurOeillets}
+                    onChange={(e) => update({ couleurOeillets: e.target.value })}
+                  >
+                    <option value="">— Choisir —</option>
+                    {COULEURS_OEILLETS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
             </div>
           </section>
 
