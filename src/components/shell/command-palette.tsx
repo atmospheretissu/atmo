@@ -95,7 +95,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
     const pages: Item[] = [
       { id: "p-dash", label: "Tableau de bord", icon: LayoutDashboard, tone: "violet", href: "/dashboard", shortcut: "G D", kind: "page" },
       { id: "p-devis", label: "Devis", sub: "Liste & filtres", icon: FileText, tone: "pink", href: "/devis", shortcut: "G V", kind: "page" },
-      { id: "p-confections", label: "Confections", sub: "Kanban dossiers", icon: Scissors, tone: "orange", href: "/confections", shortcut: "G C", kind: "page" },
+      { id: "p-confections", label: "Suivi de commande", sub: "Kanban dossiers", icon: Scissors, tone: "orange", href: "/confections", shortcut: "G C", kind: "page" },
       { id: "p-commandes", label: "Commandes fournisseurs", icon: PackageSearch, tone: "blue", href: "/commandes", shortcut: "G F", kind: "page" },
       { id: "p-reception", label: "Réception", sub: "Scanner QR", icon: ScanLine, tone: "yellow", href: "/reception", shortcut: "G R", kind: "page" },
       { id: "p-poses", label: "Poses", sub: "Planning", icon: Wrench, tone: "emerald", href: "/poses", shortcut: "G P", kind: "page" },

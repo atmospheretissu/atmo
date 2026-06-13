@@ -17,7 +17,7 @@ export default async function NewBoutiqueDevisPage() {
         <Topbar
           breadcrumb={[
             { label: "Atmosphère" },
-            { label: "Boutique", href: "/boutique" },
+            { label: "Création devis", href: "/boutique" },
             { label: "Nouveau" },
           ]}
         />

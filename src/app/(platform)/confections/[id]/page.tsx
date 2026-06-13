@@ -21,7 +21,7 @@ import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { PlanPoseButton } from "@/components/confections/plan-pose-button";
-import { ItemReceptionToggle } from "@/components/confections/item-reception-toggle";
+import { ItemReceptionMenu } from "@/components/confections/item-reception-menu";
 import { AtelierAssignCard } from "@/components/confections/atelier-assign";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
@@ -86,7 +86,7 @@ export default async function DossierDetailPage({
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Confections", href: "/confections" },
+          { label: "Suivi de commande", href: "/confections" },
           { label: dossier.number },
         ]}
       />
@@ -231,7 +231,7 @@ export default async function DossierDetailPage({
                       </div>
 
                       <div className="shrink-0">
-                        <ItemReceptionToggle
+                        <ItemReceptionMenu
                           itemId={item.id}
                           initialStatus={item.status}
                           qrCode={item.qr_code}

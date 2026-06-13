@@ -13,7 +13,7 @@ export default async function BoutiquePage() {
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Boutique" },
+          { label: "Création devis" },
         ]}
         actions={
           <Link href="/boutique/nouveau">

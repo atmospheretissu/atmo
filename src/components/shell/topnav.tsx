@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 const tabs = [
   { label: "Tableau", href: "/dashboard" },
   { label: "Devis", href: "/devis" },
-  { label: "Confections", href: "/confections" },
+  { label: "Suivi", href: "/confections" },
   { label: "Commandes", href: "/commandes" },
   { label: "Réception", href: "/reception" },
   { label: "Poses", href: "/poses" },

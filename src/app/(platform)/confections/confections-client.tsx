@@ -42,7 +42,7 @@ export default function ConfectionsClient({ dossiers }: { dossiers: DossierWithC
   return (
     <>
       <Topbar
-        breadcrumb={[{ label: "Atmosphère" }, { label: "Confections" }]}
+        breadcrumb={[{ label: "Atmosphère" }, { label: "Suivi de commande" }]}
         actions={
           <Button variant="secondary" size="sm">
             <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres

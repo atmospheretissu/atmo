@@ -43,9 +43,9 @@ type Item = {
 const navMain: Item[] = [
   { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard, tone: "violet" },
   { label: "Activité", href: "/feed", icon: Rss, tone: "blue" },
-  { label: "Boutique", href: "/boutique", icon: ShoppingBag, tone: "amber" },
+  { label: "Création devis", href: "/boutique", icon: ShoppingBag, tone: "amber" },
   { label: "Devis", href: "/devis", icon: FileText, tone: "pink" },
-  { label: "Confections", href: "/confections", icon: Scissors, tone: "orange" },
+  { label: "Suivi de commande", href: "/confections", icon: Scissors, tone: "orange" },
   { label: "Commandes fournisseurs", href: "/commandes", icon: PackageSearch, tone: "blue" },
   { label: "Réception", href: "/reception", icon: ScanLine, tone: "yellow" },
   { label: "Poses", href: "/poses", icon: Wrench, tone: "emerald" },
