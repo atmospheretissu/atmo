@@ -21,6 +21,8 @@ const TYPES_STORE: { value: TypeStore; label: string; sub: string }[] = [
   { value: "Bateau irrégulier", label: "Bateau irrégulier", sub: "Plis variables" },
 ];
 
+type ChainetteCote = "gauche" | "droite";
+
 type Inputs = {
   typeStore: TypeStore;
   referenceTissu: string;
@@ -30,6 +32,8 @@ type Inputs = {
   prixTissu: number;
   double: boolean;
   chainetteCouleur: string;
+  chainetteCote: ChainetteCote;
+  hauteurRefoulement: number;
   avecPose: boolean;
 };
 
@@ -42,6 +46,8 @@ const initial: Inputs = {
   prixTissu: 60,
   double: false,
   chainetteCouleur: "blanc",
+  chainetteCote: "droite",
+  hauteurRefoulement: 0,
   avecPose: true,
 };
 
@@ -124,6 +130,8 @@ export function StoreForm({
         laizeTissu: v.laizeTissu,
         prixTissuMetre: v.prixTissu,
         double: v.double,
+        chainetteCote: v.chainetteCote,
+        hauteurRefoulement: v.hauteurRefoulement,
         metrageTotal: calc.metrageTotal,
         sensConfection: calc.details.sensConfection,
         nombreLes: calc.details.nombreLes,
@@ -137,6 +145,9 @@ export function StoreForm({
 
     // ARTICLE 2 — Mécanisme (+ chainette)
     const prixArticle2 = calc.prixMecanisme + calc.supplementChainette;
+    const coteLabel = v.chainetteCote === "gauche" ? "à gauche" : "à droite";
+    const refoulementLabel =
+      v.hauteurRefoulement > 0 ? ` · refoulement ${v.hauteurRefoulement}cm` : "";
     articles.push({
       type: "store",
       designation: `Mécanisme store ${v.typeStore}`,
@@ -144,14 +155,17 @@ export function StoreForm({
       detail:
         `largeur ${v.largeurFinie} cm` +
         (v.chainetteCouleur && v.chainetteCouleur !== "blanc"
-          ? ` · chaînette ${v.chainetteCouleur} (+ ${CONFIG.supplementChainette}€)`
-          : " · chaînette blanche"),
+          ? ` · chaînette ${v.chainetteCouleur} ${coteLabel} (+ ${CONFIG.supplementChainette}€)`
+          : ` · chaînette blanche ${coteLabel}`) +
+        refoulementLabel,
       qty: 1,
       unitLabel: "u",
       unitPriceHt: Math.round(prixArticle2 * 100) / 100,
       meta: {
         typeArticle: "mecanisme",
         chainetteCouleur: v.chainetteCouleur,
+        chainetteCote: v.chainetteCote,
+        hauteurRefoulement: v.hauteurRefoulement,
         prixMecanismeBase: calc.details.prixMecanismeAffiche,
         prixMecanisme: calc.prixMecanisme,
         supplementChainette: calc.supplementChainette,
@@ -280,18 +294,56 @@ export function StoreForm({
           {/* Mécanisme */}
           <section>
             <p className="eyebrow mb-2">Mécanisme</p>
-            <div>
-              <Label>Couleur chaînette</Label>
-              <Select
-                value={v.chainetteCouleur}
-                onChange={(e) => update({ chainetteCouleur: e.target.value })}
-              >
-                <option value="blanc">Blanc (standard)</option>
-                <option value="alu">Aluminium (+{CONFIG.supplementChainette}€)</option>
-                <option value="noir">Noir (+{CONFIG.supplementChainette}€)</option>
-                <option value="laiton">Laiton (+{CONFIG.supplementChainette}€)</option>
-              </Select>
-              <Hint>Chaînette blanche incluse. Couleurs spéciales = supplément.</Hint>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Couleur chaînette</Label>
+                <Select
+                  value={v.chainetteCouleur}
+                  onChange={(e) => update({ chainetteCouleur: e.target.value })}
+                >
+                  <option value="blanc">Blanc (standard)</option>
+                  <option value="alu">Aluminium (+{CONFIG.supplementChainette}€)</option>
+                  <option value="noir">Noir (+{CONFIG.supplementChainette}€)</option>
+                  <option value="laiton">Laiton (+{CONFIG.supplementChainette}€)</option>
+                </Select>
+                <Hint>Couleurs spéciales = supplément.</Hint>
+              </div>
+              <div>
+                <Label>Côté chaînette</Label>
+                <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                  {(["gauche", "droite"] as ChainetteCote[]).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => update({ chainetteCote: c })}
+                      className={
+                        "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
+                        (v.chainetteCote === c
+                          ? "bg-ink text-white"
+                          : "text-muted hover:text-ink")
+                      }
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="col-span-2">
+                <Label>Hauteur de refoulement (cm)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.hauteurRefoulement || ""}
+                  onChange={(e) =>
+                    update({ hauteurRefoulement: Number(e.target.value) || 0 })
+                  }
+                  placeholder="0"
+                />
+                <Hint>
+                  Hauteur occupée par le store relevé (utile pour préserver une vue
+                  ou un linteau).
+                </Hint>
+              </div>
             </div>
           </section>
 

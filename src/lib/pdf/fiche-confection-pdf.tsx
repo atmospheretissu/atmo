@@ -456,9 +456,37 @@ export function FicheConfectionPDF({
                     {isStore && (
                       <>
                         <MetaCell label="Type store" value={get(meta, "typeStore")} />
-                        <MetaCell label="Refoulement" value={get(meta, "refoulement")} />
+                        <MetaCell
+                          label="Refoulement"
+                          value={
+                            getNumber(meta, "hauteurRefoulement") != null &&
+                            getNumber(meta, "hauteurRefoulement")! > 0
+                              ? `${getNumber(meta, "hauteurRefoulement")} cm`
+                              : get(meta, "refoulement")
+                          }
+                        />
                         <MetaCell label="Barre lestage" value={get(meta, "barreLestage")} />
+                        <MetaCell
+                          label="Chaînette"
+                          value={
+                            get(meta, "chainetteCote")
+                              ? `${capitalize(get(meta, "chainetteCote")!)}`
+                              : null
+                          }
+                        />
                       </>
+                    )}
+                    {isRideau && get(meta, "finitionHautePanneau") && (
+                      <MetaCell
+                        label="Finition haute (Panneau)"
+                        value={capitalize(get(meta, "finitionHautePanneau")!)}
+                      />
+                    )}
+                    {isRideau && get(meta, "finitionBassePanneau") && (
+                      <MetaCell
+                        label="Finition basse (Panneau)"
+                        value={capitalize(get(meta, "finitionBassePanneau")!.replace(/_/g, " "))}
+                      />
                     )}
                     <MetaCell
                       label="Largeur finie"

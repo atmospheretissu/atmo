@@ -16,11 +16,22 @@ const eurFmt = new Intl.NumberFormat("fr-FR", {
   minimumFractionDigits: 2,
 });
 
-const TYPES_RIDEAU: { value: TypeRideau; label: string; sub: string }[] = [
+/**
+ * Type de rideau étendu : on ajoute "Panneau" (rideau plat sans plis) en plus
+ * des 3 types existants. Côté pricing helpers ils n'acceptent que les 3 types
+ * d'origine — Panneau passe en coefficient 1.0 via une coercition locale.
+ */
+type TypeRideauUI = TypeRideau | "Panneau";
+
+const TYPES_RIDEAU: { value: TypeRideauUI; label: string; sub: string }[] = [
   { value: "Plis simples", label: "Plis simples", sub: `coef ${CONFIG.coefficients["Plis simples"]}` },
   { value: "Vague", label: "Vague", sub: `coef ${CONFIG.coefficients["Vague"]}` },
   { value: "À œillets", label: "Œillets", sub: `coef ${CONFIG.coefficients["À œillets"]}` },
+  { value: "Panneau", label: "Panneau", sub: "plat, sans plis" },
 ];
+
+type FinitionHautePanneau = "glissiere" | "velcro";
+type FinitionBassePanneau = "libre" | "barre_lestage" | "jonc";
 
 const RAILS: { value: TypeRail; label: string }[] = [
   { value: "DS", label: "DS — droit standard" },
@@ -36,7 +47,7 @@ type FinitionBasse = "ras_du_sol" | "reserve_proprete" | "cassant";
 type SensConfectionPref = "auto" | "droit_gauche" | "haut_bas";
 
 type Inputs = {
-  typeRideau: TypeRideau;
+  typeRideau: TypeRideauUI;
   typeMontage: TypeMontage;
   panneau: number; // conservé pour compat & calcul prix (1 si panneau, 2 si paire)
   referenceTissu: string;
@@ -56,6 +67,9 @@ type Inputs = {
   avecPose: boolean;
   sensConfectionPref: SensConfectionPref;
   couleurOeillets: string;
+  // Spécifique Panneau
+  finitionHautePanneau: FinitionHautePanneau;
+  finitionBassePanneau: FinitionBassePanneau;
   // Fiche atelier — précisions confection
   nombreGalets: number;
   ourletHaut: number;
@@ -82,6 +96,8 @@ const initial: Inputs = {
   avecPose: true,
   sensConfectionPref: "auto",
   couleurOeillets: "",
+  finitionHautePanneau: "glissiere",
+  finitionBassePanneau: "barre_lestage",
   nombreGalets: 0,
   ourletHaut: 5,
   ourletBas: 10,
@@ -143,8 +159,12 @@ export function RideauForm({
     if (validationError) return null;
     try {
       const delta = finitionBasseDelta(v.finitionBasse, v.finitionBasseCm);
-      return calculateRideau({
-        typeRideau: v.typeRideau,
+      // Panneau = rideau plat → on emprunte la grille tarifaire de "Plis simples"
+      // mais on overwrite le coefficient à 1.0 via un mini shim.
+      const isPanneau = v.typeRideau === "Panneau";
+      const typeForCalc: TypeRideau = isPanneau ? "Plis simples" : (v.typeRideau as TypeRideau);
+      const res = calculateRideau({
+        typeRideau: typeForCalc,
         largeurFinie: v.largeurFinie,
         hauteurFinie: v.hauteurFinie + delta,
         laizeTissu: v.laizeTissu,
@@ -156,6 +176,20 @@ export function RideauForm({
         nombreCoudes: v.nombreCoudes || 0,
         avecPose: v.avecPose,
       });
+      if (isPanneau) {
+        // Recalcul rapide du métrage en coef 1.0 (rideau plat)
+        const metrage = res.metrageTotal / (res.details.coefficient || 1);
+        const prixTissu = Math.round(metrage * v.prixTissu * 100) / 100;
+        return {
+          ...res,
+          metrageTotal: Math.round(metrage * 100) / 100,
+          prixTissu,
+          prixTotal:
+            prixTissu + res.prixDoublure + res.prixConfection + res.prixAccessoires + res.prixRail + res.prixCoudes + res.prixPose,
+          details: { ...res.details, coefficient: 1 },
+        };
+      }
+      return res;
     } catch {
       return null;
     }
@@ -213,6 +247,8 @@ export function RideauForm({
         double: v.doublure !== "aucune", // backward-compat
         sensConfectionPref: v.sensConfectionPref,
         couleurOeillets: v.typeRideau === "À œillets" ? v.couleurOeillets || null : null,
+        finitionHautePanneau: v.typeRideau === "Panneau" ? v.finitionHautePanneau : null,
+        finitionBassePanneau: v.typeRideau === "Panneau" ? v.finitionBassePanneau : null,
         metrageTotal: calc.metrageTotal,
         sensConfection: calc.details.sensConfection,
         nombreLes: calc.details.nombreLes,
@@ -513,6 +549,39 @@ export function RideauForm({
                     ))}
                   </Select>
                 </div>
+              )}
+              {v.typeRideau === "Panneau" && (
+                <>
+                  <div>
+                    <Label>Finition haute</Label>
+                    <Select
+                      value={v.finitionHautePanneau}
+                      onChange={(e) =>
+                        update({
+                          finitionHautePanneau: e.target.value as FinitionHautePanneau,
+                        })
+                      }
+                    >
+                      <option value="glissiere">Glissière</option>
+                      <option value="velcro">Velcro</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Finition basse</Label>
+                    <Select
+                      value={v.finitionBassePanneau}
+                      onChange={(e) =>
+                        update({
+                          finitionBassePanneau: e.target.value as FinitionBassePanneau,
+                        })
+                      }
+                    >
+                      <option value="libre">Libre</option>
+                      <option value="barre_lestage">Barre de lestage</option>
+                      <option value="jonc">Jonc</option>
+                    </Select>
+                  </div>
+                </>
               )}
             </div>
           </section>
