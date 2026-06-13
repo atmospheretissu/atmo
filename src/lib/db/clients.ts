@@ -23,8 +23,11 @@ export async function listClients(opts?: {
 
   if (opts?.channel) q = q.eq("channel", opts.channel);
   if (opts?.search) {
-    // case-insensitive partial match on name OR city
-    q = q.or(`display_name.ilike.%${opts.search}%,city.ilike.%${opts.search}%`);
+    // Recherche multi-critères : nom, ville, email, téléphone
+    const s = opts.search.replace(/[%,]/g, "");
+    q = q.or(
+      `display_name.ilike.%${s}%,city.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%`,
+    );
   }
   if (opts?.limit) q = q.limit(opts.limit);
 

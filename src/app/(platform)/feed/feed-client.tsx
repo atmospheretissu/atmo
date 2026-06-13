@@ -121,19 +121,24 @@ const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as FeedCategory[];
 const PAGE_SIZE = 50;
 
 export default function FeedClient({ events }: { events: FeedEvent[] }) {
-  const [filterCats, setFilterCats] = useState<Set<FeedCategory>>(new Set(ALL_CATEGORIES));
+  // ── Logique inversée (sémantique naturelle) :
+  // - Set vide = "Tout" (toutes catégories affichées)
+  // - Set non vide = afficher SEULEMENT les catégories cochées (multi-sélection)
+  const [filterCats, setFilterCats] = useState<Set<FeedCategory>>(new Set());
   const [query, setQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
+  const showingAll = filterCats.size === 0;
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
     return events.filter((e) => {
-      if (!filterCats.has(e.category)) return false;
+      if (!showingAll && !filterCats.has(e.category)) return false;
       if (q && !`${e.label} ${e.description ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [events, filterCats, query]);
+  }, [events, filterCats, query, showingAll]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -152,19 +157,22 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
     [filtered, pageStart, pageEnd],
   );
 
+  /**
+   * Multi-sélection : on ajoute/retire le filtre.
+   * Si on retire le dernier filtre actif, on revient à "Tout".
+   */
   const toggleCat = (c: FeedCategory) => {
     const n = new Set(filterCats);
     if (n.has(c)) n.delete(c);
     else n.add(c);
-    if (n.size === 0) {
-      setFilterCats(new Set(ALL_CATEGORIES));
-      return;
-    }
     setFilterCats(n);
   };
 
+  /** Double-clic : isole exclusivement cette catégorie. */
   const onlyOne = (c: FeedCategory) => setFilterCats(new Set([c]));
-  const showAll = () => setFilterCats(new Set(ALL_CATEGORIES));
+
+  /** Reset filtres → tout afficher (set vide). */
+  const showAll = () => setFilterCats(new Set());
 
   // Group by day (sur la page courante)
   const byDay = useMemo(() => {
@@ -211,7 +219,7 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
                 onClick={showAll}
                 className={
                   "h-8 px-3 rounded-full text-[12.5px] font-medium transition-all flex items-center gap-1.5 " +
-                  (filterCats.size === ALL_CATEGORIES.length
+                  (showingAll
                     ? "bg-ink text-white"
                     : "bg-white text-muted hover:text-ink border border-line")
                 }
@@ -220,7 +228,7 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
                 <span
                   className={
                     "text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums " +
-                    (filterCats.size === ALL_CATEGORIES.length
+                    (showingAll
                       ? "bg-white/15 text-white/90"
                       : "bg-canvas-2 text-muted")
                   }
@@ -230,7 +238,7 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
               </button>
               {ALL_CATEGORIES.map((c) => {
                 const Icon = CATEGORY_ICONS[c];
-                const active = filterCats.has(c) && filterCats.size < ALL_CATEGORIES.length;
+                const active = filterCats.has(c);
                 return (
                   <button
                     key={c}
@@ -241,9 +249,9 @@ export default function FeedClient({ events }: { events: FeedEvent[] }) {
                       "h-8 px-3 rounded-full text-[12.5px] font-medium transition-all flex items-center gap-1.5 " +
                       (active
                         ? "bg-ink text-white"
-                        : filterCats.has(c)
-                          ? "bg-white text-ink border border-line-strong"
-                          : "bg-white text-muted hover:text-ink border border-line opacity-50")
+                        : showingAll
+                          ? "bg-white text-muted hover:text-ink border border-line"
+                          : "bg-white text-muted-2 hover:text-ink border border-line opacity-60")
                     }
                   >
                     <Icon className="h-3 w-3" strokeWidth={2.2} />

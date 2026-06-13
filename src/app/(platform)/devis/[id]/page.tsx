@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import {
   Send,
   Edit3,
-  Copy,
   Download,
   MoreHorizontal,
   Mail,
@@ -19,8 +18,11 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
+import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
 import { StripeCheckoutButton } from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
+import { SourceBadgeSelector } from "@/components/devis/source-badge-selector";
+import { listSources, resolveSourceLabel } from "@/lib/db/sources";
 import { getDevisDetail } from "@/lib/db/devis";
 import {
   devisStatusLabels,
@@ -46,7 +48,10 @@ export default async function DevisDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const result = await getDevisDetail(id);
+  const [result, allSources] = await Promise.all([
+    getDevisDetail(id),
+    listSources(),
+  ]);
   if (!result) notFound();
   const { devis, client, lines, dossier } = result;
 
@@ -73,14 +78,16 @@ export default async function DevisDetailPage({
                 <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF
               </Button>
             </Link>
-            <Button variant="ghost" size="sm">
-              <Copy className="h-3.5 w-3.5" strokeWidth={2.2} /> Dupliquer
-            </Button>
-            <Button variant="secondary" size="sm">
-              <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
-            </Button>
+            <Link href={`/devis/${devis.id}/edit`}>
+              <Button variant="secondary" size="sm">
+                <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
+              </Button>
+            </Link>
             {status !== "acompte_recu" && status !== "refuse" && status !== "expire" && (
               <MarkAcompteButton devisId={devis.id} />
+            )}
+            {status === "acompte_recu" && dossier && !dossier.solde_paid && (
+              <MarkSoldeButton devisId={devis.id} />
             )}
             <SendEmailButton devisId={devis.id} />
             {dossier && (
@@ -104,9 +111,13 @@ export default async function DevisDetailPage({
             <p className="eyebrow">Devis · v{devis.version}</p>
             <span className="text-muted-2">·</span>
             <StatusPill tone={devisStatusTones[status]}>{devisStatusLabels[status]}</StatusPill>
-            <StatusPill tone={channelTones[channel]} dot={false}>
-              {channelLabels[channel]}
-            </StatusPill>
+            <SourceBadgeSelector
+              devisId={devis.id}
+              currentSourceId={(devis as { source_id?: string | null }).source_id ?? null}
+              currentLabel={resolveSourceLabel(allSources, (devis as { source_id?: string | null }).source_id ?? null, channel).label}
+              currentColor={resolveSourceLabel(allSources, (devis as { source_id?: string | null }).source_id ?? null, channel).color}
+              allSources={allSources}
+            />
           </div>
 
           <div className="flex items-end justify-between gap-8 flex-wrap">

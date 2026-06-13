@@ -70,7 +70,7 @@ export async function getDevisDetail(id: string) {
       .order("position", { ascending: true }),
     supabase
       .from("dossiers")
-      .select("id, number, status, acompte_paid")
+      .select("id, number, status, acompte_paid, solde_paid")
       .eq("devis_id", id)
       .maybeSingle(),
   ]);

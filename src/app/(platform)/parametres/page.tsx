@@ -3,19 +3,21 @@ import { listProfiles } from "@/lib/db/profiles";
 import { listSmsTemplates } from "@/lib/db/sms-templates";
 import { listEmailTemplates } from "@/lib/db/email-templates";
 import { listPoseurs, listAteliers } from "@/lib/db/equipe";
+import { listSources } from "@/lib/db/sources";
 import ParametresClient from "./parametres-client";
 import type { UserRole } from "@/lib/db/profiles-shared";
 
 export const dynamic = "force-dynamic";
 
 export default async function ParametresPage() {
-  const [suppliers, profiles, smsTemplates, emailTemplates, poseurs, ateliers] = await Promise.all([
+  const [suppliers, profiles, smsTemplates, emailTemplates, poseurs, ateliers, sources] = await Promise.all([
     listSuppliers(),
     listProfiles(),
     listSmsTemplates(),
     listEmailTemplates(),
     listPoseurs(),
     listAteliers(),
+    listSources(),
   ]);
 
   const roleCounts: Record<UserRole, number> = {
@@ -48,6 +50,7 @@ export default async function ParametresPage() {
       envFlags={envFlags}
       poseurs={poseurs}
       ateliers={ateliers}
+      sources={sources}
     />
   );
 }

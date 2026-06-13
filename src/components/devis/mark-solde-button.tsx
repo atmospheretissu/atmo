@@ -4,16 +4,15 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2,
-  CheckCircle2,
-  ChevronDown,
   Banknote,
+  ChevronDown,
   CreditCard,
   Receipt,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  markAcompteRecuAction,
+  markSoldeRecuAction,
   type ManualPaymentMethod,
 } from "@/app/(platform)/devis/actions";
 
@@ -29,19 +28,12 @@ const METHODS: Array<{
   { value: "especes", label: "Espèces", icon: Wallet, tone: "text-emerald" },
 ];
 
-export function MarkAcompteButton({
-  devisId,
-}: {
-  devisId: string;
-  /** @deprecated — kept for API compat */
-  variant?: "outline" | "primary";
-}) {
+export function MarkSoldeButton({ devisId }: { devisId: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Fermer en cliquant ailleurs
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
@@ -56,28 +48,19 @@ export function MarkAcompteButton({
   const handleSelect = (method: ManualPaymentMethod) => {
     setOpen(false);
     const label = METHODS.find((m) => m.value === method)?.label ?? method;
-    if (!confirm(`Marquer l'acompte reçu (${label}) ?\n\nCela crée automatiquement le dossier de confection.`)) {
-      return;
-    }
+    if (!confirm(`Marquer le solde reçu (${label}) ?`)) return;
     startTransition(async () => {
-      const result = await markAcompteRecuAction(devisId, method);
-      if (result?.ok && "dossierId" in result && result.dossierId) {
-        if (confirm("Acompte enregistré. Aller au dossier de confection créé ?")) {
-          router.push(`/confections/${result.dossierId}`);
-          return;
-        }
+      const r = await markSoldeRecuAction(devisId, method);
+      if (r?.ok) {
         router.refresh();
-      } else if (result && !result.ok) {
-        alert(result.message ?? "Erreur");
       } else {
-        router.refresh();
+        alert(r?.message ?? "Erreur");
       }
     });
   };
 
   return (
     <div ref={wrapperRef} className="relative inline-flex">
-      {/* Variant accent : c'est LA prochaine étape du parcours (mis en avant) */}
       <Button
         variant="accent"
         size="sm"
@@ -91,8 +74,8 @@ export function MarkAcompteButton({
           </>
         ) : (
           <>
-            <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.4} />
-            Marquer acompte reçu
+            <Banknote className="h-3.5 w-3.5" strokeWidth={2.4} />
+            Encaisser le solde
             <ChevronDown className="h-3 w-3 -mr-1" strokeWidth={2.4} />
           </>
         )}

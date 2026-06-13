@@ -670,6 +670,7 @@ export interface Database {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          source_id: string | null;
         };
         Insert: {
           id?: string;
@@ -686,6 +687,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          source_id?: string | null;
         };
         Update: {
           id?: string;
@@ -702,6 +704,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          source_id?: string | null;
         };
         Relationships: [];
       };
@@ -759,6 +762,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           client_access_token: string;
+          source_id: string | null;
         };
         Insert: {
           id?: string;
@@ -783,6 +787,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           client_access_token?: string;
+          source_id?: string | null;
         };
         Update: {
           id?: string;
@@ -807,6 +812,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           client_access_token?: string;
+          source_id?: string | null;
         };
         Relationships: [];
       };
@@ -1533,6 +1539,39 @@ export interface Database {
           active?: boolean;
           updated_at?: string;
           sender?: string | null;
+        };
+        Relationships: [];
+      };
+      sources: {
+        Row: {
+          id: string;
+          key: string;
+          label: string;
+          color: string;
+          active: boolean;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          label: string;
+          color?: string;
+          active?: boolean;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          label?: string;
+          color?: string;
+          active?: boolean;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

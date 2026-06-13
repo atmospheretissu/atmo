@@ -16,11 +16,13 @@ import { RolesTab } from "@/components/parametres/roles-tab";
 import { IntegrationsTab } from "@/components/parametres/integrations-tab";
 import { TestTab } from "@/components/parametres/test-tab";
 import { EquipeTab } from "@/components/parametres/equipe-tab";
+import { SourcesSection } from "@/components/parametres/sources-section";
 import type { Supplier } from "@/lib/db/suppliers";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
 import type { EmailTemplate } from "@/lib/db/email-templates-shared";
 import type { Poseur, Atelier } from "@/lib/db/equipe";
+import type { Source } from "@/lib/db/sources-shared";
 type TabKey = "fournisseurs" | "equipe" | "utilisateurs" | "roles" | "test" | "integrations";
 
 type Props = {
@@ -37,6 +39,7 @@ type Props = {
   };
   poseurs: Poseur[];
   ateliers: Atelier[];
+  sources: Source[];
 };
 
 export default function ParametresClient({
@@ -48,6 +51,7 @@ export default function ParametresClient({
   envFlags,
   poseurs,
   ateliers,
+  sources,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("equipe");
 
@@ -83,7 +87,12 @@ export default function ParametresClient({
         </section>
 
         <section className="px-8 pb-10">
-          {tab === "equipe" && <EquipeTab initialPoseurs={poseurs} initialAteliers={ateliers} />}
+          {tab === "equipe" && (
+            <div className="space-y-10">
+              <SourcesSection initialSources={sources} />
+              <EquipeTab initialPoseurs={poseurs} initialAteliers={ateliers} />
+            </div>
+          )}
           {tab === "fournisseurs" && <SuppliersTab suppliers={suppliers} />}
           {tab === "utilisateurs" && <UsersTab profiles={profiles} />}
           {tab === "roles" && <RolesTab counts={roleCounts} />}

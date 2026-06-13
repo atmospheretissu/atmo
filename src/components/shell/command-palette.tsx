@@ -25,8 +25,8 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
-import { devisList } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { searchGlobalAction, type SearchResult } from "@/app/actions/search";
 
 type Item = {
   id: string;
@@ -36,7 +36,7 @@ type Item = {
   tone: ChipTone;
   href?: string;
   shortcut?: string;
-  kind: "page" | "command" | "client" | "recent";
+  kind: "page" | "command" | "client" | "devis" | "dossier";
 };
 
 type Props = {
@@ -49,6 +49,26 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  // Recherche serveur debounced sur clients + devis + dossiers
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchGlobalAction(query);
+        setSearchResults(r);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -93,47 +113,67 @@ export function CommandPalette({ open, onOpenChange }: Props) {
       { id: "c-cloture", label: "Clôture de caisse", icon: Receipt, tone: "lime", href: "/caisse", kind: "command" },
     ];
 
-    const recents: Item[] = devisList.slice(0, 3).map((d) => ({
-      id: `r-${d.id}`,
-      label: d.client.name,
-      sub: `${d.number} · ${d.product}`,
-      icon: FileText,
-      tone: "violet",
-      href: `/devis/${d.id}`,
-      kind: "recent",
-    }));
-
-    const clients: Item[] = devisList.slice(0, 5).map((d) => ({
-      id: `cl-${d.id}`,
-      label: d.client.name,
-      sub: d.client.city,
-      icon: Users,
-      tone: "pink",
-      href: `/clients/${d.id}`,
-      kind: "client",
-    }));
-
-    return [...recents, ...commands, ...pages, ...clients];
+    return [...commands, ...pages];
   }, []);
+
+  // Mappe les résultats serveur en items
+  const dynamicItems: Item[] = useMemo(() => {
+    return searchResults.map((r) => {
+      if (r.kind === "client") {
+        return {
+          id: r.id,
+          label: r.label,
+          sub: r.sub ?? undefined,
+          icon: Users,
+          tone: "pink" as ChipTone,
+          href: r.href,
+          kind: "client" as const,
+        };
+      }
+      if (r.kind === "devis") {
+        return {
+          id: r.id,
+          label: r.label,
+          sub: r.sub ?? undefined,
+          icon: FileText,
+          tone: "violet" as ChipTone,
+          href: r.href,
+          kind: "devis" as const,
+        };
+      }
+      return {
+        id: r.id,
+        label: r.label,
+        sub: r.sub ?? undefined,
+        icon: Scissors,
+        tone: "orange" as ChipTone,
+        href: r.href,
+        kind: "dossier" as const,
+      };
+    });
+  }, [searchResults]);
 
   const filtered = useMemo(() => {
     if (!query) return items;
     const q = query.toLowerCase();
-    return items.filter(
+    // Filtre local sur pages/commands + ajoute les résultats serveur
+    const localMatch = items.filter(
       (i) =>
         i.label.toLowerCase().includes(q) ||
-        (i.sub?.toLowerCase().includes(q) ?? false)
+        (i.sub?.toLowerCase().includes(q) ?? false),
     );
-  }, [items, query]);
+    return [...dynamicItems, ...localMatch];
+  }, [items, query, dynamicItems]);
 
   // Group by kind for display
   const groups = useMemo(() => {
-    const order = query ? ["recent", "command", "page", "client"] : ["recent", "command", "page", "client"];
+    const order = ["client", "devis", "dossier", "command", "page"];
     const labels: Record<string, string> = {
-      recent: "Récents",
+      client: "Clients",
+      devis: "Devis",
+      dossier: "Dossiers de confection",
       command: "Actions rapides",
       page: "Navigation",
-      client: "Clients",
     };
     return order
       .map((kind) => ({
@@ -142,7 +182,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
         items: filtered.filter((i) => i.kind === kind),
       }))
       .filter((g) => g.items.length > 0);
-  }, [filtered, query]);
+  }, [filtered]);
 
   // Flat list for keyboard nav
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);

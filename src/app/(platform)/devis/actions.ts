@@ -180,8 +180,12 @@ export async function changeDevisStatusAction(
  *   - le bouton "Marquer acompte reçu" sur /devis/[id] (encaissement manuel)
  *   - le webhook Stripe quand un paiement réussit (à venir)
  */
+export type ManualPaymentMethod = "virement" | "cb" | "cheque" | "especes";
+
 export async function markAcompteRecuAction(
-  devisId: string
+  devisId: string,
+  method: ManualPaymentMethod = "virement",
+  notes?: string,
 ): Promise<DevisFormState & { dossierId?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -194,7 +198,7 @@ export async function markAcompteRecuAction(
     .eq("id", devisId);
   if (e1) return { ok: false, errors: {}, message: e1.message };
 
-  // 2. Insert payment (manuel pour l'instant — Stripe webhook fera idem)
+  // 2. Insert payment manuel avec le mode choisi par l'admin
   const { data: devis } = await supabase
     .from("devis")
     .select("client_id, acompte_ttc")
@@ -206,9 +210,9 @@ export async function markAcompteRecuAction(
       devis_id: devisId,
       client_id: devis.client_id,
       kind: "acompte",
-      method: "virement",
+      method,
       amount_ttc: Number(devis.acompte_ttc ?? 0),
-      notes: "Marquage manuel depuis la fiche devis",
+      notes: notes?.trim() || `Encaissement manuel · ${method}`,
       recorded_by: user.id,
     });
   }
@@ -273,6 +277,146 @@ export async function markAcompteRecuAction(
     ok: true,
     dossierId: dossierResult.ok ? dossierResult.dossierId : undefined,
   };
+}
+
+/**
+ * Marque le solde du devis comme reçu (manuel) avec le mode de paiement choisi.
+ * Met à jour dossier.solde_paid = true.
+ */
+export async function markSoldeRecuAction(
+  devisId: string,
+  method: ManualPaymentMethod = "virement",
+  notes?: string,
+): Promise<DevisFormState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, errors: {}, message: "Session expirée." };
+
+  const { data: devis } = await supabase
+    .from("devis")
+    .select("client_id, total_ttc, acompte_ttc")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (!devis) return { ok: false, errors: {}, message: "Devis introuvable" };
+
+  const total = Number(devis.total_ttc ?? 0);
+  const acompte = Number(devis.acompte_ttc ?? total / 2);
+  const solde = Math.max(0, total - acompte);
+
+  if (solde <= 0) {
+    return { ok: false, errors: {}, message: "Aucun solde à encaisser" };
+  }
+
+  const { error: e1 } = await supabase.from("payments").insert({
+    devis_id: devisId,
+    client_id: devis.client_id,
+    kind: "solde",
+    method,
+    amount_ttc: solde,
+    notes: notes?.trim() || `Encaissement solde manuel · ${method}`,
+    recorded_by: user.id,
+  });
+  if (e1) return { ok: false, errors: {}, message: e1.message };
+
+  // Update dossier.solde_paid
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("id")
+    .eq("devis_id", devisId)
+    .maybeSingle();
+  if (dossier?.id) {
+    await supabase
+      .from("dossiers")
+      .update({ solde_paid: true, solde_paid_at: new Date().toISOString() })
+      .eq("id", dossier.id);
+  }
+
+  revalidatePath(`/devis/${devisId}`);
+  revalidatePath("/devis");
+  return { ok: true };
+}
+
+/**
+ * Met à jour les lignes d'un devis existant.
+ *
+ * Stratégie : delete + re-insert (plus simple que le diff individuel).
+ * Recalcule total_ht et total_ttc à partir des nouvelles lignes.
+ * Si le devis est déjà validé / acompte reçu, on garde tout de même la
+ * modification (l'utilisateur peut corriger une typo, ajuster un prix...).
+ */
+export type UpdateDevisLineInput = {
+  label: string;
+  detail?: string | null;
+  ref?: string | null;
+  qty: number;
+  unit_label: string;
+  unit_price_ht: number;
+};
+
+export async function updateDevisLinesAction(
+  devisId: string,
+  lines: UpdateDevisLineInput[],
+): Promise<DevisFormState> {
+  const supabase = await createClient();
+
+  if (!lines || lines.length === 0) {
+    return { ok: false, errors: {}, message: "Le devis doit avoir au moins une ligne." };
+  }
+
+  // 1. Récupère le tva_rate du devis pour recalculer le total
+  const { data: devis, error: e0 } = await supabase
+    .from("devis")
+    .select("tva_rate")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (e0) return { ok: false, errors: {}, message: e0.message };
+  if (!devis) return { ok: false, errors: {}, message: "Devis introuvable" };
+
+  const tvaRate = Number(devis.tva_rate ?? 20);
+
+  // Recalcule les totaux
+  const total_ht = Math.round(
+    lines.reduce((s, l) => s + l.qty * l.unit_price_ht * 100, 0),
+  ) / 100;
+  const total_ttc = Math.round(total_ht * (1 + tvaRate / 100) * 100) / 100;
+  const qty_total = lines.reduce((s, l) => s + Math.ceil(l.qty), 0);
+
+  // 2. Delete les anciennes lignes
+  const { error: e1 } = await supabase
+    .from("devis_lines")
+    .delete()
+    .eq("devis_id", devisId);
+  if (e1) return { ok: false, errors: {}, message: `Échec suppression : ${e1.message}` };
+
+  // 3. Insert les nouvelles
+  const payload = lines.map((l, idx) => ({
+    devis_id: devisId,
+    position: idx,
+    ref: l.ref?.trim() || null,
+    label: l.label.trim(),
+    detail: l.detail?.trim() || null,
+    qty: l.qty,
+    unit_label: l.unit_label,
+    unit_price_ht: l.unit_price_ht,
+  }));
+
+  const { error: e2 } = await supabase.from("devis_lines").insert(payload);
+  if (e2) return { ok: false, errors: {}, message: `Échec ajout : ${e2.message}` };
+
+  // 4. Update les totaux + version du devis
+  const { error: e3 } = await supabase
+    .from("devis")
+    .update({
+      total_ht,
+      total_ttc,
+      qty: qty_total,
+    })
+    .eq("id", devisId);
+  if (e3) return { ok: false, errors: {}, message: e3.message };
+
+  revalidatePath(`/devis/${devisId}`);
+  revalidatePath("/devis");
+  return { ok: true, id: devisId };
 }
 
 /**
