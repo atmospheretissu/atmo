@@ -20,8 +20,15 @@ function requiresConfection(articles: BoutiquePieceArticle[]): boolean {
 }
 
 export type BoutiquePieceArticle = {
-  /** Type d'article : produit catalogue (Part 1), puis rideau, store, rideau_serie */
-  type: "produit" | "rideau" | "store" | "rideau_serie";
+  /** Type d'article — utilisé pour grouper, charger les BC fournisseurs, etc. */
+  type:
+    | "produit"
+    | "rideau"
+    | "store"
+    | "rideau_serie"
+    | "store_enrouleur"
+    | "pose"
+    | "autre";
   /** Désignation prête à imprimer dans le devis */
   designation: string;
   /** Référence interne (ex: SKU catalogue, type+id) */

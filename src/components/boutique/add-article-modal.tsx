@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { X, Package, Scissors, Layers, ShoppingBag, Search, Loader2, AlertCircle } from "lucide-react";
+import { X, Package, Scissors, Layers, ShoppingBag, Search, Loader2, AlertCircle, Disc, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -11,9 +11,17 @@ import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { searchCatalogProductsAction } from "@/app/(platform)/boutique/actions";
 import { RideauForm } from "@/components/boutique/article-rideau-form";
 import { StoreForm } from "@/components/boutique/article-store-form";
+import { StoreEnrouleurForm } from "@/components/boutique/article-store-enrouleur-form";
 import { RideauSerieForm } from "@/components/boutique/article-rideau-serie-form";
+import { ArticleLibreForm } from "@/components/boutique/article-libre-form";
 
-type ArticleType = "rideau" | "store" | "produit" | "rideau_serie";
+type ArticleType =
+  | "rideau"
+  | "store"
+  | "store_enrouleur"
+  | "produit"
+  | "rideau_serie"
+  | "libre";
 
 const TYPES: {
   key: ArticleType;
@@ -48,11 +56,27 @@ const TYPES: {
     available: true,
   },
   {
+    key: "store_enrouleur",
+    label: "Store enrouleur",
+    description: "Tissu enrouleur (Vedelux, Copa…) — enroulement avant / arrière",
+    tone: "blue",
+    icon: Disc,
+    available: true,
+  },
+  {
     key: "rideau_serie",
     label: "Rideau en série",
     description: "56 modèles prêts à poser",
     tone: "pink",
     icon: ShoppingBag,
+    available: true,
+  },
+  {
+    key: "libre",
+    label: "Autre produit (champ libre)",
+    description: "Désignation, qté, prix HT — pour tout ce qui sort des modules",
+    tone: "orange",
+    icon: Plus,
     available: true,
   },
 ];
@@ -74,8 +98,12 @@ export function AddArticleModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Larger modal for rideau form (needs space for split layout)
-  const isWide = selectedType === "rideau" || selectedType === "store";
+  // Larger modal for forms with split layout
+  const isWide =
+    selectedType === "rideau" ||
+    selectedType === "store" ||
+    selectedType === "store_enrouleur" ||
+    selectedType === "libre";
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[6vh] px-4">
@@ -98,6 +126,10 @@ export function AddArticleModal({
                 ? "Rideau sur mesure"
                 : selectedType === "store"
                 ? "Store sur mesure"
+                : selectedType === "store_enrouleur"
+                ? "Store enrouleur"
+                : selectedType === "libre"
+                ? "Autre produit (champ libre)"
                 : "Rideau en série"}
             </h3>
           </div>
@@ -127,8 +159,16 @@ export function AddArticleModal({
           <StoreForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
 
+        {selectedType === "store_enrouleur" && (
+          <StoreEnrouleurForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
         {selectedType === "rideau_serie" && (
           <RideauSerieForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
+        {selectedType === "libre" && (
+          <ArticleLibreForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
       </div>
     </div>

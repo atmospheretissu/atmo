@@ -54,12 +54,23 @@ function generateQrCode(): string {
 function inferItemType(meta: Record<string, unknown> | null | undefined): DossierItemType {
   if (!meta) return "autre";
   const ta = String(meta["typeArticle"] ?? meta["type"] ?? "");
-  if (ta === "rideau_tissu_confection" || ta === "store_tissu_confection") return "tissu";
+  if (
+    ta === "rideau_tissu_confection" ||
+    ta === "store_tissu_confection" ||
+    ta === "store_enrouleur_tissu"
+  )
+    return "tissu";
   if (ta === "rail") return "rail";
-  if (ta === "mecanisme") return "rail";
-  if (ta === "pose_rideau" || ta === "pose_store") return "autre";
+  if (ta === "mecanisme" || ta === "store_enrouleur_mecanisme") return "rail";
+  if (
+    ta === "pose_rideau" ||
+    ta === "pose_store" ||
+    ta === "pose_store_enrouleur"
+  )
+    return "autre";
   if (ta === "rideau_serie") return "autre";
   if (ta === "produit") return "accessoire";
+  if (ta === "libre") return "autre";
   return "autre";
 }
 
@@ -137,7 +148,11 @@ export async function createDossierFromDevis(
     .filter((l) => {
       const meta = (l.meta ?? {}) as Record<string, unknown>;
       const ta = String(meta["typeArticle"] ?? meta["type"] ?? "");
-      return ta !== "pose_rideau" && ta !== "pose_store";
+      return (
+        ta !== "pose_rideau" &&
+        ta !== "pose_store" &&
+        ta !== "pose_store_enrouleur"
+      );
     })
     .map((l, idx) => {
       const meta = (l.meta ?? {}) as Record<string, unknown>;
