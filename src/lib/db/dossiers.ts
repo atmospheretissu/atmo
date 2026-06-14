@@ -124,7 +124,8 @@ export async function createDossierFromDevis(
     .order("position", { ascending: true });
   if (e2) return { ok: false, message: e2.message };
 
-  // 3. Crée le dossier
+  // 3. Crée le dossier (hérite du store_id du devis pour rester visible
+  //    avec le même filtre multi-magasin)
   const number = await getNextDossierNumber(supabase);
   const { data: dossier, error: e3 } = await supabase
     .from("dossiers")
@@ -136,6 +137,7 @@ export async function createDossierFromDevis(
       total_ttc: devis.total_ttc,
       acompte_paid: devis.status === "acompte_recu",
       acompte_paid_at: devis.status === "acompte_recu" ? new Date().toISOString() : null,
+      store_id: (devis as { store_id?: string | null }).store_id ?? null,
     })
     .select("id")
     .single();
