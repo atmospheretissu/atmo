@@ -30,18 +30,9 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottom: "2px solid #111",
   },
-  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoMark: {
-    width: 32,
-    height: 32,
-    backgroundColor: "#FACC15",
-    borderRadius: 6,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoMarkText: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#111" },
-  brandName: { fontSize: 14, fontFamily: "Helvetica-Bold" },
-  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.5 },
+  brand: { flexDirection: "column" },
+  brandName: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#111", letterSpacing: -0.3 },
+  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.8, marginTop: 2 },
   titleBlock: { textAlign: "right" },
   titleLabel: {
     fontSize: 8,
@@ -87,8 +78,8 @@ const styles = StyleSheet.create({
   pieceTitle: {
     fontSize: 13,
     fontFamily: "Helvetica-Bold",
-    color: "#111",
-    backgroundColor: "#FACC15",
+    color: "#fff",
+    backgroundColor: "#111",
     paddingTop: 4,
     paddingBottom: 4,
     paddingLeft: 8,
@@ -343,13 +334,8 @@ export function FicheConfectionPDF({
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.brand}>
-            <View style={styles.logoMark}>
-              <Text style={styles.logoMarkText}>A</Text>
-            </View>
-            <View>
-              <Text style={styles.brandName}>Atmosphère Tissus</Text>
-              <Text style={styles.brandSub}>FICHE DE CONFECTION · ATELIER</Text>
-            </View>
+            <Text style={styles.brandName}>Atmosphère.</Text>
+            <Text style={styles.brandSub}>FICHE DE CONFECTION · ATELIER</Text>
           </View>
           <View style={styles.titleBlock}>
             <Text style={styles.titleLabel}>Dossier</Text>

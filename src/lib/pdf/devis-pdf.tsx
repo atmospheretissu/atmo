@@ -45,18 +45,9 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottom: "1px solid #E5E7EB",
   },
-  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoMark: {
-    width: 32,
-    height: 32,
-    backgroundColor: "#FACC15",
-    borderRadius: 6,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoMarkText: { fontSize: 16, fontFamily: "Helvetica-Bold", color: "#111" },
-  brandName: { fontSize: 14, fontFamily: "Helvetica-Bold" },
-  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.5 },
+  brand: { flexDirection: "column" },
+  brandName: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#111", letterSpacing: -0.3 },
+  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.8, marginTop: 2 },
   meta: { textAlign: "right" },
   metaLabel: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase" },
   metaValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
@@ -118,6 +109,9 @@ const styles = StyleSheet.create({
   cTotal: { width: 70, textAlign: "right" },
   lineLabel: { fontFamily: "Helvetica-Bold" },
   lineDetail: { fontSize: 8, color: "#6B7280", marginTop: 2 },
+  specRow: { flexDirection: "row", marginTop: 2 },
+  specLabel: { fontSize: 8, color: "#6B7280", width: 95 },
+  specValue: { fontSize: 8, color: "#374151", flex: 1, fontFamily: "Helvetica-Bold" },
   // Totals
   totals: { width: 240, marginLeft: "auto", marginTop: 4 },
   tot: { flexDirection: "row", justifyContent: "space-between", paddingTop: 4, paddingBottom: 4 },
@@ -165,6 +159,183 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 });
+
+type MetaRecord = Record<string, unknown>;
+
+const metaGet = (m: MetaRecord | null | undefined, ...keys: string[]): string | null => {
+  if (!m) return null;
+  for (const k of keys) {
+    const v = m[k];
+    if (v != null && v !== "") return String(v);
+  }
+  return null;
+};
+
+const metaNum = (m: MetaRecord | null | undefined, ...keys: string[]): number | null => {
+  if (!m) return null;
+  for (const k of keys) {
+    const v = m[k];
+    if (v == null || v === "") continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+};
+
+const FINITION_BASSE_LABELS: Record<string, string> = {
+  ras_du_sol: "Ras du sol (+0 cm)",
+  reserve_proprete: "Réserve de propreté",
+  cassant: "Cassant",
+};
+
+const DOUBLURE_LABELS: Record<string, string> = {
+  aucune: "Non",
+  occultante: "Oui — Occultante",
+  thermique: "Oui — Thermique",
+  cotonnade: "Oui — Cotonnade",
+};
+
+type SpecRow = { label: string; value: string };
+
+/** Construit la liste structurée de specs depuis le meta JSON d'une ligne. */
+function buildSpecsFromMeta(
+  meta: MetaRecord | null | undefined,
+  hideMeasurements: boolean,
+): SpecRow[] {
+  if (!meta) return [];
+  const ta = String(meta["typeArticle"] ?? "");
+  const rows: SpecRow[] = [];
+
+  // ----- Rideau sur mesure (Tissu & Confection) -----
+  if (ta === "rideau_tissu_confection") {
+    const typeRideau = metaGet(meta, "typeRideau");
+    const typeMontage = metaGet(meta, "typeMontage");
+    const finitionBasse = metaGet(meta, "finitionBasse");
+    const finitionBasseCm = metaNum(meta, "finitionBasseCm");
+    const finitionBasseLabel = metaGet(meta, "finitionBasseLabel");
+    const ref = metaGet(meta, "referenceTissu");
+    const doublure = metaGet(meta, "doublure");
+    const pose = metaGet(meta, "poseRail");
+    const largeur = metaNum(meta, "largeurFinie");
+    const hauteur = metaNum(meta, "hauteurFinie");
+    const nbGalets = metaNum(meta, "nombreGalets");
+    const ourletHaut = metaNum(meta, "ourletHaut");
+    const ourletBas = metaNum(meta, "ourletBas");
+    const sensConf = metaGet(meta, "sensConfectionPref");
+    const couleurOeillets = metaGet(meta, "couleurOeillets");
+
+    rows.push({ label: "Type", value: typeMontage === "paire" ? "Paire" : "Panneau" });
+    if (typeRideau) rows.push({ label: "Finition Haute", value: typeRideau });
+
+    if (finitionBasse) {
+      let fb = FINITION_BASSE_LABELS[finitionBasse] ?? finitionBasse;
+      if (finitionBasse === "reserve_proprete" && finitionBasseCm)
+        fb = `Réserve de propreté (-${finitionBasseCm}cm)`;
+      else if (finitionBasse === "cassant" && finitionBasseCm)
+        fb = `Cassant (+${finitionBasseCm}cm)`;
+      rows.push({ label: "Finition Basse", value: finitionBasseLabel ?? fb });
+    }
+    if (nbGalets) rows.push({ label: "Nombre de plis", value: `${nbGalets} plis` });
+    if (ref) rows.push({ label: "Tissu", value: ref });
+    if (doublure) rows.push({ label: "Doublage", value: DOUBLURE_LABELS[doublure] ?? doublure });
+    if (pose) rows.push({ label: "Pose", value: pose === "plafond" ? "Plafond" : "Mural" });
+    if (!hideMeasurements && largeur) rows.push({ label: "Largeur finie", value: `${largeur} cm` });
+    if (!hideMeasurements && hauteur) rows.push({ label: "Hauteur finie", value: `${hauteur} cm` });
+    if (ourletHaut && !hideMeasurements)
+      rows.push({ label: "Ourlet haut", value: `${ourletHaut} cm` });
+    if (ourletBas && !hideMeasurements)
+      rows.push({ label: "Ourlet bas", value: `${ourletBas} cm` });
+    if (couleurOeillets) rows.push({ label: "Couleur œillets", value: couleurOeillets });
+    if (sensConf && sensConf !== "auto") {
+      rows.push({
+        label: "Sens confection",
+        value: sensConf === "droit_gauche" ? "Droit / Gauche" : "Haut / Bas",
+      });
+    }
+    return rows;
+  }
+
+  // ----- Store bateau (Tissu & Confection) -----
+  if (ta === "store_tissu_confection") {
+    const typeStore = metaGet(meta, "typeStore");
+    const ref = metaGet(meta, "referenceTissu");
+    const doublure = metaGet(meta, "doublure");
+    const pose = metaGet(meta, "poseRail");
+    const largeur = metaNum(meta, "largeurFinie");
+    const hauteur = metaNum(meta, "hauteurFinie");
+    const refoulement = metaNum(meta, "hauteurRefoulement");
+    const chainetteCote = metaGet(meta, "chainetteCote");
+
+    if (typeStore) rows.push({ label: "Type store", value: typeStore });
+    if (ref) rows.push({ label: "Tissu", value: ref });
+    if (doublure) rows.push({ label: "Doublage", value: DOUBLURE_LABELS[doublure] ?? doublure });
+    if (pose) rows.push({ label: "Pose", value: pose === "plafond" ? "Plafond" : "De face" });
+    if (chainetteCote)
+      rows.push({ label: "Chaînette", value: chainetteCote === "gauche" ? "Gauche" : "Droite" });
+    if (refoulement && refoulement > 0 && !hideMeasurements)
+      rows.push({ label: "Refoulement", value: `${refoulement} cm` });
+    if (!hideMeasurements && largeur) rows.push({ label: "Largeur finie", value: `${largeur} cm` });
+    if (!hideMeasurements && hauteur) rows.push({ label: "Hauteur finie", value: `${hauteur} cm` });
+    return rows;
+  }
+
+  // ----- Mécanisme store bateau -----
+  if (ta === "mecanisme") {
+    const cote = metaGet(meta, "chainetteCote");
+    const couleur = metaGet(meta, "chainetteCouleur");
+    if (couleur) rows.push({ label: "Couleur chaînette", value: capitalize(couleur) });
+    if (cote) rows.push({ label: "Côté", value: cote === "gauche" ? "Gauche" : "Droite" });
+    return rows;
+  }
+
+  // ----- Store enrouleur tissu -----
+  if (ta === "store_enrouleur_tissu") {
+    const ref = metaGet(meta, "referenceTissu");
+    const largeur = metaNum(meta, "largeurFinie");
+    const hauteur = metaNum(meta, "hauteurFinie");
+    const enroulement = metaGet(meta, "enroulement");
+    if (ref) rows.push({ label: "Tissu", value: ref });
+    if (enroulement)
+      rows.push({
+        label: "Enroulement",
+        value: enroulement === "avant" ? "Avant" : "Arrière",
+      });
+    if (!hideMeasurements && largeur) rows.push({ label: "Largeur finie", value: `${largeur} cm` });
+    if (!hideMeasurements && hauteur) rows.push({ label: "Hauteur finie", value: `${hauteur} cm` });
+    return rows;
+  }
+
+  // ----- Collection Atmosphère -----
+  if (ta === "collection_atmosphere") {
+    const sf = metaGet(meta, "sousFamille");
+    const matiere = metaGet(meta, "matiere");
+    const ref = metaGet(meta, "reference");
+    const routing = metaGet(meta, "routingLabel");
+    if (sf) {
+      const map: Record<string, string> = {
+        rideau: "Rideau",
+        store_bateau: "Store bateau",
+        store_enrouleur: "Store enrouleur",
+      };
+      rows.push({ label: "Sous-famille", value: map[sf] ?? sf });
+    }
+    if (matiere) rows.push({ label: "Matière", value: matiere.toUpperCase() });
+    if (ref) rows.push({ label: "Référence", value: ref });
+    if (routing) rows.push({ label: "Routing fournisseur", value: routing });
+    const largeur = metaNum(meta, "largeurFinie");
+    const hauteur = metaNum(meta, "hauteurFinie");
+    if (!hideMeasurements && largeur) rows.push({ label: "Largeur finie", value: `${largeur} cm` });
+    if (!hideMeasurements && hauteur) rows.push({ label: "Hauteur finie", value: `${hauteur} cm` });
+    return rows;
+  }
+
+  return rows;
+}
+
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 /**
  * Retire les mentions de mesures (laize, dimensions, métrage…) d'une chaîne libre.
@@ -224,13 +395,8 @@ export function DevisPDF({
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.brand}>
-            <View style={styles.logoMark}>
-              <Text style={styles.logoMarkText}>A</Text>
-            </View>
-            <View>
-              <Text style={styles.brandName}>Atmosphère Tissus</Text>
-              <Text style={styles.brandSub}>DÉCORATION SUR MESURE</Text>
-            </View>
+            <Text style={styles.brandName}>Atmosphère.</Text>
+            <Text style={styles.brandSub}>DÉCORATION SUR MESURE</Text>
           </View>
           <View style={styles.meta}>
             <Text style={styles.metaLabel}>DEVIS</Text>
@@ -286,22 +452,38 @@ export function DevisPDF({
             <Text style={[styles.tHeadText, styles.cUnit]}>P.U. HT</Text>
             <Text style={[styles.tHeadText, styles.cTotal]}>Total HT</Text>
           </View>
-          {visibleLines.map((l) => (
-            <View style={styles.tRow} key={l.id}>
-              <Text style={[styles.cRef, { fontSize: 8, color: "#6B7280" }]}>
-                {l.ref ?? "—"}
-              </Text>
-              <View style={styles.cLabel}>
-                <Text style={styles.lineLabel}>{l.label}</Text>
-                {l.detail && <Text style={styles.lineDetail}>{l.detail}</Text>}
+          {visibleLines.map((l) => {
+            const meta = (l.meta ?? null) as MetaRecord | null;
+            const specs = buildSpecsFromMeta(meta, hideMeasurements);
+            const useSpecs = specs.length > 0;
+            return (
+              <View style={styles.tRow} key={l.id}>
+                <Text style={[styles.cRef, { fontSize: 8, color: "#6B7280" }]}>
+                  {l.ref ?? "—"}
+                </Text>
+                <View style={styles.cLabel}>
+                  <Text style={styles.lineLabel}>{l.label}</Text>
+                  {useSpecs ? (
+                    <View style={{ marginTop: 3 }}>
+                      {specs.map((s, i) => (
+                        <View key={i} style={styles.specRow}>
+                          <Text style={styles.specLabel}>{s.label}</Text>
+                          <Text style={styles.specValue}>: {s.value}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    l.detail && <Text style={styles.lineDetail}>{l.detail}</Text>
+                  )}
+                </View>
+                <Text style={styles.cQty}>
+                  {Number(l.qty)} {l.unit_label}
+                </Text>
+                <Text style={styles.cUnit}>{eur(Number(l.unit_price_ht))}</Text>
+                <Text style={styles.cTotal}>{eur(Number(l.total_ht ?? 0))}</Text>
               </View>
-              <Text style={styles.cQty}>
-                {Number(l.qty)} {l.unit_label}
-              </Text>
-              <Text style={styles.cUnit}>{eur(Number(l.unit_price_ht))}</Text>
-              <Text style={styles.cTotal}>{eur(Number(l.total_ht ?? 0))}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* Totaux */}
