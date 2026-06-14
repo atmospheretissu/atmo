@@ -94,9 +94,14 @@ export default async function ClientDetailPage({
                 <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
               </Button>
             </Link>
-            <Link href="/devis/nouveau">
+            <Link href={`/devis/nouveau?client=${client.id}`}>
+              <Button variant="secondary" size="sm">
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
+              </Button>
+            </Link>
+            <Link href={`/boutique/nouveau?client=${client.id}`}>
               <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau devis
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
               </Button>
             </Link>
           </>

@@ -67,11 +67,15 @@ const channelTones: Record<Channel, "violet" | "orange" | "blue" | "pink" | "eme
 export function DevisBuilder({
   clients,
   action,
+  initialClientId,
 }: {
   clients: ClientPick[];
   action: (prev: DevisFormState, formData: FormData) => Promise<DevisFormState>;
+  initialClientId?: string | null;
 }) {
-  const [selectedClient, setSelectedClient] = useState<ClientPick | null>(null);
+  const initial =
+    (initialClientId && clients.find((c) => c.id === initialClientId)) || null;
+  const [selectedClient, setSelectedClient] = useState<ClientPick | null>(initial);
   const [clientQuery, setClientQuery] = useState("");
   const [productSummary, setProductSummary] = useState("Rideaux sur mesure");
   const [productDetail, setProductDetail] = useState("");
@@ -195,7 +199,7 @@ export function DevisBuilder({
               Simulateur · chiffrage temps réel
             </p>
             <h1 className="text-[34px] font-semibold tracking-tight text-ink leading-[1.1]">
-              Nouveau devis
+              Devis rapide
             </h1>
           </div>
           <div className="flex items-center gap-2">

@@ -8,8 +8,14 @@ import { BoutiqueWizard } from "@/components/boutique/wizard";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewBoutiqueDevisPage() {
+export default async function NewBoutiqueDevisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>;
+}) {
+  const sp = await searchParams;
   const clients = await listClients({ limit: 500 });
+  const initialClientId = sp.client ?? null;
 
   if (clients.length === 0) {
     return (
@@ -62,6 +68,7 @@ export default async function NewBoutiqueDevisPage() {
               channel: c.channel,
               email: c.email,
             }))}
+            initialClientId={initialClientId}
           />
         </div>
       </div>

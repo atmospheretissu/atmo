@@ -19,7 +19,7 @@ export default async function BoutiquePage() {
           <Link href="/boutique/nouveau">
             <Button variant="primary" size="sm">
               <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-              Nouveau devis boutique
+              Devis boutique
             </Button>
           </Link>
         }
@@ -107,7 +107,7 @@ export default async function BoutiquePage() {
             <Link href="/boutique/nouveau">
               <Button variant="primary" size="md">
                 <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-                Nouveau devis boutique
+                Devis boutique
               </Button>
             </Link>
           </Card>

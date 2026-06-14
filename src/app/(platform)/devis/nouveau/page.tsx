@@ -10,8 +10,14 @@ import { createDevisDraftAction } from "@/app/(platform)/devis/actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewDevisPage() {
+export default async function NewDevisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ client?: string }>;
+}) {
+  const sp = await searchParams;
   const clients = await listClients({ limit: 200 });
+  const initialClientId = sp.client ?? null;
 
   // Si pas de client, on bloque proprement avec une CTA
   if (clients.length === 0) {
@@ -66,6 +72,7 @@ export default async function NewDevisPage() {
               channel: c.channel,
               email: c.email,
             }))}
+            initialClientId={initialClientId}
             action={createDevisDraftAction}
           />
         </div>

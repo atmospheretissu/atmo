@@ -62,11 +62,19 @@ const STEPS = [
   { num: 3, label: "Récapitulatif" },
 ];
 
-export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+export function BoutiqueWizard({
+  clients,
+  initialClientId,
+}: {
+  clients: ClientPick[];
+  initialClientId?: string | null;
+}) {
+  const initial =
+    (initialClientId && clients.find((c) => c.id === initialClientId)) || null;
+  const [step, setStep] = useState<1 | 2 | 3>(initial ? 2 : 1);
 
   // Step 1
-  const [selectedClient, setSelectedClient] = useState<ClientPick | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientPick | null>(initial);
   const [clientQuery, setClientQuery] = useState("");
   const [channel, setChannel] = useState<Channel>("magasin");
 
@@ -209,7 +217,7 @@ export function BoutiqueWizard({ clients }: { clients: ClientPick[] }) {
               Boutique · Simulateur complet
             </p>
             <h1 className="text-[34px] font-semibold tracking-tight text-ink leading-[1.1]">
-              Nouveau devis boutique
+              Devis boutique
             </h1>
           </div>
           <StatusPill tone="amber" pulse>
