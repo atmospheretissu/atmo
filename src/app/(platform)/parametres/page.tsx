@@ -5,7 +5,7 @@ import { listEmailTemplates } from "@/lib/db/email-templates";
 import { listPoseurs, listAteliers } from "@/lib/db/equipe";
 import { listSources } from "@/lib/db/sources";
 import { listStores } from "@/lib/db/stores";
-import { listCatalogProducts } from "@/lib/db/catalog";
+import { listCatalogProductsPage } from "@/lib/db/catalog";
 import { listAutomationRules } from "@/lib/db/automation-rules";
 import { listEventAlerts } from "@/lib/db/event-alerts";
 import ParametresClient from "./parametres-client";
@@ -23,7 +23,7 @@ export default async function ParametresPage() {
     ateliers,
     sources,
     stores,
-    catalogProducts,
+    catalog,
     automationRules,
     eventAlerts,
   ] = await Promise.all([
@@ -35,7 +35,7 @@ export default async function ParametresPage() {
     listAteliers(),
     listSources(),
     listStores(),
-    listCatalogProducts(),
+    listCatalogProductsPage({ pageSize: 50 }),
     listAutomationRules(),
     listEventAlerts(),
   ]);
@@ -73,7 +73,9 @@ export default async function ParametresPage() {
       ateliers={ateliers}
       sources={sources}
       stores={stores}
-      catalogProducts={catalogProducts}
+      catalogProducts={catalog.products}
+      catalogTotal={catalog.total}
+      catalogCategories={catalog.categories}
       automationRules={automationRules}
       eventAlerts={eventAlerts}
     />

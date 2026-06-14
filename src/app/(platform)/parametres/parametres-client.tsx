@@ -78,6 +78,8 @@ type Props = {
   sources: Source[];
   stores: Store[];
   catalogProducts: CatalogProduct[];
+  catalogTotal: number;
+  catalogCategories: string[];
   automationRules: AutomationRule[];
   eventAlerts: EventAlert[];
 };
@@ -131,6 +133,8 @@ export default function ParametresClient({
   sources,
   stores,
   catalogProducts,
+  catalogTotal,
+  catalogCategories,
   automationRules,
   eventAlerts,
 }: Props) {
@@ -272,7 +276,7 @@ export default function ParametresClient({
                   onClick={() => setTab("catalogue")}
                   icon={Database}
                   label="Catalogue produits"
-                  count={catalogProducts.length}
+                  count={catalogTotal}
                 />
                 <TabBtn
                   active={tab === "sources"}
@@ -352,7 +356,13 @@ export default function ParametresClient({
           {tab === "roles" && <RolesTab counts={roleCounts} />}
 
           {/* Données */}
-          {tab === "catalogue" && <CatalogTab initialProducts={catalogProducts} />}
+          {tab === "catalogue" && (
+            <CatalogTab
+              initialProducts={catalogProducts}
+              initialTotal={catalogTotal}
+              initialCategories={catalogCategories}
+            />
+          )}
           {tab === "sources" && <SourcesSection initialSources={sources} />}
           {tab === "templates-sms" && (
             <SmsTemplatesTab

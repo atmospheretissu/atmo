@@ -20,6 +20,7 @@ import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { ContactButtons, HeaderSendButton } from "@/components/clients/contact-modal";
+import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { getClientWithDevis } from "@/lib/db/clients";
 import { channelLabels, type Channel } from "@/lib/validation/client";
 import { eur, shortDate, time } from "@/lib/formatters";
@@ -143,6 +144,12 @@ export default async function ClientDetailPage({
                   <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
                 </Button>
               </Link>
+              <OpenSavTicketButton
+                context={{
+                  clientId: client.id,
+                  contextLabel: client.display_name,
+                }}
+              />
             </div>
           </div>
         </section>

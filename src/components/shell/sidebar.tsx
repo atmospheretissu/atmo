@@ -23,6 +23,7 @@ import {
   LogOut,
   Lock,
   FlaskConical,
+  AlertTriangle,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
@@ -56,6 +57,7 @@ const navSecondary: Item[] = [
   { label: "Caisse", href: "/caisse", icon: Receipt, tone: "lime" },
   { label: "Collection Atmosphère", href: "/collection", icon: Library, tone: "amber" },
   { label: "Clients", href: "/clients", icon: Users, tone: "ink" },
+  { label: "SAV", href: "/sav", icon: AlertTriangle, tone: "pink" },
   { label: "Atmoleads", href: "/leads-lm", icon: Inbox, tone: "orange" },
 ];
 

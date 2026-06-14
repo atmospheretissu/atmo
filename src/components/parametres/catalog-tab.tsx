@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   Plus,
   Search,
@@ -19,6 +19,7 @@ import {
   updateCatalogProductAction,
   deleteCatalogProductAction,
   toggleCatalogProductActiveAction,
+  searchCatalogPageAction,
   type CatalogProductInput,
 } from "@/app/(platform)/parametres/catalog-actions";
 
@@ -71,30 +72,61 @@ const eur = (n: number) =>
     minimumFractionDigits: 2,
   }).format(n);
 
+const PAGE_SIZE = 50;
+
 export function CatalogTab({
   initialProducts,
+  initialTotal,
+  initialCategories,
 }: {
   initialProducts: CatalogProduct[];
+  initialTotal?: number;
+  initialCategories?: string[];
 }) {
   const [products, setProducts] = useState<CatalogProduct[]>(initialProducts);
+  const [total, setTotal] = useState<number>(initialTotal ?? initialProducts.length);
+  const [page, setPage] = useState(0);
+  const dynamicCategories = useMemo(
+    () =>
+      Array.from(
+        new Set([...(initialCategories ?? []), ...CATEGORIES]),
+      ).sort((a, b) => a.localeCompare(b, "fr")),
+    [initialCategories],
+  );
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState<string | "all">("all");
   const [editing, setEditing] = useState<CatalogProduct | "new" | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return products.filter((p) => {
-      if (catFilter !== "all" && p.category !== catFilter) return false;
-      if (!q) return true;
-      return (
-        p.ref.toLowerCase().includes(q) ||
-        p.name.toLowerCase().includes(q) ||
-        (p.description?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [products, query, catFilter]);
+  // Server-side search/pagination — la table fait 45k+ lignes, pas de filtre
+  // client side.
+  const filtered = products;
+
+  // Debounce search + filter change → re-fetch côté serveur
+  useEffect(() => {
+    const t = setTimeout(() => {
+      startTransition(async () => {
+        const r = await searchCatalogPageAction({
+          q: query,
+          category: catFilter === "all" ? null : catFilter,
+          page,
+          pageSize: PAGE_SIZE,
+        });
+        setProducts(r.products);
+        setTotal(r.total);
+      });
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, catFilter, page]);
+
+  // Reset page sur changement de filtre
+  useEffect(() => {
+    setPage(0);
+  }, [query, catFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const handleSave = (id: string | null, input: CatalogProductInput) => {
     setError(null);
@@ -181,7 +213,7 @@ export function CatalogTab({
           <h2 className="text-[22px] font-semibold text-ink tracking-tight">
             Produits catalogue
             <span className="ml-2 text-[15px] text-muted-2 font-medium tabular-nums">
-              {products.length}
+              {total.toLocaleString("fr-FR")}
             </span>
           </h2>
           <p className="text-[12.5px] text-muted mt-1 max-w-2xl">
@@ -215,15 +247,36 @@ export function CatalogTab({
           className="h-9 rounded-md border border-line bg-white px-3 text-[12.5px] text-ink"
         >
           <option value="all">Toutes catégories</option>
-          {CATEGORIES.map((c) => (
+          {dynamicCategories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
         </select>
         <span className="text-[11.5px] text-muted-2">
-          {filtered.length} affiché{filtered.length > 1 ? "s" : ""}
+          {filtered.length} sur {total.toLocaleString("fr-FR")}
         </span>
+        {totalPages > 1 && (
+          <div className="ml-auto inline-flex items-center gap-1 text-[12px]">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0 || pending}
+              className="h-8 px-2.5 rounded-md border border-line hover:border-line-strong disabled:opacity-40"
+            >
+              ←
+            </button>
+            <span className="text-muted-2 px-1 tabular-nums">
+              {page + 1} / {totalPages.toLocaleString("fr-FR")}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1 || pending}
+              className="h-8 px-2.5 rounded-md border border-line hover:border-line-strong disabled:opacity-40"
+            >
+              →
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (

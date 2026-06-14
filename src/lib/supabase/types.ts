@@ -1623,6 +1623,84 @@ export interface Database {
         };
         Relationships: [];
       };
+      sav_tickets: {
+        Row: {
+          id: string;
+          number: string;
+          client_id: string | null;
+          devis_id: string | null;
+          dossier_id: string | null;
+          title: string;
+          description: string | null;
+          priority: "normale" | "haute" | "urgente";
+          status: "nouveau" | "en_cours" | "resolu" | "annule";
+          assigned_to: string | null;
+          store_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          number: string;
+          client_id?: string | null;
+          devis_id?: string | null;
+          dossier_id?: string | null;
+          title: string;
+          description?: string | null;
+          priority?: "normale" | "haute" | "urgente";
+          status?: "nouveau" | "en_cours" | "resolu" | "annule";
+          assigned_to?: string | null;
+          store_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          number?: string;
+          client_id?: string | null;
+          devis_id?: string | null;
+          dossier_id?: string | null;
+          title?: string;
+          description?: string | null;
+          priority?: "normale" | "haute" | "urgente";
+          status?: "nouveau" | "en_cours" | "resolu" | "annule";
+          assigned_to?: string | null;
+          store_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          resolved_at?: string | null;
+        };
+        Relationships: [];
+      };
+      sav_ticket_notes: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          ticket_id: string;
+          author_id?: string | null;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          ticket_id?: string;
+          author_id?: string | null;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       sources: {
         Row: {
           id: string;

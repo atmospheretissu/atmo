@@ -2,6 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { listCatalogProductsPage } from "@/lib/db/catalog";
+import type { CatalogProduct } from "@/components/parametres/catalog-tab";
+
+export async function searchCatalogPageAction(opts: {
+  q?: string;
+  category?: string | null;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ products: CatalogProduct[]; total: number }> {
+  const r = await listCatalogProductsPage(opts);
+  return { products: r.products, total: r.total };
+}
 
 export type CatalogProductInput = {
   ref: string;

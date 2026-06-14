@@ -26,6 +26,7 @@ import { AtelierAssignCard } from "@/components/confections/atelier-assign";
 import { DossierNotesCard } from "@/components/confections/dossier-notes";
 import { listDossierNotes } from "@/lib/db/dossier-notes";
 import { NextStepBanner } from "@/components/confections/next-step-banner";
+import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
 import { eur, shortDate } from "@/lib/formatters";
@@ -150,6 +151,14 @@ export default async function DossierDetailPage({
               {dossier.status === "pret_pose" && dossier.solde_paid && (
                 <PlanPoseButton dossierId={dossier.id} />
               )}
+              <OpenSavTicketButton
+                context={{
+                  clientId: dossier.client_id,
+                  devisId: dossier.devis_id ?? null,
+                  dossierId: dossier.id,
+                  contextLabel: `Dossier ${dossier.number} · ${client?.display_name ?? "—"}`,
+                }}
+              />
             </div>
           </div>
         </section>

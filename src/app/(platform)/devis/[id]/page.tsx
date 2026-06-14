@@ -19,6 +19,7 @@ import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
 import { PaymentProgress } from "@/components/devis/payment-progress";
+import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
 import { StripeCheckoutButton } from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
@@ -142,6 +143,14 @@ export default async function DevisDetailPage({
                 <MarkSoldeButton devisId={devis.id} />
               )}
               <SendEmailButton devisId={devis.id} />
+              <OpenSavTicketButton
+                context={{
+                  clientId: devis.client_id,
+                  devisId: devis.id,
+                  dossierId: dossier?.id ?? null,
+                  contextLabel: `Devis ${devis.number} · ${client?.display_name ?? "—"}`,
+                }}
+              />
               {dossier && (
                 <Link href={`/confections/${dossier.id}`}>
                   <Button variant="accent" size="sm">
