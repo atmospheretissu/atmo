@@ -42,11 +42,14 @@ export function ClientsTable({ initialClients }: { initialClients: Client[] }) {
     return initialClients.filter((c) => {
       if (channel !== "all" && c.channel !== channel) return false;
       if (query) {
-        const q = query.toLowerCase();
+        const q = query.toLowerCase().trim();
+        if (!q) return true;
+        const norm = (s: string) => s.replace(/[\s.+\-/()]/g, "").toLowerCase();
         return (
           c.display_name.toLowerCase().includes(q) ||
           (c.city?.toLowerCase().includes(q) ?? false) ||
-          (c.email?.toLowerCase().includes(q) ?? false)
+          (c.email?.toLowerCase().includes(q) ?? false) ||
+          (c.phone ? norm(c.phone).includes(norm(query)) : false)
         );
       }
       return true;
@@ -90,7 +93,7 @@ export function ClientsTable({ initialClients }: { initialClients: Client[] }) {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nom, ville, email…"
+            placeholder="Nom, email, téléphone, ville…"
             className="pl-9 w-72 text-[12.5px] rounded-full bg-white"
           />
         </div>

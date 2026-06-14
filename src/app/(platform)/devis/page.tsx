@@ -5,13 +5,18 @@ import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { listDevis, getDevisStats } from "@/lib/db/devis";
+import { listSources } from "@/lib/db/sources";
 import { eur } from "@/lib/formatters";
 import { DevisListWithReader } from "@/components/devis/devis-list-with-reader";
 
 export const dynamic = "force-dynamic";
 
 export default async function DevisListPage() {
-  const [devis, stats] = await Promise.all([listDevis(), getDevisStats()]);
+  const [devis, stats, sources] = await Promise.all([
+    listDevis(),
+    getDevisStats(),
+    listSources(),
+  ]);
 
   return (
     <>
@@ -93,7 +98,11 @@ export default async function DevisListPage() {
           </div>
         </section>
 
-        {devis.length === 0 ? <EmptyState /> : <DevisListWithReader initialDevis={devis} />}
+        {devis.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <DevisListWithReader initialDevis={devis} sources={sources} />
+        )}
       </div>
     </>
   );

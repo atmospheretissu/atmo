@@ -23,6 +23,8 @@ import {
 } from "@/lib/validation/devis";
 import { channelLabels, type Channel } from "@/lib/validation/client";
 import type { DevisWithClient } from "@/lib/db/devis";
+import type { Source } from "@/lib/db/sources-shared";
+import { resolveSourceLabel } from "@/lib/db/sources-shared";
 
 const channelTones: Record<Channel, "violet" | "orange" | "blue" | "pink" | "emerald"> = {
   magasin: "violet",
@@ -54,7 +56,13 @@ const eurShort = new Intl.NumberFormat("fr-FR", {
   maximumFractionDigits: 0,
 });
 
-export function DevisListWithReader({ initialDevis }: { initialDevis: DevisWithClient[] }) {
+export function DevisListWithReader({
+  initialDevis,
+  sources = [],
+}: {
+  initialDevis: DevisWithClient[];
+  sources?: Source[];
+}) {
   const [filter, setFilter] = useState<"all" | DevisStatus>("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -64,10 +72,17 @@ export function DevisListWithReader({ initialDevis }: { initialDevis: DevisWithC
     return initialDevis.filter((d) => {
       if (filter !== "all" && d.status !== filter) return false;
       if (query) {
-        const q = query.toLowerCase();
+        const q = query.toLowerCase().trim();
+        if (!q) return true;
+        // Normalisation : on enlève espaces/points/+33 pour matcher le tel
+        const norm = (s: string) => s.replace(/[\s.+\-/()]/g, "").toLowerCase();
+        const c = d.client;
         return (
           d.number.toLowerCase().includes(q) ||
-          (d.client?.display_name.toLowerCase().includes(q) ?? false) ||
+          (c?.display_name.toLowerCase().includes(q) ?? false) ||
+          (c?.email?.toLowerCase().includes(q) ?? false) ||
+          (c?.phone ? norm(c.phone).includes(norm(query)) : false) ||
+          (c?.city?.toLowerCase().includes(q) ?? false) ||
           (d.product_summary?.toLowerCase().includes(q) ?? false)
         );
       }
@@ -153,7 +168,7 @@ export function DevisListWithReader({ initialDevis }: { initialDevis: DevisWithC
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Client, n° devis…"
+              placeholder="Nom, email, téléphone, n° devis, ville…"
               className="pl-9 w-64 text-[12.5px] rounded-full bg-white"
             />
           </div>
@@ -177,7 +192,7 @@ export function DevisListWithReader({ initialDevis }: { initialDevis: DevisWithC
               onSelect={setSelectedId}
             />
           ) : (
-            <FullTable devis={filtered} onSelect={setSelectedId} />
+            <FullTable devis={filtered} onSelect={setSelectedId} sources={sources} />
           )}
         </div>
 
@@ -198,9 +213,11 @@ export function DevisListWithReader({ initialDevis }: { initialDevis: DevisWithC
 function FullTable({
   devis,
   onSelect,
+  sources,
 }: {
   devis: DevisWithClient[];
   onSelect: (id: string) => void;
+  sources: Source[];
 }) {
   return (
     <div className="bg-white border border-line rounded-2xl overflow-hidden">
@@ -249,9 +266,16 @@ function FullTable({
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <StatusPill tone={channelTones[channel]} dot={false}>
-                    {channelLabels[channel]}
-                  </StatusPill>
+                  {(() => {
+                    const sourceId =
+                      (d as { source_id?: string | null }).source_id ?? null;
+                    const r = resolveSourceLabel(sources, sourceId, channel);
+                    return (
+                      <StatusPill tone={r.color} dot={false}>
+                        {r.label}
+                      </StatusPill>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-3 max-w-xs">
                   <p className="text-ink truncate font-medium">{d.product_summary}</p>

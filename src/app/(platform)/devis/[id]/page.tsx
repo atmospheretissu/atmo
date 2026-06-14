@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
 import { PaymentProgress } from "@/components/devis/payment-progress";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
+import { NextStepDevisBanner } from "@/components/devis/next-step-devis";
 import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
 import { StripeCheckoutButton } from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
@@ -168,6 +169,19 @@ export default async function DevisDetailPage({
               </Button>
             </div>
           </div>
+        </section>
+
+        {/* Next step banner */}
+        <section className="px-8 pb-6">
+          <NextStepDevisBanner
+            devisId={devis.id}
+            status={status}
+            acomptePaid={Boolean(dossier?.acompte_paid)}
+            soldePaid={Boolean(dossier?.solde_paid)}
+            hasDossier={Boolean(dossier)}
+            dossierId={dossier?.id ?? null}
+            clientHasEmail={Boolean(client?.email)}
+          />
         </section>
 
         <div className="px-8 pb-10 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
