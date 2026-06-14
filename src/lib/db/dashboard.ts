@@ -7,7 +7,7 @@ import {
   type WorkflowStatus,
 } from "@/lib/workflow/statuses";
 
-export type PeriodKey = "day" | "week" | "month" | "year" | "all";
+export type PeriodKey = "day" | "week" | "month" | "year" | "all" | "custom";
 
 export type Period = {
   key: PeriodKey;
@@ -16,12 +16,47 @@ export type Period = {
   label: string;
 };
 
-export function resolvePeriod(key: string | undefined): Period {
+const parseDateStrict = (iso: string | undefined | null): Date | null => {
+  if (!iso) return null;
+  // attend YYYY-MM-DD
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const date = new Date(Number(y), Number(mo) - 1, Number(d));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const fmtFr = (d: Date) =>
+  d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+
+export function resolvePeriod(
+  key: string | undefined,
+  customFrom?: string | null,
+  customTo?: string | null,
+): Period {
+  const now = new Date();
+
+  // Custom : si les 2 dates parsent, on les utilise
+  if (key === "custom") {
+    const from = parseDateStrict(customFrom ?? undefined);
+    const to = parseDateStrict(customTo ?? undefined);
+    if (from && to && from.getTime() <= to.getTime()) {
+      const toEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999);
+      return {
+        key: "custom",
+        from,
+        to: toEnd,
+        label: `Du ${fmtFr(from)} au ${fmtFr(to)}`,
+      };
+    }
+    // Fallback silencieux vers mois en cours si dates invalides
+  }
+
   const k: PeriodKey =
     key === "day" || key === "week" || key === "year" || key === "all"
-      ? key
+      ? (key as PeriodKey)
       : "month";
-  const now = new Date();
   const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   let from: Date;
   let label: string;
@@ -83,10 +118,14 @@ export type DashboardStats = {
   };
 };
 
-export async function getDashboardStats(periodKey?: string): Promise<DashboardStats> {
+export async function getDashboardStats(
+  periodKey?: string,
+  customFrom?: string | null,
+  customTo?: string | null,
+): Promise<DashboardStats> {
   const supabase = await createClient();
   const storeFilter = await getEffectiveStoreFilter();
-  const period = resolvePeriod(periodKey);
+  const period = resolvePeriod(periodKey, customFrom, customTo);
 
   const devisQuery = supabase.from("devis").select("status, total_ttc, acompte_ttc, created_at");
   const dossiersQuery = supabase

@@ -26,7 +26,6 @@ import {
   getDashboardStats,
   getDashboardAlerts,
   getRecentDevis,
-  type PeriodKey,
 } from "@/lib/db/dashboard";
 import {
   devisStatusLabels,
@@ -40,6 +39,7 @@ import {
   type WorkflowStatus,
 } from "@/lib/workflow/statuses";
 import type { ChipTone } from "@/components/ui/status-pill";
+import { PeriodSelector } from "@/components/dashboard/period-selector";
 
 function toChipTone(t: StatusMeta["tone"]): ChipTone {
   if (t === "muted" || t === "neutral") return "ink";
@@ -48,14 +48,6 @@ function toChipTone(t: StatusMeta["tone"]): ChipTone {
 
 export const dynamic = "force-dynamic";
 
-const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
-  { key: "day", label: "Aujourd'hui" },
-  { key: "week", label: "Semaine" },
-  { key: "month", label: "Mois" },
-  { key: "year", label: "Année" },
-  { key: "all", label: "Tout" },
-];
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -63,9 +55,11 @@ export default async function DashboardPage({
 }) {
   const sp = await searchParams;
   const periodKey = typeof sp.period === "string" ? sp.period : "month";
+  const customFrom = typeof sp.from === "string" ? sp.from : null;
+  const customTo = typeof sp.to === "string" ? sp.to : null;
 
   const [stats, alerts, recentDevis] = await Promise.all([
-    getDashboardStats(periodKey),
+    getDashboardStats(periodKey, customFrom, customTo),
     getDashboardAlerts(),
     getRecentDevis(5),
   ]);
@@ -92,7 +86,11 @@ export default async function DashboardPage({
           <div className="flex items-start justify-between gap-8 flex-wrap mb-4">
             <p className="eyebrow capitalize">{todayLong}</p>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <PeriodSelector current={stats.period.key} />
+              <PeriodSelector
+                current={stats.period.key}
+                initialFrom={customFrom}
+                initialTo={customTo}
+              />
               <Link href="/devis/nouveau">
                 <Button variant="secondary" size="sm">
                   <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
@@ -288,29 +286,6 @@ export default async function DashboardPage({
         </section>
       </div>
     </>
-  );
-}
-
-function PeriodSelector({ current }: { current: PeriodKey }) {
-  return (
-    <div className="inline-flex items-center gap-0.5 rounded-md border border-line bg-canvas-2/40 p-0.5">
-      {PERIOD_OPTIONS.map((opt) => {
-        const active = opt.key === current;
-        return (
-          <Link
-            key={opt.key}
-            href={`/dashboard?period=${opt.key}`}
-            className={`px-2.5 py-1 text-[12px] font-medium rounded-[5px] transition-colors ${
-              active
-                ? "bg-white text-ink shadow-sm"
-                : "text-muted-2 hover:text-ink"
-            }`}
-          >
-            {opt.label}
-          </Link>
-        );
-      })}
-    </div>
   );
 }
 
