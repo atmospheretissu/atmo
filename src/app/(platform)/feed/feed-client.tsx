@@ -560,7 +560,46 @@ function CommunicationDetails({ event }: { event: FeedEvent }) {
             </p>
           </div>
         ) : null}
+        {(event.kind === "sms_failed" || event.kind === "email_failed") && (
+          <RetryButton
+            isSms={isSms}
+            logId={event.id.replace(/^(sms|email):/, "")}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+function RetryButton({ isSms, logId }: { isSms: boolean; logId: string }) {
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message?: string } | null>(null);
+  const run = async () => {
+    setPending(true);
+    setResult(null);
+    try {
+      const mod = await import("@/app/(platform)/feed/retry-actions");
+      const r = isSms ? await mod.retrySmsAction(logId) : await mod.retryEmailAction(logId);
+      setResult({ ok: r.ok, message: r.ok ? undefined : r.message });
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <div className="pt-2 mt-2 border-t border-line flex items-center gap-2 flex-wrap">
+      <button
+        onClick={run}
+        disabled={pending}
+        className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[11.5px] font-semibold bg-ink text-white hover:bg-ink/90 disabled:opacity-40 transition-colors"
+      >
+        {pending ? "Envoi en cours…" : `Relancer ${isSms ? "le SMS" : "l'email"}`}
+      </button>
+      {result?.ok && (
+        <span className="text-[11.5px] text-emerald">✓ Renvoyé avec succès</span>
+      )}
+      {result && !result.ok && (
+        <span className="text-[11.5px] text-pink">Échec : {result.message}</span>
+      )}
     </div>
   );
 }

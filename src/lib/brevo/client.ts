@@ -69,6 +69,15 @@ export type BrevoSmsPayload = {
 export async function sendBrevoSms(
   payload: BrevoSmsPayload
 ): Promise<{ ok: true; messageId: string } | { ok: false; message: string }> {
+  // Normalisation E.164 — Brevo refuse les numéros nationaux FR (0XXX)
+  const { normalizePhone } = await import("./normalize-phone");
+  const normalized = normalizePhone(payload.recipient);
+  if (!normalized) {
+    return {
+      ok: false,
+      message: `Numéro de téléphone invalide : "${payload.recipient}" (attendu format international, ex: +33667699490)`,
+    };
+  }
   try {
     const res = await fetch(`${BREVO_BASE}/transactionalSMS/sms`, {
       method: "POST",
@@ -78,7 +87,7 @@ export async function sendBrevoSms(
         accept: "application/json",
       },
       body: JSON.stringify({
-        recipient: payload.recipient,
+        recipient: normalized,
         content: payload.content,
         sender: payload.sender ?? process.env.BREVO_SMS_SENDER ?? "ATMOSPHERE",
         type: "transactional",
