@@ -76,52 +76,6 @@ export default async function DevisDetailPage({
           { label: "Devis", href: "/devis" },
           { label: devis.number },
         ]}
-        actions={
-          <>
-            <Link href={`/devis/${devis.id}/pdf?inline=1`} target="_blank">
-              <Button variant="ghost" size="sm">
-                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF devis
-              </Button>
-            </Link>
-            {dossier?.acompte_paid && (
-              <Link href={`/devis/${devis.id}/facture?kind=acompte&inline=1`} target="_blank">
-                <Button variant="ghost" size="sm">
-                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Facture acompte
-                </Button>
-              </Link>
-            )}
-            {dossier?.solde_paid && (
-              <Link href={`/devis/${devis.id}/facture?kind=solde&inline=1`} target="_blank">
-                <Button variant="ghost" size="sm">
-                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Facture solde
-                </Button>
-              </Link>
-            )}
-            <Link href={`/devis/${devis.id}/edit`}>
-              <Button variant="secondary" size="sm">
-                <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
-              </Button>
-            </Link>
-            {status !== "acompte_recu" && status !== "refuse" && status !== "expire" && (
-              <MarkAcompteButton devisId={devis.id} />
-            )}
-            {status === "acompte_recu" && dossier && !dossier.solde_paid && (
-              <MarkSoldeButton devisId={devis.id} />
-            )}
-            <SendEmailButton devisId={devis.id} />
-            {dossier && (
-              <Link href={`/confections/${dossier.id}`}>
-                <Button variant="accent" size="sm">
-                  <Scissors className="h-3.5 w-3.5" strokeWidth={2.2} />
-                  Fiche confection
-                </Button>
-              </Link>
-            )}
-            <Button variant="ghost" size="icon-sm" aria-label="Plus">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -153,6 +107,52 @@ export default async function DevisDetailPage({
                 )}
               </p>
               <p className="font-mono text-[12.5px] text-muted-2 mt-1">{devis.number}</p>
+            </div>
+
+            {/* Actions — barre d'actions contextuelles selon le statut */}
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Link href={`/devis/${devis.id}/pdf?inline=1`} target="_blank">
+                <Button variant="ghost" size="sm">
+                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF devis
+                </Button>
+              </Link>
+              {dossier?.acompte_paid && (
+                <Link href={`/devis/${devis.id}/facture?kind=acompte&inline=1`} target="_blank">
+                  <Button variant="ghost" size="sm">
+                    <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Facture acompte
+                  </Button>
+                </Link>
+              )}
+              {dossier?.solde_paid && (
+                <Link href={`/devis/${devis.id}/facture?kind=solde&inline=1`} target="_blank">
+                  <Button variant="ghost" size="sm">
+                    <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Facture solde
+                  </Button>
+                </Link>
+              )}
+              <Link href={`/devis/${devis.id}/edit`}>
+                <Button variant="secondary" size="sm">
+                  <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
+                </Button>
+              </Link>
+              {status !== "acompte_recu" && status !== "refuse" && status !== "expire" && (
+                <MarkAcompteButton devisId={devis.id} />
+              )}
+              {status === "acompte_recu" && dossier && !dossier.solde_paid && (
+                <MarkSoldeButton devisId={devis.id} />
+              )}
+              <SendEmailButton devisId={devis.id} />
+              {dossier && (
+                <Link href={`/confections/${dossier.id}`}>
+                  <Button variant="accent" size="sm">
+                    <Scissors className="h-3.5 w-3.5" strokeWidth={2.2} />
+                    Fiche confection
+                  </Button>
+                </Link>
+              )}
+              <Button variant="ghost" size="icon-sm" aria-label="Plus">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </section>

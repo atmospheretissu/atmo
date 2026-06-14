@@ -84,28 +84,6 @@ export default async function ClientDetailPage({
           { label: "Clients", href: "/clients" },
           { label: client.display_name },
         ]}
-        actions={
-          <>
-            <Button variant="ghost" size="sm">
-              <Send className="h-3.5 w-3.5" strokeWidth={2.2} /> Envoyer SMS
-            </Button>
-            <Link href={`/clients/${client.id}/edit`}>
-              <Button variant="secondary" size="sm">
-                <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
-              </Button>
-            </Link>
-            <Link href={`/devis/nouveau?client=${client.id}`}>
-              <Button variant="secondary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
-              </Button>
-            </Link>
-            <Link href={`/boutique/nouveau?client=${client.id}`}>
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
-              </Button>
-            </Link>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -124,21 +102,45 @@ export default async function ClientDetailPage({
             )}
           </div>
 
-          <div className="flex items-center gap-5 flex-wrap">
-            <LetterAvatar
-              initial={initial}
-              tone={toneFor(client.display_name)}
-              size="lg"
-              className="!h-14 !w-14 !text-[18px]"
-            />
-            <div>
-              <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
-                {client.display_name}
-              </h1>
-              <p className="text-[13.5px] text-muted mt-1">
-                {client.city ?? "Ville non renseignée"} · {devis.length}{" "}
-                interaction{devis.length > 1 ? "s" : ""}
-              </p>
+          <div className="flex items-end justify-between gap-8 flex-wrap">
+            <div className="flex items-center gap-5 flex-wrap min-w-0">
+              <LetterAvatar
+                initial={initial}
+                tone={toneFor(client.display_name)}
+                size="lg"
+                className="!h-14 !w-14 !text-[18px]"
+              />
+              <div>
+                <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+                  {client.display_name}
+                </h1>
+                <p className="text-[13.5px] text-muted mt-1">
+                  {client.city ?? "Ville non renseignée"} · {devis.length}{" "}
+                  interaction{devis.length > 1 ? "s" : ""}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button variant="ghost" size="sm">
+                <Send className="h-3.5 w-3.5" strokeWidth={2.2} /> Envoyer SMS
+              </Button>
+              <Link href={`/clients/${client.id}/edit`}>
+                <Button variant="secondary" size="sm">
+                  <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
+                </Button>
+              </Link>
+              <Link href={`/devis/nouveau?client=${client.id}`}>
+                <Button variant="secondary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
+                </Button>
+              </Link>
+              <Link href={`/boutique/nouveau?client=${client.id}`}>
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
