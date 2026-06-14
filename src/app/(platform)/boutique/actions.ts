@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import { getNextDevisNumber } from "@/lib/db/devis";
 import { createDossierFromDevis } from "@/lib/db/dossiers";
+import { getCreationStoreId } from "@/lib/db/stores";
 
 const CONFECTION_TYPES = new Set([
   "rideau_tissu_confection",
@@ -121,6 +122,7 @@ export async function createBoutiqueDevisAction(
   const productDetail = input.pieces.map((p) => p.name).join(" · ");
   const number = await getNextDevisNumber();
   const validUntil = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+  const storeId = await getCreationStoreId();
 
   const { data: devis, error: e1 } = await supabase
     .from("devis")
@@ -141,6 +143,7 @@ export async function createBoutiqueDevisAction(
       commercial_id: user.id,
       acompte_pct: input.acomptePct ?? 50,
       hide_measurements_for_client: input.hideMeasurementsForClient ?? false,
+      store_id: storeId,
     })
     .select("id")
     .single();
