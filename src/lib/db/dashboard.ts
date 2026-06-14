@@ -135,11 +135,11 @@ export async function getDashboardStats(
   const storeFilter = await getEffectiveStoreFilter();
   const period = resolvePeriod(periodKey, customFrom, customTo);
 
-  const devisQuery = supabase.from("devis").select("status, total_ttc, acompte_ttc, created_at");
+  const devisQuery = supabase.from("devis").select("id, status, total_ttc, acompte_ttc, created_at");
   const dossiersQuery = supabase
     .from("dossiers")
     .select(
-      "status, total_ttc, solde_paid, created_at, updated_at, attente_matiere_at, confection_started_at, pret_pose_at, cloture_at"
+      "status, total_ttc, solde_paid, created_at, updated_at, attente_matiere_at, confection_started_at, pret_pose_at, cloture_at, devis_id"
     );
   const clientsQuery = supabase.from("clients").select("id", { count: "exact", head: true });
   const posesQuery = supabase.from("poses").select("status, scheduled_at");
@@ -178,23 +178,33 @@ export async function getDashboardStats(
   let devisInPeriod = 0;
   let convertedInPeriod = 0;
 
+  // Set des devis_id qui ont un dossier : ces devis ne doivent plus apparaître
+  // dans les étapes DEVIS / COMMANDE du flux (1 projet = 1 emplacement à la fois).
+  const devisWithDossier = new Set(
+    (dossiers ?? [])
+      .map((d) => (d as { devis_id?: string | null }).devis_id ?? null)
+      .filter((id): id is string => Boolean(id)),
+  );
+
   for (const d of devis ?? []) {
     const ttc = Number(d.total_ttc ?? 0);
     const acompte = Number(d.acompte_ttc ?? ttc * 0.5);
     const status = String(d.status);
+    const hasDossier = devisWithDossier.has(d.id);
 
     if (inPeriod(d.created_at)) {
       devisInPeriod += 1;
       if (status === "acompte_recu" || status === "valide") convertedInPeriod += 1;
     }
 
-    // Étape 1 "DEVIS" : non envoyé (brouillon)
-    if (status === "brouillon") {
+    // Étape 1 "DEVIS" : non envoyé (brouillon) ET pas encore de dossier rattaché
+    if (status === "brouillon" && !hasDossier) {
       devisDraftCount += 1;
       devisDraftAmount += ttc;
     }
     // Étape 2 "COMMANDE" : envoyé au client, en attente acompte (envoye + valide)
-    if (status === "envoye" || status === "valide") {
+    //                     ET pas encore de dossier rattaché
+    if ((status === "envoye" || status === "valide") && !hasDossier) {
       devisCommandeCount += 1;
       devisCommandeAmount += ttc;
     }

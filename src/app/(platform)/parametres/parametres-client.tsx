@@ -9,6 +9,7 @@ import {
   FlaskConical,
   Hammer,
   Building2,
+  Database,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { SuppliersTab } from "@/components/parametres/suppliers-tab";
@@ -19,6 +20,7 @@ import { TestTab } from "@/components/parametres/test-tab";
 import { EquipeTab } from "@/components/parametres/equipe-tab";
 import { SourcesSection } from "@/components/parametres/sources-section";
 import { StoresSection } from "@/components/parametres/stores-section";
+import { CatalogTab, type CatalogProduct } from "@/components/parametres/catalog-tab";
 import type { Supplier } from "@/lib/db/suppliers";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
 import type { SmsTemplate } from "@/lib/db/sms-templates-shared";
@@ -26,7 +28,15 @@ import type { EmailTemplate } from "@/lib/db/email-templates-shared";
 import type { Poseur, Atelier } from "@/lib/db/equipe";
 import type { Source } from "@/lib/db/sources-shared";
 import type { Store } from "@/lib/db/stores-shared";
-type TabKey = "magasins" | "fournisseurs" | "equipe" | "utilisateurs" | "roles" | "test" | "integrations";
+type TabKey =
+  | "magasins"
+  | "fournisseurs"
+  | "equipe"
+  | "data"
+  | "utilisateurs"
+  | "roles"
+  | "test"
+  | "integrations";
 
 type Props = {
   suppliers: Supplier[];
@@ -44,6 +54,7 @@ type Props = {
   ateliers: Atelier[];
   sources: Source[];
   stores: Store[];
+  catalogProducts: CatalogProduct[];
 };
 
 export default function ParametresClient({
@@ -57,6 +68,7 @@ export default function ParametresClient({
   ateliers,
   sources,
   stores,
+  catalogProducts,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("magasins");
 
@@ -85,6 +97,7 @@ export default function ParametresClient({
             <TabBtn active={tab === "magasins"} onClick={() => setTab("magasins")} icon={Building2} label="Magasins" count={stores.length} />
             <TabBtn active={tab === "equipe"} onClick={() => setTab("equipe")} icon={Hammer} label="Équipe" count={poseurs.length + ateliers.length} />
             <TabBtn active={tab === "fournisseurs"} onClick={() => setTab("fournisseurs")} icon={Truck} label="Fournisseurs" count={suppliers.length} />
+            <TabBtn active={tab === "data"} onClick={() => setTab("data")} icon={Database} label="Data" count={catalogProducts.length} />
             <TabBtn active={tab === "utilisateurs"} onClick={() => setTab("utilisateurs")} icon={Users} label="Utilisateurs" count={profiles.length} />
             <TabBtn active={tab === "roles"} onClick={() => setTab("roles")} icon={Shield} label="Rôles & accès" count={6} />
             <TabBtn active={tab === "test"} onClick={() => setTab("test")} icon={FlaskConical} label="Envoi & Test" count={0} />
@@ -101,6 +114,7 @@ export default function ParametresClient({
             </div>
           )}
           {tab === "fournisseurs" && <SuppliersTab suppliers={suppliers} />}
+          {tab === "data" && <CatalogTab initialProducts={catalogProducts} />}
           {tab === "utilisateurs" && <UsersTab profiles={profiles} />}
           {tab === "roles" && <RolesTab counts={roleCounts} />}
           {tab === "test" && (
