@@ -41,12 +41,23 @@ export default async function ClientSpacePage({
 
   if (!devis) notFound();
 
-  // 1.b. Marque le devis comme "vu par le client" (1ère ouverture) → log activité
+  // 1.b. Marque le devis comme "vu par le client" (1ère ouverture) +
+  //      déclenche la notification interne au commercial créateur du devis
   if (!(devis as { client_viewed_at?: string | null }).client_viewed_at) {
-    void supabase
-      .from("devis")
-      .update({ client_viewed_at: new Date().toISOString() })
-      .eq("id", devis.id);
+    void (async () => {
+      await supabase
+        .from("devis")
+        .update({ client_viewed_at: new Date().toISOString() })
+        .eq("id", devis.id);
+      try {
+        const { notifyDevisVuClient } = await import(
+          "@/lib/brevo/notify-devis-vu"
+        );
+        await notifyDevisVuClient(devis.id, "portail");
+      } catch (err) {
+        console.warn("[notify devis_vu_client]", err);
+      }
+    })();
   }
 
   // 2. Charge en parallèle : client, lignes, dossier (s'il existe), items, pose, paiements

@@ -12,6 +12,7 @@ export const EVENT_KEYS = [
   "lead_lm_received",
   "devis_created",
   "devis_envoye",
+  "devis_vu_client",
   "acompte_recu",
   "article_pret",
   "tous_recus",

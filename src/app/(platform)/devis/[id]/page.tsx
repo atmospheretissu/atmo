@@ -81,7 +81,7 @@ export default async function DevisDetailPage({
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-8">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
             <p className="eyebrow">Devis · v{devis.version}</p>
             <span className="text-muted-2">·</span>
             <StatusPill tone={devisStatusTones[status]}>{devisStatusLabels[status]}</StatusPill>
@@ -91,6 +91,10 @@ export default async function DevisDetailPage({
               currentLabel={resolveSourceLabel(allSources, (devis as { source_id?: string | null }).source_id ?? null, channel).label}
               currentColor={resolveSourceLabel(allSources, (devis as { source_id?: string | null }).source_id ?? null, channel).color}
               allSources={allSources}
+            />
+            <ClientViewBadge
+              status={status}
+              clientViewedAt={(devis as { client_viewed_at?: string | null }).client_viewed_at ?? null}
             />
           </div>
 
@@ -355,6 +359,43 @@ export default async function DevisDetailPage({
         </div>
       </div>
     </>
+  );
+}
+
+function ClientViewBadge({
+  status,
+  clientViewedAt,
+}: {
+  status: string;
+  clientViewedAt: string | null;
+}) {
+  // Pas pertinent avant l'envoi
+  if (status === "brouillon") return null;
+
+  if (clientViewedAt) {
+    const d = new Date(clientViewedAt);
+    const label = d.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return (
+      <span
+        title={`Devis ouvert par le client le ${d.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}`}
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-soft text-emerald border border-emerald/30"
+      >
+        ✉ Vu · {label}
+      </span>
+    );
+  }
+  return (
+    <span
+      title="Le client n'a pas encore ouvert son devis"
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-soft text-amber border border-amber/30"
+    >
+      ✉ Non ouvert
+    </span>
   );
 }
 

@@ -28,6 +28,22 @@ export async function GET(
     .maybeSingle();
   if (!devis) return new NextResponse("Devis introuvable", { status: 404 });
 
+  // 1ère ouverture (via PDF download) → marque + notifie le commercial
+  if (!(devis as { client_viewed_at?: string | null }).client_viewed_at) {
+    void (async () => {
+      await supabase
+        .from("devis")
+        .update({ client_viewed_at: new Date().toISOString() })
+        .eq("id", devis.id);
+      try {
+        const { notifyDevisVuClient } = await import("@/lib/brevo/notify-devis-vu");
+        await notifyDevisVuClient(devis.id, "pdf_download");
+      } catch (err) {
+        console.warn("[notify devis_vu_client from pdf]", err);
+      }
+    })();
+  }
+
   const [{ data: client }, { data: lines }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", devis.client_id).maybeSingle(),
     supabase
