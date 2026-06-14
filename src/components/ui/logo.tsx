@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
@@ -28,11 +29,15 @@ export function Logo({ className, variant = "full" }: LogoProps) {
     );
   }
   return (
-    <div className={cn("inline-flex items-center gap-2.5", className)}>
-      <Logo variant="mark" />
-      <span className="text-[16px] font-semibold text-ink tracking-tight leading-none">
-        Atmosphère
-      </span>
+    <div className={cn("inline-flex items-center", className)}>
+      <Image
+        src="/logo-atmosphere.svg"
+        alt="Atmosphère"
+        width={180}
+        height={38}
+        priority
+        className="h-[34px] w-auto select-none"
+      />
     </div>
   );
 }
