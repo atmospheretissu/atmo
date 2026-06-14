@@ -168,6 +168,8 @@ export default async function DashboardPage({
             </Link>
           </div>
           <FlowStrip
+            devisCount={stats.devisInFunnelCount}
+            devisAmount={stats.devisInFunnelAmount}
             flowByStatus={stats.flowByStatus}
             flowAmountByStatus={stats.flowAmountByStatus}
           />
@@ -330,42 +332,75 @@ const FLOW_ICONS: Partial<Record<WorkflowStatus, React.ComponentType<{ className
 };
 
 function FlowStrip({
+  devisCount,
+  devisAmount,
   flowByStatus,
   flowAmountByStatus,
 }: {
+  devisCount: number;
+  devisAmount: number;
   flowByStatus: Record<WorkflowStatus, number>;
   flowAmountByStatus: Record<WorkflowStatus, number>;
 }) {
-  const linear = KANBAN_ORDER.filter((s) => s !== "sav");
+  type Step = {
+    key: string;
+    shortLabel: string;
+    tone: ReturnType<typeof toChipTone>;
+    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+    href: string;
+    count: number;
+    amount: number;
+  };
+
+  const linear: Step[] = [
+    {
+      key: "devis",
+      shortLabel: "Devis",
+      tone: "pink",
+      icon: FileText,
+      href: "/devis",
+      count: devisCount,
+      amount: devisAmount,
+    },
+    ...KANBAN_ORDER.filter((s) => s !== "sav").map((status): Step => {
+      const meta = STATUS_META[status];
+      return {
+        key: status,
+        shortLabel: meta.shortLabel,
+        tone: toChipTone(meta.tone),
+        icon: FLOW_ICONS[status] ?? FileText,
+        href: "/confections",
+        count: flowByStatus[status] ?? 0,
+        amount: flowAmountByStatus[status] ?? 0,
+      };
+    }),
+  ];
   const savCount = flowByStatus.sav ?? 0;
 
   return (
     <div className="space-y-3">
       <div className="card overflow-hidden p-1">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1">
-          {linear.map((status, i) => {
-            const meta = STATUS_META[status];
-            const count = flowByStatus[status] ?? 0;
-            const amount = flowAmountByStatus[status] ?? 0;
-            const Icon = FLOW_ICONS[status] ?? FileText;
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1">
+          {linear.map((s, i) => {
+            const Icon = s.icon;
             const last = i === linear.length - 1;
             return (
               <Link
-                key={status}
-                href="/confections"
+                key={s.key}
+                href={s.href}
                 className="relative p-4 rounded-xl hover:bg-canvas-2/60 transition-colors block"
               >
-                <ColorChip tone={toChipTone(meta.tone)} size="md" className="mb-3">
+                <ColorChip tone={s.tone} size="md" className="mb-3">
                   <Icon className="h-4 w-4" strokeWidth={2.2} />
                 </ColorChip>
                 <p className="text-[11px] font-semibold tracking-wider uppercase text-muted-2 mb-1">
-                  {i + 1}. {meta.shortLabel}
+                  {i + 1}. {s.shortLabel}
                 </p>
                 <p className="text-[26px] font-semibold text-ink leading-none tabular-nums tracking-tight">
-                  {count}
+                  {s.count}
                 </p>
                 <p className="text-[11px] text-muted mt-1 tabular-nums">
-                  {amount > 0 ? eur(amount, true) : "—"}
+                  {s.amount > 0 ? eur(s.amount, true) : "—"}
                 </p>
 
                 {!last && (

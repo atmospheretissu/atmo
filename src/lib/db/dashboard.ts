@@ -105,7 +105,12 @@ export type DashboardStats = {
   acomptesPendingAmount: number;
   posesUpcoming: number;
 
-  // Flux par statut
+  // Étape "Devis" du flux (avant la commande validée)
+  // = devis encore en pipeline (brouillon + envoye + valide)
+  devisInFunnelCount: number;
+  devisInFunnelAmount: number;
+
+  // Flux par statut dossier
   flowByStatus: Record<WorkflowStatus, number>;
   flowAmountByStatus: Record<WorkflowStatus, number>;
 
@@ -162,6 +167,8 @@ export async function getDashboardStats(
   let acomptesPending = 0;
   let acomptesPendingAmount = 0;
   let caTotal = 0;
+  let devisInFunnelCount = 0;
+  let devisInFunnelAmount = 0;
 
   let devisInPeriod = 0;
   let convertedInPeriod = 0;
@@ -174,6 +181,12 @@ export async function getDashboardStats(
     if (inPeriod(d.created_at)) {
       devisInPeriod += 1;
       if (status === "acompte_recu" || status === "valide") convertedInPeriod += 1;
+    }
+
+    // Étape "DEVIS" du flux : tout devis pas encore en commande validée
+    if (status === "brouillon" || status === "envoye" || status === "valide") {
+      devisInFunnelCount += 1;
+      devisInFunnelAmount += ttc;
     }
 
     if (status === "envoye") {
@@ -255,6 +268,8 @@ export async function getDashboardStats(
     acomptesPending,
     acomptesPendingAmount,
     posesUpcoming,
+    devisInFunnelCount,
+    devisInFunnelAmount,
     flowByStatus,
     flowAmountByStatus,
     counts,

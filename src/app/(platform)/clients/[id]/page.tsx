@@ -7,9 +7,7 @@ import {
   Calendar,
   TrendingUp,
   FileText,
-  MoreHorizontal,
   Edit3,
-  Send,
   Plus,
   CheckCircle2,
   Sparkles,
@@ -21,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
+import { ContactButtons, HeaderSendButton } from "@/components/clients/contact-modal";
 import { getClientWithDevis } from "@/lib/db/clients";
 import { channelLabels, type Channel } from "@/lib/validation/client";
 import { eur, shortDate, time } from "@/lib/formatters";
@@ -123,9 +122,12 @@ export default async function ClientDetailPage({
 
             {/* Actions */}
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <Button variant="ghost" size="sm">
-                <Send className="h-3.5 w-3.5" strokeWidth={2.2} /> Envoyer SMS
-              </Button>
+              <HeaderSendButton
+                clientId={client.id}
+                clientName={client.display_name}
+                phone={client.phone}
+                email={client.email}
+              />
               <Link href={`/clients/${client.id}/edit`}>
                 <Button variant="secondary" size="sm">
                   <Edit3 className="h-3.5 w-3.5" strokeWidth={2.2} /> Modifier
@@ -257,12 +259,12 @@ export default async function ClientDetailPage({
                 <ContactField icon={Globe} value={`Source · ${channelLabels[channel]}`} tone="orange" />
               </div>
               <div className="mt-4 pt-4 border-t border-line flex items-center gap-2">
-                <Button variant="secondary" size="sm" className="flex-1" disabled={!client.phone}>
-                  <Phone className="h-3.5 w-3.5" strokeWidth={2.2} /> Appeler
-                </Button>
-                <Button variant="secondary" size="sm" className="flex-1" disabled={!client.phone}>
-                  <Send className="h-3.5 w-3.5" strokeWidth={2.2} /> SMS
-                </Button>
+                <ContactButtons
+                  clientId={client.id}
+                  clientName={client.display_name}
+                  phone={client.phone}
+                  email={client.email}
+                />
               </div>
             </Card>
 

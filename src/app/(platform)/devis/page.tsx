@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Download, Calendar, FileText, TrendingUp, AlertTriangle, Clock } from "lucide-react";
+import { Plus, Download, FileText, TrendingUp, AlertTriangle, Clock } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
@@ -33,12 +33,11 @@ export default async function DevisListPage() {
               </span>
             </h1>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <Button variant="secondary" size="sm">
-                <Calendar className="h-3.5 w-3.5" strokeWidth={2.2} /> 30 derniers jours
-              </Button>
-              <Button variant="secondary" size="sm">
-                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Exporter
-              </Button>
+              <a href="/devis/export" download>
+                <Button variant="secondary" size="sm">
+                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Exporter CSV
+                </Button>
+              </a>
               <Link href="/devis/nouveau">
                 <Button variant="secondary" size="sm">
                   <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
