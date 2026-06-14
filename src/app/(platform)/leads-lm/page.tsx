@@ -56,29 +56,31 @@ export default async function LeadsLmPage() {
           { label: "Atmosphère" },
           { label: "Atmoleads" },
         ]}
-        actions={
-          <a
-            href="https://partenaires.leroymerlin.fr/leads-management/leads"
-            target="_blank"
-            rel="noopener"
-          >
-            <Button variant="secondary" size="sm">
-              <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Portail LM
-            </Button>
-          </a>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Pipeline LM · Atmolead scraper</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Atmoleads
-            <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
-              {stats.total}
-            </span>
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Atmoleads
+              <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
+                {stats.total}
+              </span>
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <a
+                href="https://partenaires.leroymerlin.fr/leads-management/leads"
+                target="_blank"
+                rel="noopener"
+              >
+                <Button variant="secondary" size="sm">
+                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Portail LM
+                </Button>
+              </a>
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Récupérés automatiquement depuis le portail partenaires.
             {lastRun ? (

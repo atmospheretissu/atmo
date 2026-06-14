@@ -20,26 +20,6 @@ export default async function DevisListPage() {
           { label: "Atmosphère" },
           { label: "Devis" },
         ]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm">
-              <Calendar className="h-3.5 w-3.5" strokeWidth={2.2} /> 30 derniers jours
-            </Button>
-            <Button variant="secondary" size="sm">
-              <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Exporter
-            </Button>
-            <Link href="/devis/nouveau">
-              <Button variant="secondary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
-              </Button>
-            </Link>
-            <Link href="/boutique/nouveau">
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
-              </Button>
-            </Link>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -52,6 +32,24 @@ export default async function DevisListPage() {
                 {stats.counts.all}
               </span>
             </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button variant="secondary" size="sm">
+                <Calendar className="h-3.5 w-3.5" strokeWidth={2.2} /> 30 derniers jours
+              </Button>
+              <Button variant="secondary" size="sm">
+                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Exporter
+              </Button>
+              <Link href="/devis/nouveau">
+                <Button variant="secondary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
+                </Button>
+              </Link>
+              <Link href="/boutique/nouveau">
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
+                </Button>
+              </Link>
+            </div>
           </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             La validation d'un devis déclenche automatiquement la fiche confection et les bons de

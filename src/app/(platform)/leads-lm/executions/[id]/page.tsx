@@ -66,14 +66,6 @@ export default async function ExecutionDetailPage({
           { label: "Exécutions", href: "/leads-lm/executions" },
           { label: execution.id.slice(0, 8) },
         ]}
-        actions={
-          <Link href="/leads-lm/executions">
-            <Button variant="secondary" size="sm">
-              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Toutes les exécutions
-            </Button>
-          </Link>
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -94,9 +86,17 @@ export default async function ExecutionDetailPage({
                 )}
               </p>
             </div>
-            <StatusPill tone={statusTone[execution.status] ?? "muted"}>
-              {statusLabel[execution.status] ?? execution.status}
-            </StatusPill>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <StatusPill tone={statusTone[execution.status] ?? "muted"}>
+                {statusLabel[execution.status] ?? execution.status}
+              </StatusPill>
+              <Link href="/leads-lm/executions">
+                <Button variant="secondary" size="sm">
+                  <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Toutes les exécutions
+                </Button>
+              </Link>
+            </div>
           </div>
         </section>
 

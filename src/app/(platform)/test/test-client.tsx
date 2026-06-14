@@ -958,37 +958,6 @@ export default function TestClient({
               ]
             : [{ label: "Atmosphère" }, { label: "Test parcours" }]
         }
-        actions={
-          tab === "new" ? (
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={reset} disabled={pending || autoRunning}>
-                <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.2} />
-                Réinitialiser
-              </Button>
-              <Button variant="accent" size="sm" onClick={autoRun} disabled={pending || autoRunning}>
-                <Wand2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-                Lancer le parcours complet
-              </Button>
-            </div>
-          ) : selectedRunId ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setSelectedRunId(null);
-                setSelectedRun(null);
-              }}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Retour à la liste
-            </Button>
-          ) : (
-            <Button variant="secondary" size="sm" onClick={refreshRuns} disabled={refreshingRuns}>
-              <RotateCcw className={cn("h-3.5 w-3.5", refreshingRuns && "animate-spin")} strokeWidth={2.2} />
-              Rafraîchir
-            </Button>
-          )
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -1039,9 +1008,21 @@ export default function TestClient({
           <>
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">QA · Simulation bout-en-bout</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Test parcours complet
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Test parcours complet
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button variant="secondary" size="sm" onClick={reset} disabled={pending || autoRunning}>
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Réinitialiser
+              </Button>
+              <Button variant="accent" size="sm" onClick={autoRun} disabled={pending || autoRunning}>
+                <Wand2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Lancer le parcours complet
+              </Button>
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Simule l'intégralité du cycle de vente — création client, devis, envoi,
             validation, acompte, dossier de confection, réception QR, pose, solde —

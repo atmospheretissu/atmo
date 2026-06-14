@@ -77,15 +77,19 @@ export default async function ConfigPage() {
           { label: "Atmoleads" },
           { label: "Configuration" },
         ]}
-        actions={<AtmoleadTestNowButton />}
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Pipeline LM · Atmolead scraper</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Configuration
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Configuration
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <AtmoleadTestNowButton />
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             URL cible, fréquence et sélecteurs CSS du scraper. Modifiable sans redéploiement —
             le worker recharge la config toutes les 5 minutes.

@@ -27,29 +27,29 @@ export default async function ClientsPage() {
           { label: "Atmosphère" },
           { label: "Clients" },
         ]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm">
-              <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
-            </Button>
-            <Link href="/clients/new">
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau client
-              </Button>
-            </Link>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Fiches clients · CRM intégré</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Vos clients
-            <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
-              {stats.total}
-            </span>
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Vos clients
+              <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
+                {stats.total}
+              </span>
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button variant="secondary" size="sm">
+                <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
+              </Button>
+              <Link href="/clients/new">
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau client
+                </Button>
+              </Link>
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Chaque client garde son historique complet : devis, commandes, poses, paiements.
             <strong className="text-ink font-medium"> Source du lead suivie de bout en bout.</strong>

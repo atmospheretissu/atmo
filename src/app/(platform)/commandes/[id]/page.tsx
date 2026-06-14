@@ -84,16 +84,6 @@ export default async function CommandeDetailPage({
           { label: "Commandes", href: "/commandes" },
           { label: bc.number },
         ]}
-        actions={
-          <>
-            <a href={`/commandes/${bc.id}/pdf?inline=1`} target="_blank" rel="noreferrer">
-              <Button variant="ghost" size="sm">
-                <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF
-              </Button>
-            </a>
-            <BcStatusActions bcId={bc.id} status={bc.status} francoOk={francoOk} />
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -146,6 +136,15 @@ export default async function CommandeDetailPage({
                   </>
                 )}
               </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <a href={`/commandes/${bc.id}/pdf?inline=1`} target="_blank" rel="noreferrer">
+                <Button variant="ghost" size="sm">
+                  <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> PDF
+                </Button>
+              </a>
+              <BcStatusActions bcId={bc.id} status={bc.status} francoOk={francoOk} />
             </div>
 
             <div className="text-right">

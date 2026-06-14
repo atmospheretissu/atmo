@@ -54,24 +54,24 @@ export default function CollectionClient({ products, categories }: Props) {
           { label: "Atmosphère" },
           { label: "Collection · Leroy Merlin" },
         ]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm">
-              <Truck className="h-3.5 w-3.5" strokeWidth={2.2} /> Mouvements stock
-            </Button>
-            <Button variant="primary" size="sm">
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau produit
-            </Button>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Module · Collection Atmosphère & Leroy Merlin</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Catalogue & partenariats
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Catalogue & partenariats
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button variant="secondary" size="sm">
+                <Truck className="h-3.5 w-3.5" strokeWidth={2.2} /> Mouvements stock
+              </Button>
+              <Button variant="primary" size="sm">
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau produit
+              </Button>
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Produits semi-finis Pologne / Ukraine à tarifs réduits. Tarification unique + remises LM appliquées.
           </p>

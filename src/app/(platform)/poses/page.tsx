@@ -47,27 +47,29 @@ export default async function PosesPage() {
           { label: "Atmosphère" },
           { label: "Poses" },
         ]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm">
-              <Calendar className="h-3.5 w-3.5" strokeWidth={2.2} /> Planning
-            </Button>
-            <Button variant="secondary" size="sm">
-              <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
-            </Button>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Module 6 · Gestion des poseurs</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Planning des poses
-            <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
-              {stats.total}
-            </span>
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Planning des poses
+              <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
+                {stats.total}
+              </span>
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Link href="/agenda">
+                <Button variant="secondary" size="sm">
+                  <Calendar className="h-3.5 w-3.5" strokeWidth={2.2} /> Planning
+                </Button>
+              </Link>
+              <Button variant="secondary" size="sm">
+                <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
+              </Button>
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Créées automatiquement quand un dossier passe en{" "}
             <strong className="text-ink font-medium">Prêt pour pose</strong>. Le poseur peut être

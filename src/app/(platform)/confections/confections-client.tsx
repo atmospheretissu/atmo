@@ -43,22 +43,24 @@ export default function ConfectionsClient({ dossiers }: { dossiers: DossierWithC
     <>
       <Topbar
         breadcrumb={[{ label: "Atmosphère" }, { label: "Suivi de commande" }]}
-        actions={
-          <Button variant="secondary" size="sm">
-            <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
-          </Button>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Module 2 · Suivi des Confections</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Dossiers d&apos;atelier
-            <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
-              {dossiers.length}
-            </span>
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Dossiers d&apos;atelier
+              <span className="ml-3 text-[24px] text-muted-2 font-semibold tabular-nums">
+                {dossiers.length}
+              </span>
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button variant="secondary" size="sm">
+                <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
+              </Button>
+            </div>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Créés automatiquement à la validation d&apos;un devis avec confection. Une fiche PDF
             destinée aux couturières est générée pour chaque dossier.

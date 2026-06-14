@@ -15,22 +15,22 @@ export default async function BoutiquePage() {
           { label: "Atmosphère" },
           { label: "Création devis" },
         ]}
-        actions={
-          <Link href="/boutique/nouveau">
-            <Button variant="primary" size="sm">
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-              Devis boutique
-            </Button>
-          </Link>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Boutique · simulateur complet</p>
-          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
-            Devis boutique
-          </h1>
+          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Devis boutique
+            </h1>
+            <Link href="/boutique/nouveau">
+              <Button variant="primary" size="sm">
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                Devis boutique
+              </Button>
+            </Link>
+          </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
             Wizard 3 étapes — client, pièces & articles, récapitulatif. Calculs de prix
             automatiques selon les bases tarifaires Atmosphère (rideaux, stores, rails, pose,

@@ -179,18 +179,6 @@ export default function AgendaClient({
     <>
       <Topbar
         breadcrumb={[{ label: "Atmosphère" }, { label: "Agenda" }]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm">
-              <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
-            </Button>
-            <Link href="/poses">
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Voir toutes les poses
-              </Button>
-            </Link>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
@@ -203,11 +191,19 @@ export default function AgendaClient({
                 {totalThisMonth}
               </span>
             </h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2" strokeWidth={2.2} />
                 <Input placeholder="Client, ville…" className="pl-9 w-60 text-[12.5px] rounded-full bg-white" />
               </div>
+              <Button variant="secondary" size="sm">
+                <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
+              </Button>
+              <Link href="/poses">
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Voir toutes les poses
+                </Button>
+              </Link>
             </div>
           </div>
           <p className="text-[13.5px] text-muted max-w-2xl">

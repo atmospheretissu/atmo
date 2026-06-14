@@ -84,27 +84,27 @@ export default async function DashboardPage({
           { label: "Atmosphère" },
           { label: "Tableau de bord" },
         ]}
-        actions={
-          <>
-            <PeriodSelector current={stats.period.key} />
-            <Link href="/devis/nouveau">
-              <Button variant="secondary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
-              </Button>
-            </Link>
-            <Link href="/boutique/nouveau">
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
-              </Button>
-            </Link>
-          </>
-        }
       />
 
       <div className="flex-1 overflow-auto">
         {/* HERO */}
         <section className="px-8 pt-10 pb-8">
-          <p className="eyebrow mb-2 capitalize">{todayLong}</p>
+          <div className="flex items-start justify-between gap-8 flex-wrap mb-4">
+            <p className="eyebrow capitalize">{todayLong}</p>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <PeriodSelector current={stats.period.key} />
+              <Link href="/devis/nouveau">
+                <Button variant="secondary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
+                </Button>
+              </Link>
+              <Link href="/boutique/nouveau">
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis boutique
+                </Button>
+              </Link>
+            </div>
+          </div>
           <h1 className="text-[32px] font-semibold tracking-tight text-ink leading-[1.1] mb-1">
             Bonjour 👋
           </h1>
