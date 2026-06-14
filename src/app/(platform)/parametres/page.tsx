@@ -6,13 +6,27 @@ import { listPoseurs, listAteliers } from "@/lib/db/equipe";
 import { listSources } from "@/lib/db/sources";
 import { listStores } from "@/lib/db/stores";
 import { listCatalogProducts } from "@/lib/db/catalog";
+import { listAutomationRules } from "@/lib/db/automation-rules";
+import { listEventAlerts } from "@/lib/db/event-alerts";
 import ParametresClient from "./parametres-client";
 import type { UserRole } from "@/lib/db/profiles-shared";
 
 export const dynamic = "force-dynamic";
 
 export default async function ParametresPage() {
-  const [suppliers, profiles, smsTemplates, emailTemplates, poseurs, ateliers, sources, stores, catalogProducts] = await Promise.all([
+  const [
+    suppliers,
+    profiles,
+    smsTemplates,
+    emailTemplates,
+    poseurs,
+    ateliers,
+    sources,
+    stores,
+    catalogProducts,
+    automationRules,
+    eventAlerts,
+  ] = await Promise.all([
     listSuppliers(),
     listProfiles(),
     listSmsTemplates(),
@@ -22,6 +36,8 @@ export default async function ParametresPage() {
     listSources(),
     listStores(),
     listCatalogProducts(),
+    listAutomationRules(),
+    listEventAlerts(),
   ]);
 
   const roleCounts: Record<UserRole, number> = {
@@ -58,6 +74,8 @@ export default async function ParametresPage() {
       sources={sources}
       stores={stores}
       catalogProducts={catalogProducts}
+      automationRules={automationRules}
+      eventAlerts={eventAlerts}
     />
   );
 }

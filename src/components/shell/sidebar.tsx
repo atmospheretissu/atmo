@@ -61,9 +61,6 @@ const navSecondary: Item[] = [
 
 const navAdmin: Item[] = [
   { label: "Paramètres", href: "/parametres", icon: Settings, tone: "ink" },
-  { label: "Templates", href: "/templates", icon: MessageSquare, tone: "violet" },
-  { label: "Architecture", href: "/architecture", icon: Zap, tone: "amber" },
-  { label: "Test parcours", href: "/test", icon: FlaskConical, tone: "pink" },
 ];
 
 function NavLink({ item, allowed }: { item: Item; allowed: boolean }) {
