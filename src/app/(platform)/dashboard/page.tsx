@@ -357,18 +357,12 @@ function FlowStrip({
     amount: number;
   };
 
-  // Sémantique métier :
-  //   1. DEVIS = brouillon (non envoyé)
-  //   2. COMMANDE = envoyé/validé (en attente acompte)
-  //   3. ATTENTE MATIÈRE = dossiers commande_validee + attente_matiere
-  //      (acompte reçu, fournisseurs en cours)
-  //   4-8. Suite dossier classique
-  const attenteMatiereCount =
-    (flowByStatus.commande_validee ?? 0) + (flowByStatus.attente_matiere ?? 0);
-  const attenteMatiereAmount =
-    (flowAmountByStatus.commande_validee ?? 0) +
-    (flowAmountByStatus.attente_matiere ?? 0);
-
+  // Sémantique métier (flowchart review) :
+  //   1. DEVIS = brouillon
+  //   2. COMMANDE = envoyé/validé en attente d'acompte
+  //   3. COMMANDE VALIDÉE = acompte reçu, BC à lancer
+  //   4. ATTENTE MATIÈRE = BC envoyés, en attente livraison
+  //   5-8. Confection → Prêt → À planifier → À venir → Clôturé
   const linear: Step[] = [
     {
       key: "devis",
@@ -389,13 +383,22 @@ function FlowStrip({
       amount: commandeAmount,
     },
     {
+      key: "commande_validee",
+      shortLabel: "Commande validée",
+      tone: toChipTone(STATUS_META.commande_validee.tone),
+      icon: Receipt,
+      href: "/confections",
+      count: flowByStatus.commande_validee ?? 0,
+      amount: flowAmountByStatus.commande_validee ?? 0,
+    },
+    {
       key: "attente_matiere",
       shortLabel: "Attente matière",
       tone: toChipTone(STATUS_META.attente_matiere.tone),
       icon: Truck,
       href: "/confections",
-      count: attenteMatiereCount,
-      amount: attenteMatiereAmount,
+      count: flowByStatus.attente_matiere ?? 0,
+      amount: flowAmountByStatus.attente_matiere ?? 0,
     },
     ...(["confection_en_cours", "pret_pose", "pose_a_planifier", "pose_a_venir", "cloture"] as WorkflowStatus[]).map(
       (status): Step => {
@@ -417,7 +420,7 @@ function FlowStrip({
   return (
     <div className="space-y-3">
       <div className="card overflow-hidden p-1">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-1">
           {linear.map((s, i) => {
             const Icon = s.icon;
             const last = i === linear.length - 1;

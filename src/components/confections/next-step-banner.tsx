@@ -52,7 +52,19 @@ function pickNextStep(p: Props): Step | null {
   }
 
   switch (p.status) {
-    case "commande_validee":
+    case "commande_validee": {
+      return {
+        tone: "blue",
+        icon: PackageCheck,
+        eyebrow: "Prochaine étape",
+        title: "Lancer l'approvisionnement",
+        description:
+          "L'acompte est reçu. Lance la commande des matières chez les fournisseurs — le dossier passera alors en \"Attente matière\". Tu peux aussi anticiper en envoyant déjà un article en confection.",
+        ctaLabel: "Lancer l'approvisionnement",
+        ctaHref: `#dossier-${p.dossierId}`,
+        variant: "accent",
+      };
+    }
     case "attente_matiere": {
       const allReceived = p.itemsReceived === p.itemsTotal && p.itemsTotal > 0;
       if (!allReceived) {
@@ -68,7 +80,6 @@ function pickNextStep(p: Props): Step | null {
           variant: "secondary",
         };
       }
-      // Tout reçu mais statut pas encore basculé → message neutre
       return null;
     }
 

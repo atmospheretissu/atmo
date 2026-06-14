@@ -46,6 +46,37 @@ export async function deleteDossierNoteAction(
   return { ok: true };
 }
 
+export async function startProcurementAction(
+  dossierId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = await createClient();
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("status")
+    .eq("id", dossierId)
+    .maybeSingle();
+  if (!dossier) return { ok: false, message: "Dossier introuvable" };
+  if (dossier.status !== "commande_validee") {
+    return {
+      ok: false,
+      message: `Le dossier doit être en "Commande validée" (statut actuel : ${dossier.status}).`,
+    };
+  }
+  const { error } = await supabase
+    .from("dossiers")
+    .update({
+      status: "attente_matiere",
+      attente_matiere_at: new Date().toISOString(),
+    })
+    .eq("id", dossierId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath(`/confections/${dossierId}`);
+  revalidatePath("/confections");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 export async function setAtelierDeadlineAction(
   dossierId: string,
   iso: string | null,

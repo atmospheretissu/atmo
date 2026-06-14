@@ -27,6 +27,7 @@ import { DossierNotesCard } from "@/components/confections/dossier-notes";
 import { listDossierNotes } from "@/lib/db/dossier-notes";
 import { NextStepBanner } from "@/components/confections/next-step-banner";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
+import { StartProcurementButton } from "@/components/confections/start-procurement-button";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
 import { eur, shortDate } from "@/lib/formatters";
@@ -148,6 +149,9 @@ export default async function DossierDetailPage({
                   <QrCode className="h-3.5 w-3.5" strokeWidth={2.4} /> Scanner réception
                 </Button>
               </Link>
+              {dossier.status === "commande_validee" && (
+                <StartProcurementButton dossierId={dossier.id} />
+              )}
               {dossier.status === "pret_pose" && dossier.solde_paid && (
                 <PlanPoseButton dossierId={dossier.id} />
               )}
