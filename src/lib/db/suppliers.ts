@@ -16,3 +16,13 @@ export async function listSuppliers(): Promise<Supplier[]> {
   if (error) throw error;
   return data ?? [];
 }
+
+export async function getSupplierById(id: string): Promise<Supplier | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("suppliers")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return data ?? null;
+}

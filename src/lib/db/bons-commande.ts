@@ -296,10 +296,37 @@ export async function autoCreateBcsForDossier(
   // Récupère items + dossier
   const { data: items } = await supabase
     .from("dossier_items")
-    .select("type, label, ref, collection, matiere")
+    .select("id, type, label, ref, collection, matiere")
     .eq("dossier_id", dossierId);
 
   if (!items || items.length === 0) return { created: 0, existing: 0 };
+
+  // Récupère le devis lié pour avoir les prix tissu / accessoires depuis meta
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("devis_id")
+    .eq("id", dossierId)
+    .maybeSingle();
+  const { data: devisLines } = (dossier?.devis_id
+    ? await supabase
+        .from("devis_lines")
+        .select("ref, label, qty, unit_label, unit_price_ht, meta")
+        .eq("devis_id", dossier.devis_id)
+    : { data: [] }) as {
+    data: Array<{
+      ref: string | null;
+      label: string;
+      qty: number;
+      unit_label: string;
+      unit_price_ht: number;
+      meta: Record<string, unknown> | null;
+    }>;
+  };
+
+  // Index par label pour retrouver le devis_line correspondant à un dossier_item
+  const linesByLabel = new Map(
+    (devisLines ?? []).map((l) => [l.label, l]),
+  );
 
   // Récupère suppliers actifs pour mapping basique (tissu/rail/accessoire)
   const { data: suppliers } = await supabase
@@ -381,7 +408,7 @@ export async function autoCreateBcsForDossier(
 
   if (grouped.size === 0) return { created: 0, existing: 0 };
 
-  // Crée un BC par groupe (fournisseur × routing)
+  // Crée un BC par groupe (fournisseur × routing) AVEC ses bc_lines
   let created = 0;
   for (const g of grouped.values()) {
     const number = await getNextBcNumber(supabase);
@@ -392,18 +419,81 @@ export async function autoCreateBcsForDossier(
           ? "Ukraine (XML)"
           : "Standard";
     const matiereLabel = g.matiere ? ` · matière ${g.matiere.toUpperCase()}` : "";
-    const { error } = await supabase.from("bons_commande").insert({
-      number,
-      supplier_id: g.supplierId,
-      dossier_id: dossierId,
-      status: "brouillon",
-      amount_ht: 0,
-      language: g.routing === "ukraine" ? "UA" : g.routing === "pologne" ? "PL" : "FR",
-      matiere: g.matiere,
-      routing: g.routing,
-      notes: `BC auto-généré · ${routingLabel}${matiereLabel} — à compléter (lignes + franco)`,
+
+    // Construit les lignes BC à partir des items du groupe + meta du devis_line
+    type BcLineRow = {
+      bc_id: string;
+      dossier_item_id: string | null;
+      position: number;
+      ref: string | null;
+      label: string;
+      qty: number;
+      unit_label: string;
+      unit_price_ht: number;
+      total_ht: number;
+    };
+    const bcLines: Omit<BcLineRow, "bc_id">[] = [];
+    let runningTotal = 0;
+    g.items.forEach((item, idx) => {
+      const dl = linesByLabel.get(item.label) ?? null;
+      const meta = (dl?.meta ?? {}) as Record<string, unknown>;
+
+      // Pour les items tissu : qté = métrage total, prix = prix tissu €/m
+      // Pour les autres (rail/accessoire) : qté = item.qty du devis, prix = pu_ht du devis
+      let qty: number;
+      let unitLabel: string;
+      let unitPrice: number;
+      if (item.type === "tissu") {
+        const metrage = Number(meta["metrageTotal"] ?? 0);
+        const prixM = Number(meta["prixTissuMetre"] ?? meta["prixTissu"] ?? 0);
+        qty = metrage > 0 ? metrage : 1;
+        unitLabel = metrage > 0 ? "m" : "u";
+        unitPrice = prixM;
+      } else {
+        qty = Number(dl?.qty ?? 1);
+        unitLabel = dl?.unit_label ?? "u";
+        unitPrice = Number(dl?.unit_price_ht ?? 0);
+      }
+      const total = Math.round(qty * unitPrice * 100) / 100;
+      runningTotal += total;
+      bcLines.push({
+        dossier_item_id: item.id,
+        position: idx,
+        ref: item.ref ?? dl?.ref ?? null,
+        label: dl?.label ?? item.label,
+        qty,
+        unit_label: unitLabel,
+        unit_price_ht: unitPrice,
+        total_ht: total,
+      });
     });
-    if (!error) created += 1;
+
+    const amountHt = Math.round(runningTotal * 100) / 100;
+
+    const { data: insertedBc, error } = await supabase
+      .from("bons_commande")
+      .insert({
+        number,
+        supplier_id: g.supplierId,
+        dossier_id: dossierId,
+        status: "brouillon",
+        amount_ht: amountHt,
+        language: g.routing === "ukraine" ? "UA" : g.routing === "pologne" ? "PL" : "FR",
+        matiere: g.matiere,
+        routing: g.routing,
+        notes: `BC auto-généré · ${routingLabel}${matiereLabel}`,
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (error || !insertedBc) continue;
+
+    if (bcLines.length > 0) {
+      await supabase
+        .from("bc_lines")
+        .insert(bcLines.map((l) => ({ ...l, bc_id: insertedBc.id })));
+    }
+    created += 1;
   }
 
   return { created, existing: 0 };

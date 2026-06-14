@@ -153,7 +153,7 @@ export default async function CommandesPage({
                   key={s.id}
                   label={s.name}
                   badge={s.language}
-                  href={`/commandes?supplier=${s.id}`}
+                  href={`/commandes/fournisseurs/${s.id}`}
                   active={supplierFilter === s.id}
                 />
               ))}
