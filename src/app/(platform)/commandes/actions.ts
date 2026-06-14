@@ -1,9 +1,80 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { BCStatus } from "@/lib/db/bons-commande";
-import { recomputeBcAmount } from "@/lib/db/bons-commande";
+import {
+  recomputeBcAmount,
+  getNextBcNumber,
+  autoCreateBcsForDossier,
+} from "@/lib/db/bons-commande";
+
+/**
+ * Crée un BC (vide ou auto-peuplé si dossierId fourni). Redirige vers
+ * la fiche du BC créé. Utilisé par la page /commandes/nouveau.
+ */
+export async function createBcAction(input: {
+  supplierId: string;
+  dossierId?: string | null;
+  notes?: string;
+}): Promise<{ ok: false; message: string } | never> {
+  if (!input.supplierId) return { ok: false, message: "Fournisseur requis." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Session expirée." };
+
+  // Avec dossier → tente l'auto-création (peuple lignes + amount_ht)
+  if (input.dossierId) {
+    const { existing } = await autoCreateBcsForDossier(input.dossierId);
+    revalidatePath("/commandes");
+    if (existing > 0) {
+      const { data: bc } = await supabase
+        .from("bons_commande")
+        .select("id")
+        .eq("dossier_id", input.dossierId)
+        .eq("supplier_id", input.supplierId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (bc) redirect(`/commandes/${bc.id}`);
+    } else {
+      const { data: bc } = await supabase
+        .from("bons_commande")
+        .select("id")
+        .eq("dossier_id", input.dossierId)
+        .eq("supplier_id", input.supplierId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (bc) redirect(`/commandes/${bc.id}`);
+    }
+  }
+
+  // Création vide (sans dossier)
+  const number = await getNextBcNumber();
+  const { data: bc, error } = await supabase
+    .from("bons_commande")
+    .insert({
+      number,
+      supplier_id: input.supplierId,
+      dossier_id: input.dossierId ?? null,
+      status: "brouillon",
+      amount_ht: 0,
+      language: "FR",
+      notes: input.notes?.trim() || "BC créé manuellement — à compléter",
+      created_by: user.id,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !bc) return { ok: false, message: error?.message ?? "Échec création" };
+
+  revalidatePath("/commandes");
+  redirect(`/commandes/${bc.id}`);
+}
 
 type Result<T = void> = (T extends void ? { ok: true } : { ok: true } & T) | { ok: false; message: string };
 

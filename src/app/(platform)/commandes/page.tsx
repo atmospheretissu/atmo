@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   Plus,
-  Filter,
   Send,
   AlertTriangle,
   Truck,
@@ -92,12 +91,11 @@ export default async function CommandesPage({
               </span>
             </h1>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <Button variant="secondary" size="sm">
-                <Filter className="h-3.5 w-3.5" strokeWidth={2.2} /> Filtres
-              </Button>
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau BC
-              </Button>
+              <Link href="/commandes/nouveau">
+                <Button variant="primary" size="sm">
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau BC
+                </Button>
+              </Link>
             </div>
           </div>
           <p className="text-[13.5px] text-muted max-w-2xl">
