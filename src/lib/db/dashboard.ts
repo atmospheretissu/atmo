@@ -105,10 +105,13 @@ export type DashboardStats = {
   acomptesPendingAmount: number;
   posesUpcoming: number;
 
-  // Étape "Devis" du flux (avant la commande validée)
-  // = devis encore en pipeline (brouillon + envoye + valide)
-  devisInFunnelCount: number;
-  devisInFunnelAmount: number;
+  // Étapes "Devis" et "Commande" du flux (avant l'acompte reçu)
+  // - draft  : devis non encore envoyé (brouillon)
+  // - commande : devis envoyé, en attente d'acompte (envoye + valide)
+  devisDraftCount: number;
+  devisDraftAmount: number;
+  devisCommandeCount: number;
+  devisCommandeAmount: number;
 
   // Flux par statut dossier
   flowByStatus: Record<WorkflowStatus, number>;
@@ -167,8 +170,10 @@ export async function getDashboardStats(
   let acomptesPending = 0;
   let acomptesPendingAmount = 0;
   let caTotal = 0;
-  let devisInFunnelCount = 0;
-  let devisInFunnelAmount = 0;
+  let devisDraftCount = 0;
+  let devisDraftAmount = 0;
+  let devisCommandeCount = 0;
+  let devisCommandeAmount = 0;
 
   let devisInPeriod = 0;
   let convertedInPeriod = 0;
@@ -183,10 +188,15 @@ export async function getDashboardStats(
       if (status === "acompte_recu" || status === "valide") convertedInPeriod += 1;
     }
 
-    // Étape "DEVIS" du flux : tout devis pas encore en commande validée
-    if (status === "brouillon" || status === "envoye" || status === "valide") {
-      devisInFunnelCount += 1;
-      devisInFunnelAmount += ttc;
+    // Étape 1 "DEVIS" : non envoyé (brouillon)
+    if (status === "brouillon") {
+      devisDraftCount += 1;
+      devisDraftAmount += ttc;
+    }
+    // Étape 2 "COMMANDE" : envoyé au client, en attente acompte (envoye + valide)
+    if (status === "envoye" || status === "valide") {
+      devisCommandeCount += 1;
+      devisCommandeAmount += ttc;
     }
 
     if (status === "envoye") {
@@ -268,8 +278,10 @@ export async function getDashboardStats(
     acomptesPending,
     acomptesPendingAmount,
     posesUpcoming,
-    devisInFunnelCount,
-    devisInFunnelAmount,
+    devisDraftCount,
+    devisDraftAmount,
+    devisCommandeCount,
+    devisCommandeAmount,
     flowByStatus,
     flowAmountByStatus,
     counts,

@@ -33,7 +33,6 @@ import {
   type DevisStatus,
 } from "@/lib/validation/devis";
 import {
-  KANBAN_ORDER,
   STATUS_META,
   type StatusMeta,
   type WorkflowStatus,
@@ -168,8 +167,10 @@ export default async function DashboardPage({
             </Link>
           </div>
           <FlowStrip
-            devisCount={stats.devisInFunnelCount}
-            devisAmount={stats.devisInFunnelAmount}
+            devisDraftCount={stats.devisDraftCount}
+            devisDraftAmount={stats.devisDraftAmount}
+            commandeCount={stats.devisCommandeCount}
+            commandeAmount={stats.devisCommandeAmount}
             flowByStatus={stats.flowByStatus}
             flowAmountByStatus={stats.flowAmountByStatus}
           />
@@ -332,13 +333,17 @@ const FLOW_ICONS: Partial<Record<WorkflowStatus, React.ComponentType<{ className
 };
 
 function FlowStrip({
-  devisCount,
-  devisAmount,
+  devisDraftCount,
+  devisDraftAmount,
+  commandeCount,
+  commandeAmount,
   flowByStatus,
   flowAmountByStatus,
 }: {
-  devisCount: number;
-  devisAmount: number;
+  devisDraftCount: number;
+  devisDraftAmount: number;
+  commandeCount: number;
+  commandeAmount: number;
   flowByStatus: Record<WorkflowStatus, number>;
   flowAmountByStatus: Record<WorkflowStatus, number>;
 }) {
@@ -352,6 +357,18 @@ function FlowStrip({
     amount: number;
   };
 
+  // Sémantique métier :
+  //   1. DEVIS = brouillon (non envoyé)
+  //   2. COMMANDE = envoyé/validé (en attente acompte)
+  //   3. ATTENTE MATIÈRE = dossiers commande_validee + attente_matiere
+  //      (acompte reçu, fournisseurs en cours)
+  //   4-8. Suite dossier classique
+  const attenteMatiereCount =
+    (flowByStatus.commande_validee ?? 0) + (flowByStatus.attente_matiere ?? 0);
+  const attenteMatiereAmount =
+    (flowAmountByStatus.commande_validee ?? 0) +
+    (flowAmountByStatus.attente_matiere ?? 0);
+
   const linear: Step[] = [
     {
       key: "devis",
@@ -359,21 +376,41 @@ function FlowStrip({
       tone: "pink",
       icon: FileText,
       href: "/devis",
-      count: devisCount,
-      amount: devisAmount,
+      count: devisDraftCount,
+      amount: devisDraftAmount,
     },
-    ...KANBAN_ORDER.filter((s) => s !== "sav").map((status): Step => {
-      const meta = STATUS_META[status];
-      return {
-        key: status,
-        shortLabel: meta.shortLabel,
-        tone: toChipTone(meta.tone),
-        icon: FLOW_ICONS[status] ?? FileText,
-        href: "/confections",
-        count: flowByStatus[status] ?? 0,
-        amount: flowAmountByStatus[status] ?? 0,
-      };
-    }),
+    {
+      key: "commande",
+      shortLabel: "Commande",
+      tone: "blue",
+      icon: Receipt,
+      href: "/devis",
+      count: commandeCount,
+      amount: commandeAmount,
+    },
+    {
+      key: "attente_matiere",
+      shortLabel: "Attente matière",
+      tone: toChipTone(STATUS_META.attente_matiere.tone),
+      icon: Truck,
+      href: "/confections",
+      count: attenteMatiereCount,
+      amount: attenteMatiereAmount,
+    },
+    ...(["confection_en_cours", "pret_pose", "pose_a_planifier", "pose_a_venir", "cloture"] as WorkflowStatus[]).map(
+      (status): Step => {
+        const meta = STATUS_META[status];
+        return {
+          key: status,
+          shortLabel: meta.shortLabel,
+          tone: toChipTone(meta.tone),
+          icon: FLOW_ICONS[status] ?? FileText,
+          href: "/confections",
+          count: flowByStatus[status] ?? 0,
+          amount: flowAmountByStatus[status] ?? 0,
+        };
+      },
+    ),
   ];
   const savCount = flowByStatus.sav ?? 0;
 
