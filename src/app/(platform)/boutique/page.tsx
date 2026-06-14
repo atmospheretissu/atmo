@@ -3,7 +3,7 @@ import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/status-pill";
-import { Plus, ShoppingBag, Layers, Scissors, Package } from "lucide-react";
+import { Plus, ShoppingBag, Layers, Scissors, Package, Disc, Sparkles, Sofa, Plus as PlusIcon } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -45,29 +45,49 @@ export default async function BoutiquePage() {
               tone="violet"
               icon={Scissors}
               title="Rideaux sur mesure"
-              sub="Plis simples · Vague · Œillets"
-              status="part-2"
+              sub="Plis simples · Vague · Œillets · Panneau"
             />
             <ArticleCard
               tone="blue"
               icon={Layers}
               title="Stores sur mesure"
               sub="Bateau régulier / irrégulier"
-              status="part-2"
+            />
+            <ArticleCard
+              tone="blue"
+              icon={Disc}
+              title="Stores enrouleurs"
+              sub="Vedelux / Copa — avant / arrière"
             />
             <ArticleCard
               tone="orange"
               icon={Package}
               title="Catalogue produits"
               sub="47 066 références"
-              status="ok"
             />
             <ArticleCard
               tone="pink"
               icon={ShoppingBag}
               title="Rideaux en série"
               sub="56 modèles · prêt à poser"
-              status="part-2"
+            />
+            <ArticleCard
+              tone="violet"
+              icon={Sparkles}
+              title="Collection Atmosphère"
+              sub="LIN / Polyester · routing Pologne·Ukraine"
+            />
+            <ArticleCard
+              tone="blue"
+              icon={Sofa}
+              title="Mobilier sur mesure"
+              sub="Tapis · Canapé · Banquette (Lovable)"
+            />
+            <ArticleCard
+              tone="orange"
+              icon={PlusIcon}
+              title="Article libre"
+              sub="Champ libre — qté, prix HT"
             />
           </div>
         </section>
@@ -102,13 +122,11 @@ function ArticleCard({
   title,
   sub,
   tone,
-  status,
 }: {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   title: string;
   sub: string;
   tone: "violet" | "blue" | "orange" | "pink";
-  status: "ok" | "part-2";
 }) {
   return (
     <Card className="p-4 flex items-start gap-3">
@@ -118,11 +136,7 @@ function ArticleCard({
       <div className="flex-1 min-w-0">
         <p className="text-[13.5px] font-semibold text-ink leading-tight">{title}</p>
         <p className="text-[11px] text-muted mt-0.5">{sub}</p>
-        {status === "ok" ? (
-          <p className="text-[10.5px] text-emerald font-semibold mt-1">✓ Disponible</p>
-        ) : (
-          <p className="text-[10.5px] text-amber font-semibold mt-1">Part 2 — à venir</p>
-        )}
+        <p className="text-[10.5px] text-emerald font-semibold mt-1">✓ Disponible</p>
       </div>
     </Card>
   );
