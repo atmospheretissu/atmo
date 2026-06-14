@@ -357,12 +357,15 @@ function FlowStrip({
     amount: number;
   };
 
-  // Sémantique métier (flowchart review) :
-  //   1. DEVIS = brouillon
-  //   2. COMMANDE = envoyé/validé en attente d'acompte
-  //   3. COMMANDE VALIDÉE = acompte reçu, BC à lancer
-  //   4. ATTENTE MATIÈRE = BC envoyés, en attente livraison
-  //   5-8. Confection → Prêt → À planifier → À venir → Clôturé
+  // Sémantique métier :
+  //   1. DEVIS         = devis brouillon
+  //   2. COMMANDE      = devis envoyé/validé (attente acompte) + dossier
+  //                      commande_validee (acompte reçu, BC à lancer)
+  //   3. ATTENTE MATIÈRE = BC envoyés, en attente livraison
+  //   4-8. Confection → Prêt → À planifier → À venir → Clôturé
+  const commandeTotalCount = commandeCount + (flowByStatus.commande_validee ?? 0);
+  const commandeTotalAmount =
+    commandeAmount + (flowAmountByStatus.commande_validee ?? 0);
   const linear: Step[] = [
     {
       key: "devis",
@@ -379,17 +382,8 @@ function FlowStrip({
       tone: "blue",
       icon: Receipt,
       href: "/devis",
-      count: commandeCount,
-      amount: commandeAmount,
-    },
-    {
-      key: "commande_validee",
-      shortLabel: "Commande validée",
-      tone: toChipTone(STATUS_META.commande_validee.tone),
-      icon: Receipt,
-      href: "/confections",
-      count: flowByStatus.commande_validee ?? 0,
-      amount: flowAmountByStatus.commande_validee ?? 0,
+      count: commandeTotalCount,
+      amount: commandeTotalAmount,
     },
     {
       key: "attente_matiere",
@@ -420,7 +414,7 @@ function FlowStrip({
   return (
     <div className="space-y-3">
       <div className="card overflow-hidden p-1">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-1">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1">
           {linear.map((s, i) => {
             const Icon = s.icon;
             const last = i === linear.length - 1;
