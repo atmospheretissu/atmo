@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, ListChecks, Settings } from "lucide-react";
+import { Inbox, ListChecks, MessageSquare, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -12,6 +12,12 @@ const TABS = [
     label: "Exécutions",
     icon: ListChecks,
     match: (p: string) => p.startsWith("/leads-lm/executions"),
+  },
+  {
+    href: "/leads-lm/sms",
+    label: "SMS envoyés",
+    icon: MessageSquare,
+    match: (p: string) => p.startsWith("/leads-lm/sms"),
   },
   {
     href: "/leads-lm/config",
