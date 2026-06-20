@@ -23,7 +23,7 @@ export type TriggerContext = {
 
 export type TriggerEventResult = {
   eventKey: string;
-  sms: { fired: boolean; ok?: boolean; message?: string } | null;
+  sms: { fired: boolean; ok?: boolean; message?: string; duplicate?: boolean } | null;
   email: { fired: boolean; ok?: boolean; message?: string } | null;
   ruleFound: boolean;
   alertsTotal: number;
@@ -226,7 +226,12 @@ export async function triggerEvent(
         eventKey,
         triggerSource: ctx.triggerSource ?? null,
       });
-      result.sms = { fired: true, ok: r.ok, message: r.ok ? undefined : r.message };
+      result.sms = {
+        fired: true,
+        ok: r.ok,
+        message: r.ok ? undefined : r.message,
+        duplicate: !r.ok && r.duplicate === true,
+      };
     }
 
     // Email branch — always set result.email with the reason

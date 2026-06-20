@@ -12,6 +12,7 @@ export type LeadAlertResult =
       smsFired: boolean;
       smsOk?: boolean;
       smsMessage?: string;
+      smsDuplicate?: boolean;
       emailFired: boolean;
       emailOk?: boolean;
       emailMessage?: string;
@@ -98,6 +99,7 @@ export async function triggerLeadAlertAction(
     smsFired: result.sms?.fired ?? false,
     smsOk: result.sms?.ok,
     smsMessage: result.sms?.message,
+    smsDuplicate: result.sms?.duplicate ?? false,
     emailFired: result.email?.fired ?? false,
     emailOk: result.email?.ok,
     emailMessage: result.email?.message,

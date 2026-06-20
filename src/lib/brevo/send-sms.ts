@@ -1,13 +1,12 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { sendBrevoSms, isBrevoConfigured } from "./client";
+import { normalizePhone } from "./normalize-phone";
 import { DEFAULT_SENDER } from "@/lib/db/sms-templates-shared";
 
 export type SmsVars = Record<string, string | number | undefined | null>;
 
-/**
- * Extrait le prénom depuis un display_name format "Nom, Prénom".
- * Si pas de virgule → retourne le premier mot.
- */
+const LEAD_ANCHORED_EVENTS: ReadonlySet<string> = new Set(["lead_lm_received"]);
+
 export function firstNameOf(displayName: string | null | undefined): string {
   if (!displayName) return "";
   const cut = displayName.split(",");
@@ -15,10 +14,6 @@ export function firstNameOf(displayName: string | null | undefined): string {
   return displayName.trim().split(/\s+/)[0] ?? "";
 }
 
-/**
- * Interpole {{var}} dans un template.
- * Une variable absente devient une chaîne vide.
- */
 function interpolate(template: string, vars: SmsVars): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, name) => {
     const v = vars[name];
@@ -28,21 +23,17 @@ function interpolate(template: string, vars: SmsVars): string {
 
 export type SmsSendResult =
   | { ok: true; messageId: string; body: string; sender: string; smsLogId: string }
-  | { ok: false; message: string; smsLogId?: string };
+  | { ok: false; message: string; smsLogId?: string; duplicate?: boolean };
 
 /**
- * Envoie un SMS basé sur un template stocké en DB.
+ * Envoie un SMS basé sur un template.
  *
- *   1. Charge le template par `key` (doit exister + être actif)
- *   2. Interpole les variables
- *   3. Détermine le sender : template.sender || env BREVO_SMS_SENDER || DEFAULT_SENDER
- *   4. Insère une ligne pending dans sms_log
- *   5. Appelle Brevo
- *   6. Update sms_log avec le résultat
- *
- * Utilise le service_role : OK pour les server actions/webhooks/jobs côté serveur.
- * Les SMS partent uniquement si BREVO_API_KEY est configurée — sinon le log
- * est créé avec status='skipped' et aucun appel réseau n'est fait.
+ *   1. Charge le template (actif)
+ *   2. Normalise le numéro en E.164
+ *   3. Si event_key est dans LEAD_ANCHORED_EVENTS → dédup strict :
+ *      si un SMS déjà sent/delivered existe pour ce (event_key, to_phone),
+ *      on log "skipped_duplicate" et on n'appelle pas Brevo
+ *   4. Sinon : insère pending, appelle Brevo, met à jour le statut
  */
 export async function sendSmsForTemplate(args: {
   templateKey: string;
@@ -55,7 +46,6 @@ export async function sendSmsForTemplate(args: {
 }): Promise<SmsSendResult> {
   const supabase = createServiceRoleClient();
 
-  // 1. Charge template
   const { data: template, error: tErr } = await supabase
     .from("sms_templates")
     .select("id, key, body, sender, active")
@@ -66,6 +56,7 @@ export async function sendSmsForTemplate(args: {
   if (!template) return { ok: false, message: `Template "${args.templateKey}" introuvable` };
   if (!template.active) return { ok: false, message: `Template "${args.templateKey}" désactivé` };
 
+  const normalizedPhone = normalizePhone(args.toPhone) ?? args.toPhone;
   const body = interpolate(template.body, args.vars ?? {});
   const sender =
     args.overrideSender ??
@@ -73,13 +64,51 @@ export async function sendSmsForTemplate(args: {
     process.env.BREVO_SMS_SENDER ??
     DEFAULT_SENDER;
 
-  // 2. Log pending
+  // Dédup strict pour les events ancrés au lead (= ancrés au numéro)
+  if (args.eventKey && LEAD_ANCHORED_EVENTS.has(args.eventKey)) {
+    const { data: prior } = await supabase
+      .from("sms_log")
+      .select("id, sent_at, created_at, brevo_message_id, status")
+      .eq("event_key", args.eventKey)
+      .eq("to_phone", normalizedPhone)
+      .in("status", ["sent", "delivered"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (prior) {
+      const priorWhen = prior.sent_at ?? prior.created_at;
+      const errorMsg = `SMS déjà envoyé le ${priorWhen} (msg ${prior.brevo_message_id ?? "n/a"})`;
+      const { data: skipRow } = await supabase
+        .from("sms_log")
+        .insert({
+          template_key: template.key,
+          client_id: args.clientId ?? null,
+          to_phone: normalizedPhone,
+          body,
+          status: "skipped_duplicate",
+          error: errorMsg,
+          event_key: args.eventKey ?? null,
+          trigger_source: args.triggerSource ?? null,
+        })
+        .select("id")
+        .single();
+
+      return {
+        ok: false,
+        message: errorMsg,
+        smsLogId: skipRow?.id ?? "",
+        duplicate: true,
+      };
+    }
+  }
+
   const { data: logRow } = await supabase
     .from("sms_log")
     .insert({
       template_key: template.key,
       client_id: args.clientId ?? null,
-      to_phone: args.toPhone,
+      to_phone: normalizedPhone,
       body,
       status: "pending",
       event_key: args.eventKey ?? null,
@@ -90,7 +119,6 @@ export async function sendSmsForTemplate(args: {
 
   const smsLogId = logRow?.id ?? "";
 
-  // 3. Skip si Brevo pas configuré
   if (!isBrevoConfigured()) {
     if (smsLogId) {
       await supabase
@@ -101,15 +129,13 @@ export async function sendSmsForTemplate(args: {
     return { ok: false, message: "BREVO_API_KEY non configurée", smsLogId };
   }
 
-  // 4. Appel Brevo
   const res = await sendBrevoSms({
-    recipient: args.toPhone,
+    recipient: normalizedPhone,
     content: body,
     sender,
     tag: template.key,
   });
 
-  // 5. Update log
   if (res.ok) {
     if (smsLogId) {
       await supabase

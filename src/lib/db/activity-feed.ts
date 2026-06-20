@@ -28,6 +28,7 @@ export type FeedEventKind =
   | "caisse_ticket"
   | "sms_sent"
   | "sms_failed"
+  | "sms_skipped"
   | "email_sent"
   | "email_failed";
 
@@ -339,26 +340,36 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
         .then(({ data }) =>
           (data ?? []).map((s): FeedEvent => {
             const failed = s.status === "failed" || s.status === "bounced";
+            const skippedDup = s.status === "skipped_duplicate";
+            const skippedCfg = s.status === "skipped";
             const sourceLabel = s.trigger_source ? humanizeSource(s.trigger_source) : null;
-            const desc = [
+            const descParts = [
               s.template_key ? `Template: ${s.template_key}` : "Message libre",
               s.event_key ? `Événement: ${s.event_key}` : null,
               sourceLabel ? `Source: ${sourceLabel}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+            ];
+            if (skippedDup && s.error) descParts.push(s.error);
+            const desc = descParts.filter(Boolean).join(" · ");
+            const kind: FeedEventKind = failed
+              ? "sms_failed"
+              : skippedDup || skippedCfg
+                ? "sms_skipped"
+                : "sms_sent";
+            const label = failed
+              ? `SMS échec — ${s.to_phone}`
+              : skippedDup
+                ? `SMS ignoré (déjà envoyé) — ${s.to_phone}`
+                : skippedCfg
+                  ? `SMS ignoré (Brevo non configuré) — ${s.to_phone}`
+                  : `SMS envoyé — ${s.to_phone}`;
             return {
               id: `sms:${s.id}`,
-              kind: failed ? "sms_failed" : "sms_sent",
+              kind,
               category: "sms",
-              label: failed
-                ? `SMS échec — ${s.to_phone}`
-                : s.status === "skipped"
-                  ? `SMS skip (no Brevo) — ${s.to_phone}`
-                  : `SMS envoyé — ${s.to_phone}`,
+              label,
               description: desc,
               occurredAt: s.created_at,
-              severity: failed ? "error" : s.status === "skipped" ? "warning" : "ok",
+              severity: failed ? "error" : skippedDup || skippedCfg ? "warning" : "ok",
               link: null,
               details: {
                 body: s.body,

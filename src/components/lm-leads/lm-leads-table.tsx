@@ -275,7 +275,9 @@ function TriggerAlertButton({ leadId, leadNumber }: { leadId: string; leadNumber
       }
       const parts: string[] = [];
       if (r.smsFired) {
-        parts.push(r.smsOk ? "SMS ✓" : `SMS ✗ (${r.smsMessage ?? "?"})`);
+        if (r.smsOk) parts.push("SMS ✓");
+        else if (r.smsDuplicate) parts.push("SMS ignoré (déjà envoyé)");
+        else parts.push(`SMS ✗ (${r.smsMessage ?? "?"})`);
       } else if (r.smsMessage) {
         parts.push(`SMS · ${r.smsMessage}`);
       }
