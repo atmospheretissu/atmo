@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   couturiere: "Couturière",
   couturiere_externe: "Couturière externe",
   poseur: "Poseur",
+  poseur_externe: "Poseur externe",
   decoratrice: "Décoratrice",
   consultation_lm: "Consultation Leroy Merlin",
 };
@@ -24,6 +25,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   couturiere: ["Ses bons de travail", "Mise à jour statut confection"],
   couturiere_externe: ["Toutes les fiches de confection (lecture)", "Mise à jour statut confection (externe à l'entreprise)"],
   poseur: ["Interventions à planifier", "Contact client", "Confirmation pose"],
+  poseur_externe: ["Ses interventions de pose uniquement", "Confirmation pose (externe à l'entreprise)"],
   decoratrice: ["Ses rendez-vous", "Fiches clients", "Historique", "Consultation Atmoleads"],
   consultation_lm: ["Tableau de bord", "Atmoleads", "Activité", "Templates", "Architecture"],
 };
@@ -36,6 +38,7 @@ export const ROLE_COLORS: Record<UserRole, "ink" | "violet" | "orange" | "pink" 
   couturiere: "pink",
   couturiere_externe: "pink",
   poseur: "emerald",
+  poseur_externe: "emerald",
   decoratrice: "blue",
   consultation_lm: "amber",
 };
@@ -105,6 +108,10 @@ export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
   },
   poseur: {
     allowed: ["/poses", "/agenda", "/feed"],
+    homeRoute: "/poses",
+  },
+  poseur_externe: {
+    allowed: ["/poses"],
     homeRoute: "/poses",
   },
   decoratrice: {
