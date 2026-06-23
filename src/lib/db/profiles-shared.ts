@@ -10,6 +10,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   commercial: "Commercial · Back-office",
   resp_confection: "Resp. confection",
   couturiere: "Couturière",
+  couturiere_externe: "Couturière externe",
   poseur: "Poseur",
   decoratrice: "Décoratrice",
   consultation_lm: "Consultation Leroy Merlin",
@@ -21,8 +22,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   commercial: ["Simulateur", "Devis", "Fiches clients", "Suivi commandes", "Tableau de bord"],
   resp_confection: ["Suivi confections", "Assignation couturières", "Réception colis", "Bons de travail"],
   couturiere: ["Ses bons de travail", "Mise à jour statut confection"],
+  couturiere_externe: ["Toutes les fiches de confection (lecture)", "Mise à jour statut confection (externe à l'entreprise)"],
   poseur: ["Interventions à planifier", "Contact client", "Confirmation pose"],
-  decoratrice: ["Ses rendez-vous", "Fiches clients", "Historique"],
+  decoratrice: ["Ses rendez-vous", "Fiches clients", "Historique", "Consultation Atmoleads"],
   consultation_lm: ["Tableau de bord", "Atmoleads", "Activité", "Templates", "Architecture"],
 };
 
@@ -32,6 +34,7 @@ export const ROLE_COLORS: Record<UserRole, "ink" | "violet" | "orange" | "pink" 
   commercial: "violet",
   resp_confection: "orange",
   couturiere: "pink",
+  couturiere_externe: "pink",
   poseur: "emerald",
   decoratrice: "blue",
   consultation_lm: "amber",
@@ -96,12 +99,16 @@ export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
     allowed: ["/confections", "/feed"],
     homeRoute: "/confections",
   },
+  couturiere_externe: {
+    allowed: ["/confections"],
+    homeRoute: "/confections",
+  },
   poseur: {
     allowed: ["/poses", "/agenda", "/feed"],
     homeRoute: "/poses",
   },
   decoratrice: {
-    allowed: ["/clients", "/devis", "/boutique", "/agenda", "/feed"],
+    allowed: ["/clients", "/devis", "/boutique", "/agenda", "/feed", "/leads-lm"],
     homeRoute: "/clients",
   },
   consultation_lm: {

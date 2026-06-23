@@ -46,6 +46,7 @@ export default async function ParametresPage() {
     commercial: 0,
     resp_confection: 0,
     couturiere: 0,
+    couturiere_externe: 0,
     poseur: 0,
     decoratrice: 0,
     consultation_lm: 0,
