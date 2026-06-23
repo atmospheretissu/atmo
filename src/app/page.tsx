@@ -4,6 +4,7 @@ import { FileText, ScanLine, Receipt, Wrench, Lock } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ColorChip } from "@/components/ui/status-pill";
 import { Sparkline } from "@/components/ui/sparkline";
+import { EnvBadge, EnvBanner } from "@/components/shell/env-indicator";
 
 export default async function LoginPage({
   searchParams,
@@ -14,10 +15,15 @@ export default async function LoginPage({
   const errorParam = params.error;
 
   return (
-    <div className="min-h-screen canvas-bg flex flex-col lg:flex-row">
+    <div className="min-h-screen canvas-bg flex flex-col">
+      <EnvBanner />
+      <div className="flex-1 flex flex-col lg:flex-row">
       {/* Left — form */}
       <section className="flex-1 lg:max-w-[520px] flex flex-col px-6 lg:px-12 py-8 lg:py-10">
-        <Logo />
+        <div className="flex items-center justify-between">
+          <Logo />
+          <EnvBadge />
+        </div>
 
         <div className="flex-1 flex flex-col justify-center max-w-[400px] py-12 lg:py-16">
           <p className="eyebrow mb-4">Plateforme · v5.2</p>
@@ -104,6 +110,7 @@ export default async function LoginPage({
           </div>
         </div>
       </aside>
+      </div>
     </div>
   );
 }

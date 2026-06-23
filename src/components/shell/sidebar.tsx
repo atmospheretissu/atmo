@@ -26,6 +26,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
+import { EnvBadge } from "@/components/shell/env-indicator";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 import { canAccess, ROLE_LABELS } from "@/lib/db/profiles-shared";
@@ -162,9 +163,10 @@ export function Sidebar({
     <aside className="w-[252px] shrink-0 border-r border-line bg-canvas flex flex-col h-screen sticky top-0">
       {/* Brand */}
       <div className="h-14 px-4 flex items-center justify-between border-b border-line">
-        <Link href={role ? "/dashboard" : "/"}>
+        <Link href={role ? "/dashboard" : "/"} className="flex items-center gap-2">
           <Logo />
         </Link>
+        <EnvBadge />
       </div>
 
       {/* Workspace — vrai switcher multi-magasin */}

@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/shell/sidebar";
+import { EnvBanner } from "@/components/shell/env-indicator";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/db/profiles-shared";
 import { listStores, getCurrentStoreId } from "@/lib/db/stores";
@@ -44,7 +45,10 @@ export default async function PlatformLayout({
         stores={stores}
         currentStoreId={currentStoreId}
       />
-      <main className="flex-1 min-w-0 flex flex-col">{children}</main>
+      <main className="flex-1 min-w-0 flex flex-col">
+        <EnvBanner />
+        {children}
+      </main>
     </div>
   );
 }
