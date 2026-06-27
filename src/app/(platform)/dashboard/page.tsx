@@ -167,8 +167,6 @@ export default async function DashboardPage({
             </Link>
           </div>
           <FlowStrip
-            devisDraftCount={stats.devisDraftCount}
-            devisDraftAmount={stats.devisDraftAmount}
             commandeCount={stats.devisCommandeCount}
             commandeAmount={stats.devisCommandeAmount}
             flowByStatus={stats.flowByStatus}
@@ -333,15 +331,11 @@ const FLOW_ICONS: Partial<Record<WorkflowStatus, React.ComponentType<{ className
 };
 
 function FlowStrip({
-  devisDraftCount,
-  devisDraftAmount,
   commandeCount,
   commandeAmount,
   flowByStatus,
   flowAmountByStatus,
 }: {
-  devisDraftCount: number;
-  devisDraftAmount: number;
   commandeCount: number;
   commandeAmount: number;
   flowByStatus: Record<WorkflowStatus, number>;
@@ -358,24 +352,14 @@ function FlowStrip({
   };
 
   // Sémantique métier :
-  //   1. DEVIS         = devis brouillon
-  //   2. COMMANDE      = devis envoyé/validé (attente acompte) + dossier
+  //   1. COMMANDE      = tout devis (brouillon, envoyé, validé) + dossier
   //                      commande_validee (acompte reçu, BC à lancer)
-  //   3. ATTENTE MATIÈRE = BC envoyés, en attente livraison
-  //   4-8. Confection → Prêt → À planifier → À venir → Clôturé
+  //   2. ATTENTE MATIÈRE = BC envoyés, en attente livraison
+  //   3-7. Confection → Prêt → À planifier → À venir → Clôturé
   const commandeTotalCount = commandeCount + (flowByStatus.commande_validee ?? 0);
   const commandeTotalAmount =
     commandeAmount + (flowAmountByStatus.commande_validee ?? 0);
   const linear: Step[] = [
-    {
-      key: "devis",
-      shortLabel: "Devis",
-      tone: "pink",
-      icon: FileText,
-      href: "/devis",
-      count: devisDraftCount,
-      amount: devisDraftAmount,
-    },
     {
       key: "commande",
       shortLabel: "Commande",

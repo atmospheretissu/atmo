@@ -197,14 +197,9 @@ export async function getDashboardStats(
       if (status === "acompte_recu" || status === "valide") convertedInPeriod += 1;
     }
 
-    // Étape 1 "DEVIS" : non envoyé (brouillon) ET pas encore de dossier rattaché
-    if (status === "brouillon" && !hasDossier) {
-      devisDraftCount += 1;
-      devisDraftAmount += ttc;
-    }
-    // Étape 2 "COMMANDE" : envoyé au client, en attente acompte (envoye + valide)
-    //                     ET pas encore de dossier rattaché
-    if ((status === "envoye" || status === "valide") && !hasDossier) {
+    // "COMMANDE" : tout devis sans dossier rattaché (brouillon, envoyé, validé)
+    // → un devis qui vient d'être créé apparaît immédiatement dans Commande.
+    if ((status === "brouillon" || status === "envoye" || status === "valide") && !hasDossier) {
       devisCommandeCount += 1;
       devisCommandeAmount += ttc;
     }
