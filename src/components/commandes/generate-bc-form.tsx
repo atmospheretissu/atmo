@@ -98,13 +98,21 @@ export function GenerateBcForm({
   const handleSubmit = () => {
     if (supplierCount === 0) return;
     startTransition(async () => {
-      // Convert UNASSIGNED → null for the server
-      const serverAssignments: Record<string, string | null> = {};
-      for (const [lineId, sid] of Object.entries(assignments)) {
-        serverAssignments[lineId] = sid === UNASSIGNED ? null : sid;
+      try {
+        const serverAssignments: Record<string, string | null> = {};
+        for (const [lineId, sid] of Object.entries(assignments)) {
+          serverAssignments[lineId] = sid === UNASSIGNED ? null : sid;
+        }
+        const r = await createBcsFromDevisAction(devisId, serverAssignments);
+        setResult(r);
+        if (!r.ok) {
+          alert(`Échec création des BCs : ${r.message ?? "?"}`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Erreur inconnue";
+        setResult({ ok: false, message: msg, bcs: [], skippedLineCount: 0 });
+        alert(`Échec création des BCs : ${msg}`);
       }
-      const r = await createBcsFromDevisAction(devisId, serverAssignments);
-      setResult(r);
     });
   };
 

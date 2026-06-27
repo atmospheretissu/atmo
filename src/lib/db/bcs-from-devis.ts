@@ -214,10 +214,14 @@ export async function createBcsFromDevisAssignments(
   }
 
   const created: CreateBcsResult["bcs"] = [];
+  const failures: string[] = [];
 
   for (const [supplierId, lines] of bySupplier) {
     const supplier = supplierById.get(supplierId);
-    if (!supplier) continue;
+    if (!supplier) {
+      failures.push(`Fournisseur ${supplierId} introuvable`);
+      continue;
+    }
 
     const number = await getNextBcNumber(admin);
     const amount = lines.reduce((s, l) => s + l.qty * l.unit_price_ht, 0);
@@ -239,7 +243,8 @@ export async function createBcsFromDevisAssignments(
       .select("id, number")
       .single();
     if (bcErr || !bc) {
-      console.error("[createBcsFromDevis] BC insert failed", bcErr);
+      console.error("[createBcsFromDevis] BC insert failed for", supplier.name, bcErr);
+      failures.push(`${supplier.name} : ${bcErr?.message ?? "insert returned no row"}`);
       continue;
     }
 
@@ -252,7 +257,14 @@ export async function createBcsFromDevisAssignments(
       unit_label: l.unit_label,
       unit_price_ht: l.unit_price_ht,
     }));
-    await admin.from("bc_lines").insert(bcLines);
+    const { error: linesErr } = await admin.from("bc_lines").insert(bcLines);
+    if (linesErr) {
+      console.error("[createBcsFromDevis] bc_lines insert failed for BC", bc.number, linesErr);
+      failures.push(`${supplier.name} (lignes) : ${linesErr.message}`);
+      // Rollback : supprime le BC qui ne contient pas ses lignes
+      await admin.from("bons_commande").delete().eq("id", bc.id);
+      continue;
+    }
 
     created.push({
       supplierId,
@@ -263,5 +275,23 @@ export async function createBcsFromDevisAssignments(
     });
   }
 
-  return { ok: true, bcs: created, skippedLineCount: skippedCount };
+  // Si rien n'a été créé alors que des fournisseurs étaient pourtant assignés,
+  // c'est un échec — remonte le message au lieu de retourner ok:true silencieux.
+  if (created.length === 0) {
+    return {
+      ok: false,
+      message: failures.length > 0
+        ? `Aucun BC créé. ${failures.join(" · ")}`
+        : "Aucun BC créé (raison inconnue — vérifie les logs serveur).",
+      bcs: [],
+      skippedLineCount: skippedCount,
+    };
+  }
+
+  return {
+    ok: true,
+    message: failures.length > 0 ? `Erreurs : ${failures.join(" · ")}` : undefined,
+    bcs: created,
+    skippedLineCount: skippedCount,
+  };
 }
