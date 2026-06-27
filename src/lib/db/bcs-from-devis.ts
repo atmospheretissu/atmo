@@ -223,26 +223,43 @@ export async function createBcsFromDevisAssignments(
       continue;
     }
 
-    const number = await getNextBcNumber(admin);
     const amount = lines.reduce((s, l) => s + l.qty * l.unit_price_ht, 0);
-
     const lang = (["FR", "EN", "PL", "UA", "DE"] as const).includes(supplier.language as "FR")
       ? (supplier.language as "FR" | "EN" | "PL" | "UA" | "DE")
       : "FR";
-    const { data: bc, error: bcErr } = await admin
-      .from("bons_commande")
-      .insert({
-        number,
-        supplier_id: supplierId,
-        dossier_id: dossierId,
-        status: "brouillon",
-        amount_ht: amount,
-        language: lang,
-        notes: `Généré depuis le devis ${preview.devis.number}`,
-      })
-      .select("id, number")
-      .single();
-    if (bcErr || !bc) {
+
+    // Retry sur collision de numéro (course condition possible si plusieurs
+    // BCs sont créés très rapprochés).
+    let bc: { id: string; number: string } | null = null;
+    let bcErr: { message: string; code?: string } | null = null;
+    for (let attempt = 0; attempt < 5 && !bc; attempt++) {
+      const number = await getNextBcNumber(admin);
+      const r = await admin
+        .from("bons_commande")
+        .insert({
+          number,
+          supplier_id: supplierId,
+          dossier_id: dossierId,
+          status: "brouillon",
+          amount_ht: amount,
+          language: lang,
+          notes: `Généré depuis le devis ${preview.devis.number}`,
+        })
+        .select("id, number")
+        .single();
+      if (r.error) {
+        bcErr = r.error;
+        // 23505 = unique_violation → on retry avec un nouveau numéro
+        if (r.error.code === "23505") {
+          console.warn(`[createBcsFromDevis] collision numéro ${number}, retry ${attempt + 1}/5`);
+          continue;
+        }
+        break;
+      }
+      bc = r.data;
+      bcErr = null;
+    }
+    if (!bc || bcErr) {
       console.error("[createBcsFromDevis] BC insert failed for", supplier.name, bcErr);
       failures.push(`${supplier.name} : ${bcErr?.message ?? "insert returned no row"}`);
       continue;

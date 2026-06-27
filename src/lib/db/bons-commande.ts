@@ -85,11 +85,23 @@ export async function getNextBcNumber(
   const supabase = client ?? (await createClient());
   const year = new Date().getFullYear();
   const prefix = `BC-${year}-`;
-  const { count } = await supabase
+  // Cherche le plus grand numéro existant (incluant les BCs supprimés
+  // dont le numéro peut encore exister dans des index si soft-delete).
+  // Plus robuste que count() qui réutilise les numéros libérés.
+  const { data } = await supabase
     .from("bons_commande")
-    .select("*", { count: "exact", head: true })
-    .like("number", `${prefix}%`);
-  return `${prefix}${String((count ?? 0) + 1).padStart(4, "0")}`;
+    .select("number")
+    .like("number", `${prefix}%`)
+    .order("number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let next = 1;
+  if (data?.number) {
+    const suffix = data.number.slice(prefix.length);
+    const n = parseInt(suffix, 10);
+    if (!Number.isNaN(n)) next = n + 1;
+  }
+  return `${prefix}${String(next).padStart(4, "0")}`;
 }
 
 export type BCWithRelations = BonCommande & {
