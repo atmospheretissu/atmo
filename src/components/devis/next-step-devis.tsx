@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useTransition } from "react";
 import {
   ArrowRight,
   Send,
@@ -6,10 +9,12 @@ import {
   CheckCircle2,
   Banknote,
   Scissors,
+  Loader2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/status-pill";
+import { sendDevisEmailAction } from "@/app/(platform)/devis/email-actions";
 
 type Props = {
   devisId: string;
@@ -28,7 +33,10 @@ type Step = {
   title: string;
   description: string;
   ctaLabel: string;
-  ctaHref: string;
+  /** Lien à suivre. Ignoré si `action` est défini. */
+  ctaHref?: string;
+  /** Action serveur à déclencher. Si défini, le CTA devient un bouton. */
+  action?: "send_devis";
   variant?: "accent" | "primary" | "secondary";
 };
 
@@ -46,7 +54,8 @@ function pickNextStep(p: Props): Step | null {
           ? "Vérifie les lignes, la TVA et la règle d'acompte, puis envoie le devis par email au client."
           : "Le client n'a pas d'email enregistré. Ajoute-le pour pouvoir lui envoyer le devis automatiquement.",
         ctaLabel: "Envoyer le devis",
-        ctaHref: `/devis/${p.devisId}`,
+        action: p.clientHasEmail ? "send_devis" : undefined,
+        ctaHref: p.clientHasEmail ? undefined : `/clients`,
         variant: "accent",
       };
 
@@ -110,8 +119,55 @@ function pickNextStep(p: Props): Step | null {
 
 export function NextStepDevisBanner(p: Props) {
   const step = pickNextStep(p);
+  const [pending, startTransition] = useTransition();
   if (!step) return null;
   const Icon = step.icon;
+
+  const handleSend = () => {
+    if (!confirm("Envoyer ce devis par email au client (PDF en pièce jointe) ?")) return;
+    startTransition(async () => {
+      const r = await sendDevisEmailAction(p.devisId);
+      if (r.ok) {
+        alert(`✓ Devis envoyé à ${r.emailedTo}\n(Brevo messageId: ${r.messageId})`);
+        window.location.reload();
+      } else {
+        alert(`Échec : ${r.message}`);
+      }
+    });
+  };
+
+  const renderCta = () => {
+    if (step.action === "send_devis") {
+      return (
+        <Button
+          variant={step.variant ?? "accent"}
+          size="md"
+          onClick={handleSend}
+          disabled={pending}
+        >
+          {pending ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Envoi…
+            </>
+          ) : (
+            <>
+              {step.ctaLabel}
+              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </>
+          )}
+        </Button>
+      );
+    }
+    return (
+      <Link href={step.ctaHref ?? "#"}>
+        <Button variant={step.variant ?? "accent"} size="md">
+          {step.ctaLabel}
+          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
+        </Button>
+      </Link>
+    );
+  };
+
   return (
     <Card className="p-5">
       <div className="flex items-start gap-4">
@@ -127,14 +183,7 @@ export function NextStepDevisBanner(p: Props) {
             {step.description}
           </p>
         </div>
-        <div className="shrink-0">
-          <Link href={step.ctaHref}>
-            <Button variant={step.variant ?? "accent"} size="md">
-              {step.ctaLabel}
-              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
-            </Button>
-          </Link>
-        </div>
+        <div className="shrink-0">{renderCta()}</div>
       </div>
     </Card>
   );
