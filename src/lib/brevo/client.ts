@@ -17,6 +17,25 @@ export function isBrevoConfigured(): boolean {
   return Boolean(process.env.BREVO_API_KEY);
 }
 
+/**
+ * Mode sandbox : intercepte tous les envois et les loggue au lieu de les
+ * faire partir vers Brevo. Activé automatiquement dès que l'env n'est pas
+ * "prod" (recette / dev / preview / local). Peut être forcé via la variable
+ * MAIL_SANDBOX=1 (ou désactivé via MAIL_SANDBOX=0 si on veut vraiment
+ * tester un vrai envoi depuis dev).
+ */
+export function isMailSandbox(): boolean {
+  const explicit = process.env.MAIL_SANDBOX;
+  if (explicit === "1" || explicit?.toLowerCase() === "true") return true;
+  if (explicit === "0" || explicit?.toLowerCase() === "false") return false;
+  const env = (process.env.NEXT_PUBLIC_APP_ENV ?? "").toLowerCase();
+  return env !== "" && env !== "prod" && env !== "production";
+}
+
+function fakeMessageId(prefix: string): string {
+  return `${prefix}-sandbox-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export type BrevoEmailPayload = {
   to: { email: string; name?: string }[];
   subject: string;
@@ -30,6 +49,15 @@ export type BrevoEmailPayload = {
 export async function sendBrevoEmail(payload: BrevoEmailPayload): Promise<
   { ok: true; messageId: string } | { ok: false; message: string }
 > {
+  if (isMailSandbox()) {
+    const recipients = payload.to.map((t) => t.email).join(", ");
+    console.log(
+      `[MAIL SANDBOX] Email NON envoyé · ${recipients} · sujet="${payload.subject}" · ${
+        payload.attachment?.length ?? 0
+      } pj`,
+    );
+    return { ok: true, messageId: fakeMessageId("email") };
+  }
   try {
     const res = await fetch(`${BREVO_BASE}/smtp/email`, {
       method: "POST",
@@ -77,6 +105,14 @@ export async function sendBrevoSms(
       ok: false,
       message: `Numéro de téléphone invalide : "${payload.recipient}" (attendu format international, ex: +33667699490)`,
     };
+  }
+  if (isMailSandbox()) {
+    console.log(
+      `[MAIL SANDBOX] SMS NON envoyé · ${normalized} · "${payload.content.slice(0, 80)}${
+        payload.content.length > 80 ? "…" : ""
+      }"`,
+    );
+    return { ok: true, messageId: fakeMessageId("sms") };
   }
   try {
     const res = await fetch(`${BREVO_BASE}/transactionalSMS/sms`, {

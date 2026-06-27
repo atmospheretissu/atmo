@@ -179,6 +179,11 @@ export function BcEmailPreviewModal({
             <p className="text-[12.5px] text-pink flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" /> {sendError}
             </p>
+          ) : isSandboxEnv() ? (
+            <p className="text-[12px] text-amber font-medium flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Mode recette — aucun email réel ne sera envoyé (simulation).
+            </p>
           ) : (
             <p className="text-[12px] text-muted">
               {preview && preview.ok && preview.supplierEmail
@@ -211,6 +216,11 @@ export function BcEmailPreviewModal({
       </div>
     </div>
   );
+}
+
+function isSandboxEnv(): boolean {
+  const env = (process.env.NEXT_PUBLIC_APP_ENV ?? "").toLowerCase();
+  return env !== "" && env !== "prod" && env !== "production";
 }
 
 function FieldRow({
