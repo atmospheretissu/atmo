@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Plus,
@@ -11,6 +12,7 @@ import {
   LayoutGrid,
   List,
   Eye,
+  Package,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
@@ -284,6 +286,7 @@ function DevisCard({ devis }: { devis: DevisWithClient }) {
 }
 
 function DossierCard({ dossier }: { dossier: DossierWithClient }) {
+  const router = useRouter();
   const name = dossier.client?.display_name ?? "—";
   const initial = name.includes(",") ? (name.split(",")[1].trim()[0] ?? name[0]) : name[0];
   const alerteSolde = !dossier.solde_paid && dossier.itemsReceived === dossier.itemsTotal && dossier.itemsTotal > 0;
@@ -353,6 +356,21 @@ function DossierCard({ dossier }: { dossier: DossierWithClient }) {
             {eur(Number(dossier.total_ttc), true)}
           </span>
         </div>
+
+        {dossier.status === "commande_validee" && dossier.devis_id && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/commandes/from-devis/${dossier.devis_id}`);
+            }}
+            className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md bg-ink text-white text-[11.5px] font-semibold hover:bg-ink/90 transition-colors"
+          >
+            <Package className="h-3 w-3" strokeWidth={2.4} />
+            Générer les bons de commande
+          </button>
+        )}
       </Card>
     </Link>
   );
