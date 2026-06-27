@@ -294,8 +294,15 @@ function DossierCard({ dossier }: { dossier: DossierWithClient }) {
   const age = ageInStatus(dossier.status, dossier as never);
   const isOverdue = age?.isOverdue ?? false;
 
+  // En colonne Commande (commande_validee), on emmène direct vers
+  // l'interface "Commande fournisseur" (préparation + envoi des BCs).
+  // Pour les autres statuts, vers la fiche confection.
+  const targetHref =
+    dossier.status === "commande_validee" && dossier.devis_id
+      ? `/commandes/from-devis/${dossier.devis_id}`
+      : `/confections/${dossier.id}`;
   return (
-    <Link href={`/confections/${dossier.id}`}>
+    <Link href={targetHref}>
       <Card className="p-3.5 cursor-pointer hover:border-line-strong transition-colors">
         <div className="flex items-start justify-between gap-2 mb-2.5">
           <LetterAvatar initial={initial} tone={toneFor(name)} size="md" />

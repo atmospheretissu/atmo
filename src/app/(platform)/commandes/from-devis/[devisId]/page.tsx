@@ -78,6 +78,7 @@ export default async function FromDevisPage({
               devisNumber={preview.devis.number}
               lines={preview.lines}
               suppliers={preview.suppliers}
+              existingBcs={preview.existingBcs}
             />
           )}
         </section>

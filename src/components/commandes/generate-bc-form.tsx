@@ -2,13 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, AlertTriangle, Package, Loader2, ArrowRight } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Package, Loader2, ArrowRight, Send, Mail } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip, StatusPill } from "@/components/ui/status-pill";
 import { eur } from "@/lib/formatters";
 import { createBcsFromDevisAction } from "@/app/(platform)/commandes/actions";
-import type { DevisLineForBc, SupplierStub, CreateBcsResult } from "@/lib/db/bcs-from-devis";
+import { sendBcByEmailAction, type SendBcEmailResult } from "@/app/(platform)/commandes/email-actions";
+import type { DevisLineForBc, SupplierStub, CreateBcsResult, ExistingBc } from "@/lib/db/bcs-from-devis";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -17,15 +18,39 @@ export function GenerateBcForm({
   devisNumber,
   lines,
   suppliers,
+  existingBcs = [],
 }: {
   devisId: string;
   devisNumber: string;
   lines: DevisLineForBc[];
   suppliers: SupplierStub[];
+  existingBcs?: ExistingBc[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<CreateBcsResult | null>(null);
+
+  // Si des BCs existent déjà pour ce devis (via le dossier rattaché), on
+  // affiche la vue de gestion à la place du formulaire — évite de générer
+  // des BCs en doublon à chaque revisite.
+  if (existingBcs.length > 0 && !result) {
+    return (
+      <CreatedBcsView
+        bcs={existingBcs.map((b) => ({
+          supplierId: b.supplier_id ?? "?",
+          supplierName: b.supplier_name ?? "—",
+          bcId: b.id,
+          bcNumber: b.number,
+          lineCount: b.line_count,
+          alreadySent: b.status === "envoye" || b.status === "confirme" || b.status === "expedie" || b.status === "recu",
+        }))}
+        skippedLineCount={0}
+        devisNumber={devisNumber}
+        onBackToList={() => router.push("/commandes")}
+        onOpenBc={(id) => router.push(`/commandes/${id}`)}
+      />
+    );
+  }
 
   // Map lineId → supplierId | UNASSIGNED
   const [assignments, setAssignments] = useState<Record<string, string>>(() => {
@@ -82,47 +107,13 @@ export function GenerateBcForm({
   // ===== Résultat post-création =====
   if (result?.ok && result.bcs.length > 0) {
     return (
-      <div className="space-y-4">
-        <Card className="p-6 border-emerald/30 bg-emerald-soft/30">
-          <div className="flex items-start gap-3">
-            <ColorChip tone="emerald" size="lg">
-              <CheckCircle2 className="h-5 w-5" strokeWidth={2.4} />
-            </ColorChip>
-            <div className="flex-1">
-              <h3 className="text-[16px] font-semibold text-ink mb-1">
-                {result.bcs.length} bon{result.bcs.length > 1 ? "s" : ""} de commande créé{result.bcs.length > 1 ? "s" : ""}
-              </h3>
-              <p className="text-[13px] text-muted">
-                Issus du devis <strong className="text-ink">{devisNumber}</strong>.
-                {result.skippedLineCount > 0 && (
-                  <> {result.skippedLineCount} ligne(s) ignorée(s) (sans fournisseur).</>
-                )}
-              </p>
-            </div>
-          </div>
-        </Card>
-        <div className="space-y-2">
-          {result.bcs.map((bc) => (
-            <Card key={bc.bcId} className="px-5 py-4 flex items-center justify-between hover:bg-canvas-2/40 transition-colors">
-              <div className="flex items-center gap-3">
-                <ColorChip tone="blue" size="md"><Package className="h-4 w-4" strokeWidth={2.4} /></ColorChip>
-                <div>
-                  <p className="text-[14px] font-semibold text-ink">{bc.supplierName}</p>
-                  <p className="text-[12px] text-muted">BC {bc.bcNumber} · {bc.lineCount} ligne{bc.lineCount > 1 ? "s" : ""}</p>
-                </div>
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => router.push(`/commandes/${bc.bcId}`)}>
-                Ouvrir <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </Card>
-          ))}
-        </div>
-        <div className="pt-3">
-          <Button variant="secondary" size="md" onClick={() => router.push("/commandes")}>
-            Tous les bons de commande
-          </Button>
-        </div>
-      </div>
+      <CreatedBcsView
+        bcs={result.bcs}
+        skippedLineCount={result.skippedLineCount}
+        devisNumber={devisNumber}
+        onBackToList={() => router.push("/commandes")}
+        onOpenBc={(id) => router.push(`/commandes/${id}`)}
+      />
     );
   }
 
@@ -216,6 +207,210 @@ export function GenerateBcForm({
           <p className="text-[12.5px] text-pink mt-3">✗ {result.message}</p>
         )}
       </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   Vue post-création : permet d'envoyer chaque BC par email
+   ============================================================ */
+
+type CreatedBc = {
+  supplierId: string;
+  supplierName: string;
+  bcId: string;
+  bcNumber: string;
+  lineCount: number;
+  alreadySent?: boolean;
+};
+
+type SendState = {
+  status: "idle" | "pending" | "sent" | "failed" | "skipped";
+  message?: string;
+  emailedTo?: string;
+};
+
+function CreatedBcsView({
+  bcs,
+  skippedLineCount,
+  devisNumber,
+  onBackToList,
+  onOpenBc,
+}: {
+  bcs: CreatedBc[];
+  skippedLineCount: number;
+  devisNumber: string;
+  onBackToList: () => void;
+  onOpenBc: (id: string) => void;
+}) {
+  const [sendStates, setSendStates] = useState<Record<string, SendState>>(() => {
+    const init: Record<string, SendState> = {};
+    for (const b of bcs) {
+      init[b.bcId] = b.alreadySent ? { status: "sent" } : { status: "idle" };
+    }
+    return init;
+  });
+  const [bulkPending, setBulkPending] = useState(false);
+
+  const updateState = (bcId: string, s: SendState) =>
+    setSendStates((prev) => ({ ...prev, [bcId]: s }));
+
+  const sendOne = async (bcId: string) => {
+    updateState(bcId, { status: "pending" });
+    const r: SendBcEmailResult = await sendBcByEmailAction(bcId);
+    if (r.ok) {
+      updateState(bcId, { status: "sent", emailedTo: r.emailedTo });
+    } else {
+      updateState(bcId, {
+        status: r.skipped ? "skipped" : "failed",
+        message: r.message,
+      });
+    }
+  };
+
+  const sendAll = async () => {
+    setBulkPending(true);
+    const pending = bcs.filter(
+      (b) => sendStates[b.bcId]?.status !== "sent",
+    );
+    await Promise.all(pending.map((b) => sendOne(b.bcId)));
+    setBulkPending(false);
+  };
+
+  const totalSent = Object.values(sendStates).filter((s) => s.status === "sent").length;
+  const totalPending = Object.values(sendStates).filter(
+    (s) => s.status === "pending",
+  ).length;
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-6 border-emerald/30 bg-emerald-soft/30">
+        <div className="flex items-start gap-3">
+          <ColorChip tone="emerald" size="lg">
+            <CheckCircle2 className="h-5 w-5" strokeWidth={2.4} />
+          </ColorChip>
+          <div className="flex-1">
+            <h3 className="text-[16px] font-semibold text-ink mb-1">
+              {bcs.length} bon{bcs.length > 1 ? "s" : ""} de commande créé
+              {bcs.length > 1 ? "s" : ""}
+            </h3>
+            <p className="text-[13px] text-muted">
+              Issus du devis <strong className="text-ink">{devisNumber}</strong>.
+              {skippedLineCount > 0 && (
+                <> {skippedLineCount} ligne(s) ignorée(s) (sans fournisseur).</>
+              )}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="px-5 py-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-[13px] text-ink">
+            <strong>{totalSent}/{bcs.length}</strong>{" "}
+            <span className="text-muted">
+              envoyé{totalSent > 1 ? "s" : ""} aux fournisseurs
+            </span>
+          </div>
+          <Button
+            variant="accent"
+            size="md"
+            disabled={bulkPending || totalSent === bcs.length}
+            onClick={sendAll}
+          >
+            {bulkPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" strokeWidth={2.4} />
+            )}
+            Envoyer tous les bons de commande
+          </Button>
+        </div>
+      </Card>
+
+      <div className="space-y-2">
+        {bcs.map((bc) => {
+          const state = sendStates[bc.bcId] ?? { status: "idle" };
+          return (
+            <Card
+              key={bc.bcId}
+              className="px-5 py-4 flex items-center justify-between hover:bg-canvas-2/40 transition-colors gap-3 flex-wrap"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <ColorChip
+                  tone={state.status === "sent" ? "emerald" : "blue"}
+                  size="md"
+                >
+                  {state.status === "sent" ? (
+                    <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} />
+                  ) : (
+                    <Package className="h-4 w-4" strokeWidth={2.4} />
+                  )}
+                </ColorChip>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-ink">
+                    {bc.supplierName}
+                  </p>
+                  <p className="text-[12px] text-muted">
+                    BC {bc.bcNumber} · {bc.lineCount} ligne
+                    {bc.lineCount > 1 ? "s" : ""}
+                  </p>
+                  {state.status === "sent" && state.emailedTo && (
+                    <p className="text-[11.5px] text-emerald mt-0.5">
+                      ✓ Envoyé à {state.emailedTo}
+                    </p>
+                  )}
+                  {(state.status === "failed" || state.status === "skipped") && (
+                    <p
+                      className={
+                        "text-[11.5px] mt-0.5 " +
+                        (state.status === "skipped" ? "text-amber" : "text-pink")
+                      }
+                    >
+                      {state.status === "skipped" ? "⚠ " : "✗ "}
+                      {state.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant={state.status === "sent" ? "secondary" : "primary"}
+                  size="sm"
+                  disabled={state.status === "pending" || state.status === "sent"}
+                  onClick={() => sendOne(bc.bcId)}
+                >
+                  {state.status === "pending" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : state.status === "sent" ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Mail className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  )}
+                  {state.status === "sent"
+                    ? "Envoyé"
+                    : state.status === "pending"
+                      ? "Envoi…"
+                      : "Envoyer"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onOpenBc(bc.bcId)}
+                >
+                  Ouvrir <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="pt-3">
+        <Button variant="secondary" size="md" onClick={onBackToList}>
+          Tous les bons de commande
+        </Button>
+      </div>
     </div>
   );
 }

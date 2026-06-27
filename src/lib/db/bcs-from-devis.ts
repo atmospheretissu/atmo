@@ -24,6 +24,17 @@ export type SupplierStub = {
   language: string;
 };
 
+export type ExistingBc = {
+  id: string;
+  number: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  status: string;
+  amount_ht: number;
+  line_count: number;
+  sent_at: string | null;
+};
+
 export type DevisBcPreview = {
   devis: {
     id: string;
@@ -32,10 +43,13 @@ export type DevisBcPreview = {
     client_name: string | null;
     store_id: string | null;
   };
+  dossierId: string | null;
   /** Toutes les lignes du devis, enrichies du fournisseur déduit. */
   lines: DevisLineForBc[];
   /** Tous les fournisseurs actifs (pour les dropdowns d'assignation). */
   suppliers: SupplierStub[];
+  /** BCs déjà créés pour ce devis (via dossier_id). */
+  existingBcs: ExistingBc[];
 };
 
 export async function getDevisBcPreview(devisId: string): Promise<DevisBcPreview | null> {
@@ -95,6 +109,44 @@ export async function getDevisBcPreview(devisId: string): Promise<DevisBcPreview
     };
   });
 
+  // Cherche un dossier rattaché au devis (la liaison BC ↔ devis passe par lui)
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("id")
+    .eq("devis_id", devisId)
+    .maybeSingle();
+  const dossierId = dossier?.id ?? null;
+
+  let existingBcs: ExistingBc[] = [];
+  if (dossierId) {
+    const { data: bcs } = await supabase
+      .from("bons_commande")
+      .select("id, number, supplier_id, status, amount_ht, sent_at")
+      .eq("dossier_id", dossierId)
+      .order("created_at", { ascending: true });
+    if (bcs && bcs.length > 0) {
+      const bcIds = bcs.map((b) => b.id);
+      const { data: lineCounts } = await supabase
+        .from("bc_lines")
+        .select("bc_id")
+        .in("bc_id", bcIds);
+      const countByBc = new Map<string, number>();
+      for (const l of lineCounts ?? []) {
+        countByBc.set(l.bc_id, (countByBc.get(l.bc_id) ?? 0) + 1);
+      }
+      existingBcs = bcs.map((b) => ({
+        id: b.id,
+        number: b.number,
+        supplier_id: b.supplier_id,
+        supplier_name: b.supplier_id ? supplierById.get(b.supplier_id)?.name ?? null : null,
+        status: b.status,
+        amount_ht: Number(b.amount_ht ?? 0),
+        line_count: countByBc.get(b.id) ?? 0,
+        sent_at: b.sent_at,
+      }));
+    }
+  }
+
   return {
     devis: {
       id: devis.id,
@@ -103,8 +155,10 @@ export async function getDevisBcPreview(devisId: string): Promise<DevisBcPreview
       client_name: ((devis as { clients?: { display_name?: string } | null }).clients?.display_name) ?? null,
       store_id: (devis as { store_id?: string | null }).store_id ?? null,
     },
+    dossierId,
     lines: enrichedLines,
     suppliers: (suppliers ?? []).map((s) => ({ id: s.id, name: s.name, type: s.type, language: s.language })),
+    existingBcs,
   };
 }
 
@@ -132,6 +186,7 @@ export async function createBcsFromDevisAssignments(
   const admin = createServiceRoleClient();
   const preview = await getDevisBcPreview(devisId);
   if (!preview) return { ok: false, message: "Devis introuvable", bcs: [], skippedLineCount: 0 };
+  const dossierId = preview.dossierId;
 
   const linesById = new Map(preview.lines.map((l) => [l.id, l]));
   const supplierById = new Map(preview.suppliers.map((s) => [s.id, s]));
@@ -175,6 +230,7 @@ export async function createBcsFromDevisAssignments(
       .insert({
         number,
         supplier_id: supplierId,
+        dossier_id: dossierId,
         status: "brouillon",
         amount_ht: amount,
         language: lang,
