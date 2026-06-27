@@ -126,6 +126,10 @@ export async function createDossierFromDevis(
 
   // 3. Crée le dossier (hérite du store_id du devis pour rester visible
   //    avec le même filtre multi-magasin)
+  //    Si l'acompte est déjà reçu → statut initial = commande_validee
+  //    pour que le dossier apparaisse en colonne "Commande" du kanban et que
+  //    refresh_dossier_status respecte ce statut (ne pas forcer attente_matiere).
+  const acompteAlreadyPaid = devis.status === "acompte_recu";
   const number = await getNextDossierNumber(supabase);
   const { data: dossier, error: e3 } = await supabase
     .from("dossiers")
@@ -133,10 +137,10 @@ export async function createDossierFromDevis(
       number,
       devis_id: devisId,
       client_id: devis.client_id,
-      status: "en_cours",
+      status: acompteAlreadyPaid ? "commande_validee" : "en_cours",
       total_ttc: devis.total_ttc,
-      acompte_paid: devis.status === "acompte_recu",
-      acompte_paid_at: devis.status === "acompte_recu" ? new Date().toISOString() : null,
+      acompte_paid: acompteAlreadyPaid,
+      acompte_paid_at: acompteAlreadyPaid ? new Date().toISOString() : null,
       store_id: (devis as { store_id?: string | null }).store_id ?? null,
     })
     .select("id")
