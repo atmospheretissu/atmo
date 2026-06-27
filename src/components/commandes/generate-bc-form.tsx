@@ -9,6 +9,7 @@ import { ColorChip, StatusPill } from "@/components/ui/status-pill";
 import { eur } from "@/lib/formatters";
 import { createBcsFromDevisAction } from "@/app/(platform)/commandes/actions";
 import { sendBcByEmailAction, type SendBcEmailResult } from "@/app/(platform)/commandes/email-actions";
+import { BcEmailPreviewModal } from "@/components/commandes/bc-email-preview-modal";
 import type { DevisLineForBc, SupplierStub, CreateBcsResult, ExistingBc } from "@/lib/db/bcs-from-devis";
 
 const UNASSIGNED = "__unassigned__";
@@ -251,13 +252,12 @@ function CreatedBcsView({
     return init;
   });
   const [bulkPending, setBulkPending] = useState(false);
+  const [previewBcId, setPreviewBcId] = useState<string | null>(null);
 
   const updateState = (bcId: string, s: SendState) =>
     setSendStates((prev) => ({ ...prev, [bcId]: s }));
 
-  const sendOne = async (bcId: string) => {
-    updateState(bcId, { status: "pending" });
-    const r: SendBcEmailResult = await sendBcByEmailAction(bcId);
+  const applySendResult = (bcId: string, r: SendBcEmailResult) => {
     if (r.ok) {
       updateState(bcId, { status: "sent", emailedTo: r.emailedTo });
     } else {
@@ -266,6 +266,12 @@ function CreatedBcsView({
         message: r.message,
       });
     }
+  };
+
+  const sendOne = async (bcId: string) => {
+    updateState(bcId, { status: "pending" });
+    const r = await sendBcByEmailAction(bcId);
+    applySendResult(bcId, r);
   };
 
   const sendAll = async () => {
@@ -374,25 +380,30 @@ function CreatedBcsView({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant={state.status === "sent" ? "secondary" : "primary"}
-                  size="sm"
-                  disabled={state.status === "pending" || state.status === "sent"}
-                  onClick={() => sendOne(bc.bcId)}
-                >
-                  {state.status === "pending" ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : state.status === "sent" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  ) : (
+                {state.status !== "sent" && state.status !== "pending" && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setPreviewBcId(bc.bcId)}
+                  >
                     <Mail className="h-3.5 w-3.5" strokeWidth={2.4} />
-                  )}
-                  {state.status === "sent"
-                    ? "Envoyé"
-                    : state.status === "pending"
-                      ? "Envoi…"
-                      : "Envoyer"}
-                </Button>
+                    Visualiser puis envoyer
+                  </Button>
+                )}
+                {(state.status === "sent" || state.status === "pending") && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled
+                  >
+                    {state.status === "pending" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )}
+                    {state.status === "sent" ? "Envoyé" : "Envoi…"}
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -411,6 +422,14 @@ function CreatedBcsView({
           Tous les bons de commande
         </Button>
       </div>
+
+      {previewBcId && (
+        <BcEmailPreviewModal
+          bcId={previewBcId}
+          onClose={() => setPreviewBcId(null)}
+          onSent={(r) => applySendResult(previewBcId, r)}
+        />
+      )}
     </div>
   );
 }

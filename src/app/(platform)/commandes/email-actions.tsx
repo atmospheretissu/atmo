@@ -7,6 +7,61 @@ import { getBcDetail } from "@/lib/db/bons-commande";
 import { BcPDF } from "@/lib/pdf/bc-pdf";
 import { sendBrevoEmail, isBrevoConfigured } from "@/lib/brevo/client";
 
+function buildBcEmailHtml(args: { bcNumber: string; amountHt: number }): string {
+  const eur = (n: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
+  return `
+    <div style="font-family:-apple-system,Inter,Helvetica,Arial,sans-serif;color:#111;max-width:560px;margin:auto;padding:24px;">
+      <h1 style="font-size:22px;margin:0 0 12px 0;">Bon de commande ${args.bcNumber}</h1>
+      <p style="margin:0 0 14px 0;color:#555;">Bonjour,</p>
+      <p style="margin:0 0 14px 0;line-height:1.5;">
+        Vous trouverez ci-joint notre bon de commande <strong>${args.bcNumber}</strong> d'un montant
+        de <strong>${eur(args.amountHt)} HT</strong>.
+      </p>
+      <p style="margin:0 0 14px 0;line-height:1.5;">
+        Merci de bien vouloir confirmer la prise en compte et nous indiquer une date d'expédition prévisionnelle.
+      </p>
+      <p style="margin:24px 0 0 0;color:#555;font-size:13px;">
+        — L'équipe Atmosphère Tissus
+      </p>
+    </div>
+  `;
+}
+
+function buildBcEmailSubject(bcNumber: string): string {
+  return `Commande ${bcNumber} — Atmosphère Tissus`;
+}
+
+export type BcEmailPreview = {
+  ok: true;
+  bcId: string;
+  bcNumber: string;
+  supplierName: string;
+  supplierEmail: string | null;
+  subject: string;
+  html: string;
+  amountHt: number;
+  pdfUrl: string;
+} | { ok: false; message: string };
+
+export async function getBcEmailPreviewAction(bcId: string): Promise<BcEmailPreview> {
+  const detail = await getBcDetail(bcId);
+  if (!detail) return { ok: false, message: "BC introuvable" };
+  const { bc, supplier } = detail;
+  if (!supplier) return { ok: false, message: "Aucun fournisseur sur ce BC" };
+  return {
+    ok: true,
+    bcId: bc.id,
+    bcNumber: bc.number,
+    supplierName: supplier.name,
+    supplierEmail: supplier.contact_email,
+    subject: buildBcEmailSubject(bc.number),
+    html: buildBcEmailHtml({ bcNumber: bc.number, amountHt: Number(bc.amount_ht ?? 0) }),
+    amountHt: Number(bc.amount_ht ?? 0),
+    pdfUrl: `/commandes/${bc.id}/pdf?inline=1`,
+  };
+}
+
 export type SendBcEmailResult =
   | {
       ok: true;
@@ -74,25 +129,8 @@ export async function sendBcByEmailAction(bcId: string): Promise<SendBcEmailResu
     };
   }
 
-  const subject = `Commande ${bc.number} — Atmosphère Tissus`;
-  const eur = (n: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
-  const html = `
-    <div style="font-family:-apple-system,Inter,Helvetica,Arial,sans-serif;color:#111;max-width:560px;margin:auto;padding:24px;">
-      <h1 style="font-size:22px;margin:0 0 12px 0;">Bon de commande ${bc.number}</h1>
-      <p style="margin:0 0 14px 0;color:#555;">Bonjour,</p>
-      <p style="margin:0 0 14px 0;line-height:1.5;">
-        Vous trouverez ci-joint notre bon de commande <strong>${bc.number}</strong> d'un montant
-        de <strong>${eur(Number(bc.amount_ht ?? 0))} HT</strong>.
-      </p>
-      <p style="margin:0 0 14px 0;line-height:1.5;">
-        Merci de bien vouloir confirmer la prise en compte et nous indiquer une date d'expédition prévisionnelle.
-      </p>
-      <p style="margin:24px 0 0 0;color:#555;font-size:13px;">
-        — L'équipe Atmosphère Tissus
-      </p>
-    </div>
-  `;
+  const subject = buildBcEmailSubject(bc.number);
+  const html = buildBcEmailHtml({ bcNumber: bc.number, amountHt: Number(bc.amount_ht ?? 0) });
 
   const res = await sendBrevoEmail({
     to: [{ email: supplier.contact_email, name: supplier.name }],
