@@ -112,11 +112,29 @@ export async function sendBcAction(id: string): Promise<Result> {
 }
 
 export async function dismissBcAction(id: string): Promise<Result> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("bons_commande").delete().eq("id", id);
-  if (error) return { ok: false, message: error.message };
-  revalidatePath("/commandes");
-  return { ok: true };
+  try {
+    const supabase = await createClient();
+    // 1. Supprime explicitement les lignes (au cas où le cascade ne fasse pas son boulot)
+    const { error: linesErr } = await supabase.from("bc_lines").delete().eq("bc_id", id);
+    if (linesErr) {
+      console.error("[dismissBcAction] lines delete error:", linesErr);
+      return { ok: false, message: `Suppression lignes : ${linesErr.message}` };
+    }
+    // 2. Supprime le BC
+    const { error } = await supabase.from("bons_commande").delete().eq("id", id);
+    if (error) {
+      console.error("[dismissBcAction] BC delete error:", error);
+      return { ok: false, message: error.message };
+    }
+    // Pas de revalidatePath — la vue cliente gère son état local
+    return { ok: true };
+  } catch (e) {
+    console.error("[dismissBcAction] thrown:", e);
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Erreur inconnue",
+    };
+  }
 }
 
 /**

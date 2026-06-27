@@ -285,11 +285,18 @@ function CreatedBcsView({
   const dismissOne = async (bcId: string, supplierName: string) => {
     if (!confirm(`Marquer la commande à ${supplierName} comme inutile et la supprimer ?`)) return;
     updateState(bcId, { status: "pending" });
-    const r = await dismissBcAction(bcId);
-    if (r.ok) {
-      updateState(bcId, { status: "dismissed" });
-    } else {
-      updateState(bcId, { status: "failed", message: r.message });
+    try {
+      const r = await dismissBcAction(bcId);
+      if (r.ok) {
+        updateState(bcId, { status: "dismissed" });
+      } else {
+        updateState(bcId, { status: "failed", message: r.message });
+      }
+    } catch (e) {
+      updateState(bcId, {
+        status: "failed",
+        message: e instanceof Error ? e.message : "Échec inconnu",
+      });
     }
   };
 
