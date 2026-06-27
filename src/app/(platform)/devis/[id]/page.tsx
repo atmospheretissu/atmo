@@ -12,6 +12,7 @@ import {
   Zap,
   ExternalLink,
   Scissors,
+  Package,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
@@ -156,6 +157,12 @@ export default async function DevisDetailPage({
                   contextLabel: `Devis ${devis.number} · ${client?.display_name ?? "—"}`,
                 }}
               />
+              <Link href={`/commandes/from-devis/${devis.id}`}>
+                <Button variant="secondary" size="sm">
+                  <Package className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Générer les BCs
+                </Button>
+              </Link>
               {dossier && (
                 <Link href={`/confections/${dossier.id}`}>
                   <Button variant="accent" size="sm">

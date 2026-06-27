@@ -9,6 +9,19 @@ import {
   getNextBcNumber,
   autoCreateBcsForDossier,
 } from "@/lib/db/bons-commande";
+import { createBcsFromDevisAssignments, type CreateBcsResult } from "@/lib/db/bcs-from-devis";
+
+export async function createBcsFromDevisAction(
+  devisId: string,
+  assignments: Record<string, string | null>,
+): Promise<CreateBcsResult> {
+  const result = await createBcsFromDevisAssignments(devisId, assignments);
+  if (result.ok) {
+    revalidatePath("/commandes");
+    revalidatePath(`/devis/${devisId}`);
+  }
+  return result;
+}
 
 /**
  * Crée un BC (vide ou auto-peuplé si dossierId fourni). Redirige vers
