@@ -15,12 +15,19 @@ export async function createBcsFromDevisAction(
   devisId: string,
   assignments: Record<string, string | null>,
 ): Promise<CreateBcsResult> {
-  const result = await createBcsFromDevisAssignments(devisId, assignments);
-  if (result.ok) {
-    revalidatePath("/commandes");
-    revalidatePath(`/devis/${devisId}`);
+  try {
+    const result = await createBcsFromDevisAssignments(devisId, assignments);
+    // Pas de revalidatePath ici — la vue cliente gère la transition vers le succès
+    return result;
+  } catch (e) {
+    console.error("[createBcsFromDevisAction] thrown:", e);
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Erreur inconnue",
+      bcs: [],
+      skippedLineCount: 0,
+    };
   }
-  return result;
 }
 
 /**

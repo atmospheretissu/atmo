@@ -125,6 +125,40 @@ export function GenerateBcForm({
   // ===== Form principal =====
   return (
     <div className="space-y-4">
+      {/* Choix : créer un BC OU pas de commande nécessaire */}
+      {dossierId && (
+        <Card className="px-5 py-4 border-violet/30 bg-violet-soft/20">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <ColorChip tone="violet" size="md">
+                <Package className="h-4 w-4" strokeWidth={2.4} />
+              </ColorChip>
+              <div>
+                <p className="text-[14px] font-semibold text-ink leading-tight">
+                  Cette commande nécessite-t-elle un bon de commande fournisseur ?
+                </p>
+                <p className="text-[12px] text-muted leading-tight mt-0.5">
+                  Tu peux préparer les BCs ligne par ligne, ou passer directement à la suite si tu as déjà la matière en stock.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={async () => {
+                if (!confirm("Pas de commande nécessaire — basculer ce dossier en attente matière ?")) return;
+                const r = await advanceDossierFromCommandeAction(dossierId);
+                if (r.ok) router.push("/confections");
+                else alert(`Échec : ${r.message}`);
+              }}
+            >
+              <SkipForward className="h-3.5 w-3.5" strokeWidth={2.4} />
+              Pas de commande — passer à la suite
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Récap top */}
       <Card className="px-5 py-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
