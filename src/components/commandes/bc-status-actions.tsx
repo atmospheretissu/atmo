@@ -2,12 +2,10 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Send, CheckCircle2, Truck, Package, Loader2, AlertTriangle } from "lucide-react";
+import { Send, CheckCircle2, Package, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   sendBcAction,
-  confirmBcAction,
-  shipBcAction,
   receiveBcAction,
   flagBcProblemAction,
 } from "@/app/(platform)/commandes/actions";
@@ -70,37 +68,25 @@ export function BcStatusActions({
           Envoyer
         </Button>
       )}
-      {status === "envoye" && (
-        <Button variant="primary" size="sm" disabled={pending} onClick={() => run(() => confirmBcAction(bcId))}>
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          Confirmer
-        </Button>
-      )}
-      {status === "confirme" && (
-        <Button variant="primary" size="sm" disabled={pending} onClick={() => run(() => shipBcAction(bcId))}>
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          Expédié
-        </Button>
-      )}
-      {status === "expedie" && (
-        <Button variant="primary" size="sm" disabled={pending} onClick={() => run(() => receiveBcAction(bcId))}>
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          Marquer reçu
-        </Button>
-      )}
       {(status === "envoye" || status === "confirme" || status === "expedie") && (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={pending}
-          onClick={() => {
-            const notes = prompt("Décrire le problème (rupture, qualité, retard…) :");
-            if (notes === null) return;
-            run(() => flagBcProblemAction(bcId, notes));
-          }}
-        >
-          <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.4} /> Signaler
-        </Button>
+        <>
+          <Button variant="primary" size="sm" disabled={pending} onClick={() => run(() => receiveBcAction(bcId))}>
+            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package className="h-3.5 w-3.5" strokeWidth={2.4} />}
+            Marquer reçu
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={pending}
+            onClick={() => {
+              const notes = prompt("Décrire le problème (rupture, qualité, retard…) :");
+              if (notes === null) return;
+              run(() => flagBcProblemAction(bcId, notes));
+            }}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" strokeWidth={2.4} /> Signaler
+          </Button>
+        </>
       )}
     </>
   );

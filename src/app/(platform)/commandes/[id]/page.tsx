@@ -9,8 +9,6 @@ import {
   Truck,
   AlertTriangle,
   CheckCircle2,
-  Circle,
-  CircleDashed,
   ChevronRight,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
@@ -26,9 +24,9 @@ export const dynamic = "force-dynamic";
 
 const statusLabels: Record<string, string> = {
   brouillon: "Brouillon",
-  envoye: "Envoyé",
-  confirme: "Confirmé",
-  expedie: "Expédié",
+  envoye: "En attente de réception",
+  confirme: "En attente de réception",
+  expedie: "En attente de réception",
   recu: "Reçu",
   probleme: "Problème",
 };
@@ -49,14 +47,6 @@ const flagFor: Record<string, string> = {
   UA: "🇺🇦",
 };
 
-const STAGES = [
-  { key: "brouillon", label: "Brouillon" },
-  { key: "envoye", label: "Envoyé" },
-  { key: "confirme", label: "Confirmé" },
-  { key: "expedie", label: "Expédié" },
-  { key: "recu", label: "Reçu" },
-];
-
 export default async function CommandeDetailPage({
   params,
 }: {
@@ -73,7 +63,6 @@ export default async function CommandeDetailPage({
   const francoPct = franco > 0 ? Math.min(100, (amount / franco) * 100) : 100;
   const francoMissing = Math.max(0, franco - amount);
 
-  const currentIdx = bc.status === "probleme" ? -1 : STAGES.findIndex((s) => s.key === bc.status);
   const canEdit = bc.status === "brouillon";
 
   return (
@@ -167,54 +156,6 @@ export default async function CommandeDetailPage({
           </div>
         </section>
 
-        {bc.status !== "probleme" && (
-          <section className="px-8 pb-6">
-            <Card className="p-5">
-              <p className="eyebrow mb-4">Avancement BC</p>
-              <div className="flex items-center justify-between gap-2">
-                {STAGES.map((s, i) => {
-                  const done = i < currentIdx;
-                  const current = i === currentIdx;
-                  return (
-                    <div key={s.key} className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="flex flex-col items-center gap-1.5 shrink-0">
-                        <div
-                          className={
-                            "h-8 w-8 rounded-full inline-flex items-center justify-center transition-colors " +
-                            (done
-                              ? "bg-emerald text-white"
-                              : current
-                                ? "bg-violet text-white ring-4 ring-violet-soft"
-                                : "bg-canvas-2 border border-line text-muted-2")
-                          }
-                        >
-                          {done ? (
-                            <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} />
-                          ) : current ? (
-                            <Circle className="h-3 w-3 fill-current" strokeWidth={0} />
-                          ) : (
-                            <CircleDashed className="h-3.5 w-3.5" strokeWidth={2.2} />
-                          )}
-                        </div>
-                        <p
-                          className={
-                            "text-[11px] font-semibold whitespace-nowrap " +
-                            (current ? "text-ink" : done ? "text-emerald" : "text-muted-2")
-                          }
-                        >
-                          {s.label}
-                        </p>
-                      </div>
-                      {i < STAGES.length - 1 && (
-                        <div className={"flex-1 h-px " + (done ? "bg-emerald" : "bg-line")} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          </section>
-        )}
 
         <section className="px-8 pb-10 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
           <div className="space-y-6 min-w-0">
