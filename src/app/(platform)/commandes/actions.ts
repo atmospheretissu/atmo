@@ -111,6 +111,37 @@ export async function sendBcAction(id: string): Promise<Result> {
   return setStatus(id, "envoye", { sent_at: new Date().toISOString() });
 }
 
+export async function dismissBcAction(id: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("bons_commande").delete().eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/commandes");
+  return { ok: true };
+}
+
+/**
+ * Bascule manuellement un dossier de commande_validee → attente_matiere.
+ * Utile quand l'utilisateur a marqué toutes les commandes comme "inutiles"
+ * (ignorées) — le trigger BC envoyé ne se déclenche jamais dans ce cas.
+ */
+export async function advanceDossierFromCommandeAction(
+  dossierId: string,
+): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("dossiers")
+    .update({
+      status: "attente_matiere",
+      attente_matiere_at: new Date().toISOString(),
+    })
+    .eq("id", dossierId)
+    .eq("status", "commande_validee");
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/confections");
+  revalidatePath(`/confections/${dossierId}`);
+  return { ok: true };
+}
+
 export async function confirmBcAction(id: string): Promise<Result> {
   return setStatus(id, "confirme");
 }

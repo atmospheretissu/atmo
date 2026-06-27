@@ -76,6 +76,7 @@ export default async function FromDevisPage({
             <GenerateBcForm
               devisId={preview.devis.id}
               devisNumber={preview.devis.number}
+              dossierId={preview.dossierId}
               lines={preview.lines}
               suppliers={preview.suppliers}
               existingBcs={preview.existingBcs}

@@ -2,12 +2,12 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, AlertTriangle, Package, Loader2, ArrowRight, Send, Mail } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Package, Loader2, ArrowRight, Send, Mail, SkipForward } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip, StatusPill } from "@/components/ui/status-pill";
 import { eur } from "@/lib/formatters";
-import { createBcsFromDevisAction } from "@/app/(platform)/commandes/actions";
+import { createBcsFromDevisAction, dismissBcAction, advanceDossierFromCommandeAction } from "@/app/(platform)/commandes/actions";
 import { sendBcByEmailAction, type SendBcEmailResult } from "@/app/(platform)/commandes/email-actions";
 import { BcEmailPreviewModal } from "@/components/commandes/bc-email-preview-modal";
 import type { DevisLineForBc, SupplierStub, CreateBcsResult, ExistingBc } from "@/lib/db/bcs-from-devis";
@@ -17,12 +17,14 @@ const UNASSIGNED = "__unassigned__";
 export function GenerateBcForm({
   devisId,
   devisNumber,
+  dossierId = null,
   lines,
   suppliers,
   existingBcs = [],
 }: {
   devisId: string;
   devisNumber: string;
+  dossierId?: string | null;
   lines: DevisLineForBc[];
   suppliers: SupplierStub[];
   existingBcs?: ExistingBc[];
@@ -47,7 +49,8 @@ export function GenerateBcForm({
         }))}
         skippedLineCount={0}
         devisNumber={devisNumber}
-        onBackToList={() => router.push("/commandes")}
+        dossierId={dossierId}
+        onBackToList={() => router.push("/confections")}
         onOpenBc={(id) => router.push(`/commandes/${id}`)}
       />
     );
@@ -112,7 +115,8 @@ export function GenerateBcForm({
         bcs={result.bcs}
         skippedLineCount={result.skippedLineCount}
         devisNumber={devisNumber}
-        onBackToList={() => router.push("/commandes")}
+        dossierId={dossierId}
+        onBackToList={() => router.push("/confections")}
         onOpenBc={(id) => router.push(`/commandes/${id}`)}
       />
     );
@@ -226,7 +230,7 @@ type CreatedBc = {
 };
 
 type SendState = {
-  status: "idle" | "pending" | "sent" | "failed" | "skipped";
+  status: "idle" | "pending" | "sent" | "failed" | "skipped" | "dismissed";
   message?: string;
   emailedTo?: string;
 };
@@ -235,12 +239,14 @@ function CreatedBcsView({
   bcs,
   skippedLineCount,
   devisNumber,
+  dossierId,
   onBackToList,
   onOpenBc,
 }: {
   bcs: CreatedBc[];
   skippedLineCount: number;
   devisNumber: string;
+  dossierId: string | null;
   onBackToList: () => void;
   onOpenBc: (id: string) => void;
 }) {
@@ -253,6 +259,8 @@ function CreatedBcsView({
   });
   const [bulkPending, setBulkPending] = useState(false);
   const [previewBcId, setPreviewBcId] = useState<string | null>(null);
+  const [advancePending, setAdvancePending] = useState(false);
+  const [advanceDone, setAdvanceDone] = useState(false);
 
   const updateState = (bcId: string, s: SendState) =>
     setSendStates((prev) => ({ ...prev, [bcId]: s }));
@@ -274,19 +282,33 @@ function CreatedBcsView({
     applySendResult(bcId, r);
   };
 
+  const dismissOne = async (bcId: string, supplierName: string) => {
+    if (!confirm(`Marquer la commande à ${supplierName} comme inutile et la supprimer ?`)) return;
+    updateState(bcId, { status: "pending" });
+    const r = await dismissBcAction(bcId);
+    if (r.ok) {
+      updateState(bcId, { status: "dismissed" });
+    } else {
+      updateState(bcId, { status: "failed", message: r.message });
+    }
+  };
+
   const sendAll = async () => {
     setBulkPending(true);
     const pending = bcs.filter(
-      (b) => sendStates[b.bcId]?.status !== "sent",
+      (b) => sendStates[b.bcId]?.status === "idle" || sendStates[b.bcId]?.status === "failed",
     );
     await Promise.all(pending.map((b) => sendOne(b.bcId)));
     setBulkPending(false);
   };
 
-  const totalSent = Object.values(sendStates).filter((s) => s.status === "sent").length;
-  const totalPending = Object.values(sendStates).filter(
-    (s) => s.status === "pending",
-  ).length;
+  const visibleBcs = bcs.filter((b) => sendStates[b.bcId]?.status !== "dismissed");
+  const totalSent = visibleBcs.filter((b) => sendStates[b.bcId]?.status === "sent").length;
+  const totalActionable = visibleBcs.filter((b) => {
+    const s = sendStates[b.bcId]?.status;
+    return s === "idle" || s === "failed";
+  }).length;
+  const totalDismissed = bcs.length - visibleBcs.length;
 
   return (
     <div className="space-y-4">
@@ -313,15 +335,20 @@ function CreatedBcsView({
       <Card className="px-5 py-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="text-[13px] text-ink">
-            <strong>{totalSent}/{bcs.length}</strong>{" "}
+            <strong>{totalSent}/{visibleBcs.length}</strong>{" "}
             <span className="text-muted">
-              envoyé{totalSent > 1 ? "s" : ""} aux fournisseurs
+              envoyé{totalSent > 1 ? "s" : ""}
             </span>
+            {totalDismissed > 0 && (
+              <span className="ml-2 text-muted-2">
+                · {totalDismissed} ignoré{totalDismissed > 1 ? "s" : ""}
+              </span>
+            )}
           </div>
           <Button
             variant="accent"
             size="md"
-            disabled={bulkPending || totalSent === bcs.length}
+            disabled={bulkPending || totalActionable === 0}
             onClick={sendAll}
           >
             {bulkPending ? (
@@ -335,7 +362,7 @@ function CreatedBcsView({
       </Card>
 
       <div className="space-y-2">
-        {bcs.map((bc) => {
+        {visibleBcs.map((bc) => {
           const state = sendStates[bc.bcId] ?? { status: "idle" };
           return (
             <Card
@@ -381,14 +408,25 @@ function CreatedBcsView({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {state.status !== "sent" && state.status !== "pending" && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => setPreviewBcId(bc.bcId)}
-                  >
-                    <Mail className="h-3.5 w-3.5" strokeWidth={2.4} />
-                    Visualiser puis envoyer
-                  </Button>
+                  <>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setPreviewBcId(bc.bcId)}
+                    >
+                      <Mail className="h-3.5 w-3.5" strokeWidth={2.4} />
+                      Visualiser puis envoyer
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => dismissOne(bc.bcId, bc.supplierName)}
+                      title="Pas de commande nécessaire — retirer cette ligne"
+                    >
+                      <SkipForward className="h-3.5 w-3.5" strokeWidth={2.4} />
+                      Ignorer
+                    </Button>
+                  </>
                 )}
                 {(state.status === "sent" || state.status === "pending") && (
                   <Button
@@ -417,9 +455,70 @@ function CreatedBcsView({
         })}
       </div>
 
+      {/* Cas : toutes les commandes ignorées (rien à envoyer) → CTA pour
+          basculer manuellement le dossier en attente_matiere */}
+      {visibleBcs.length === 0 && bcs.length > 0 && dossierId && !advanceDone && (
+        <Card className="p-5 border-amber/30 bg-amber-soft/30">
+          <div className="flex items-start gap-3">
+            <ColorChip tone="amber" size="lg">
+              <SkipForward className="h-5 w-5" strokeWidth={2.4} />
+            </ColorChip>
+            <div className="flex-1">
+              <h3 className="text-[15px] font-semibold text-ink mb-1">
+                Aucune commande à passer
+              </h3>
+              <p className="text-[13px] text-muted mb-3">
+                Toutes les commandes ont été marquées comme inutiles. Bascule le
+                dossier directement à l&apos;étape suivante pour démarrer la confection.
+              </p>
+              <Button
+                variant="accent"
+                size="md"
+                disabled={advancePending}
+                onClick={async () => {
+                  setAdvancePending(true);
+                  const r = await advanceDossierFromCommandeAction(dossierId);
+                  setAdvancePending(false);
+                  if (r.ok) {
+                    setAdvanceDone(true);
+                  } else {
+                    alert(`Échec : ${r.message}`);
+                  }
+                }}
+              >
+                {advancePending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" strokeWidth={2.4} />
+                )}
+                Passer à la prochaine étape
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {advanceDone && (
+        <Card className="p-5 border-emerald/30 bg-emerald-soft/30">
+          <div className="flex items-center gap-3">
+            <ColorChip tone="emerald" size="lg">
+              <CheckCircle2 className="h-5 w-5" strokeWidth={2.4} />
+            </ColorChip>
+            <div className="flex-1">
+              <p className="text-[14px] font-semibold text-ink">
+                Dossier basculé en attente matière
+              </p>
+              <p className="text-[12.5px] text-muted">
+                Tu peux maintenant le suivre dans le kanban Suivi de commande.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <div className="pt-3">
         <Button variant="secondary" size="md" onClick={onBackToList}>
-          Tous les bons de commande
+          Retour au suivi de commande
         </Button>
       </div>
 
