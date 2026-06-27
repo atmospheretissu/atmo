@@ -209,7 +209,7 @@ export function DevisEditForm({
                     <Input
                       type="number"
                       min={0}
-                      step={0.01}
+                      step={0.1}
                       value={line.qty}
                       onChange={(e) => updateLine(i, { qty: Number(e.target.value) || 0 })}
                       className="h-9 text-[13px] tabular-nums"

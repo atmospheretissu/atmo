@@ -22,6 +22,7 @@ import {
   type DevisStatus,
 } from "@/lib/validation/devis";
 import { channelLabels, type Channel } from "@/lib/validation/client";
+import { SendEmailButton } from "@/components/devis/send-email-button";
 import type { DevisWithClient } from "@/lib/db/devis";
 import type { Source } from "@/lib/db/sources-shared";
 import { resolveSourceLabel } from "@/lib/db/sources-shared";
@@ -455,9 +456,10 @@ function PreviewPanel({
             <Download className="h-3.5 w-3.5" strokeWidth={2.2} /> Télécharger
           </Button>
         </Link>
-        <Link href={`/devis/${devis.id}#actions`}>
+        <SendEmailButton devisId={devis.id} />
+        <Link href={`/commandes/from-devis/${devis.id}`}>
           <Button variant="ghost" size="sm">
-            <Mail className="h-3.5 w-3.5" strokeWidth={2.2} /> Envoyer
+            Générer BCs
           </Button>
         </Link>
       </div>

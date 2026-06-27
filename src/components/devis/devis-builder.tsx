@@ -435,7 +435,8 @@ export function DevisBuilder({
                       <td className="px-2 py-1.5 text-right">
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.1"
+                          min="0"
                           value={l.qty}
                           onChange={(e) => updateLine(l.id, { qty: Number(e.target.value) || 0 })}
                           className="w-20 bg-transparent text-[13px] font-mono text-right text-ink-2 px-1 py-1 rounded focus:outline-none focus:ring-1 focus:ring-accent tabular-nums"
