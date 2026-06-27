@@ -48,6 +48,47 @@ export async function listDevis(opts?: {
 }
 
 /**
+ * Liste les devis qui n'ont pas encore de dossier (= "Devis & commandes" dans
+ * le kanban Suivi de commande). Inclus : brouillon, envoye, valide.
+ */
+export async function listDevisWithoutDossier(): Promise<DevisWithClient[]> {
+  const supabase = await createClient();
+  const storeFilter = await getEffectiveStoreFilter();
+
+  let q = supabase
+    .from("devis")
+    .select("*")
+    .in("status", ["brouillon", "envoye", "valide"])
+    .order("created_at", { ascending: false });
+  if (storeFilter) q = q.eq("store_id", storeFilter);
+
+  const { data: devisRows } = await q;
+  if (!devisRows || devisRows.length === 0) return [];
+
+  const devisIds = devisRows.map((d) => d.id);
+  const { data: dossiers } = await supabase
+    .from("dossiers")
+    .select("devis_id")
+    .in("devis_id", devisIds);
+  const withDossier = new Set((dossiers ?? []).map((d) => d.devis_id));
+  const filtered = devisRows.filter((d) => !withDossier.has(d.id));
+
+  if (filtered.length === 0) return [];
+
+  const clientIds = Array.from(new Set(filtered.map((d) => d.client_id)));
+  const { data: clientsRows } = await supabase
+    .from("clients")
+    .select("id, display_name, city, email, phone")
+    .in("id", clientIds);
+  const clientsById = new Map((clientsRows ?? []).map((c) => [c.id, c]));
+
+  return filtered.map((d) => ({
+    ...d,
+    client: clientsById.get(d.client_id) ?? null,
+  }));
+}
+
+/**
  * Détail complet d'un devis (avec son client et toutes ses lignes).
  */
 export async function getDevisDetail(id: string) {

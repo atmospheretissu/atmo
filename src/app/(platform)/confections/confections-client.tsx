@@ -18,6 +18,7 @@ import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import type { DossierWithClient } from "@/lib/db/dossiers";
+import type { DevisWithClient } from "@/lib/db/devis";
 import { eur, shortDate } from "@/lib/formatters";
 
 import { KANBAN_ORDER, STATUS_META, statusLabel, statusTone, ageInStatus } from "@/lib/workflow/statuses";
@@ -29,7 +30,13 @@ const columns = KANBAN_ORDER.map((key) => ({
   dot: STATUS_META[key].dot,
 }));
 
-export default function ConfectionsClient({ dossiers }: { dossiers: DossierWithClient[] }) {
+export default function ConfectionsClient({
+  dossiers,
+  pendingDevis = [],
+}: {
+  dossiers: DossierWithClient[];
+  pendingDevis?: DevisWithClient[];
+}) {
   const [view, setView] = useState<"kanban" | "liste">("kanban");
 
   const enConfection = dossiers.filter((d) => d.status === "en_confection").length;
@@ -76,7 +83,7 @@ export default function ConfectionsClient({ dossiers }: { dossiers: DossierWithC
           </div>
         </section>
 
-        {dossiers.length === 0 ? (
+        {dossiers.length === 0 && pendingDevis.length === 0 ? (
           <EmptyState />
         ) : (
           <>
@@ -98,7 +105,7 @@ export default function ConfectionsClient({ dossiers }: { dossiers: DossierWithC
             </section>
 
             {view === "kanban" ? (
-              <KanbanView dossiers={dossiers} />
+              <KanbanView dossiers={dossiers} pendingDevis={pendingDevis} />
             ) : (
               <ListView dossiers={dossiers} />
             )}
@@ -188,10 +195,37 @@ function EmptyState() {
 
 /* -------------------------------- KANBAN -------------------------------- */
 
-function KanbanView({ dossiers }: { dossiers: DossierWithClient[] }) {
+function KanbanView({
+  dossiers,
+  pendingDevis,
+}: {
+  dossiers: DossierWithClient[];
+  pendingDevis: DevisWithClient[];
+}) {
   return (
     <section className="px-8 pb-10">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
+        {/* Colonne d'entrée : devis envoyés / brouillons sans dossier */}
+        <div className="space-y-2.5 min-w-0">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="h-2 w-2 rounded-full shrink-0 bg-blue" />
+              <h3 className="text-[13px] font-semibold text-ink truncate">Devis &amp; commandes</h3>
+              <span className="text-[11.5px] text-muted-2 tabular-nums">{pendingDevis.length}</span>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            {pendingDevis.map((d) => (
+              <DevisCard key={d.id} devis={d} />
+            ))}
+            {pendingDevis.length === 0 && (
+              <div className="text-[11.5px] text-muted-2 text-center py-3 border border-dashed border-line rounded-xl">
+                —
+              </div>
+            )}
+          </div>
+        </div>
+
         {columns.map((col) => {
           const items = dossiers.filter((d) => d.status === col.key);
           return (
@@ -219,6 +253,33 @@ function KanbanView({ dossiers }: { dossiers: DossierWithClient[] }) {
         })}
       </div>
     </section>
+  );
+}
+
+function DevisCard({ devis }: { devis: DevisWithClient }) {
+  const name = devis.client?.display_name ?? "—";
+  const initial = name.includes(",") ? (name.split(",")[1].trim()[0] ?? name[0]) : name[0];
+  const statusLabel =
+    devis.status === "brouillon" ? "Brouillon" : devis.status === "envoye" ? "Envoyé" : "Validé";
+  const statusTone =
+    devis.status === "brouillon" ? "amber" : devis.status === "envoye" ? "pink" : "blue";
+  return (
+    <Link href={`/devis/${devis.id}`}>
+      <Card className="p-3.5 cursor-pointer hover:border-line-strong transition-colors">
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <LetterAvatar initial={initial} tone={toneFor(name)} size="md" />
+          <StatusPill tone={statusTone} dot>{statusLabel}</StatusPill>
+        </div>
+        <p className="text-[12.5px] font-semibold text-ink leading-tight truncate">{name}</p>
+        {devis.client?.city && (
+          <p className="text-[11px] text-muted mt-0.5 truncate">{devis.client.city}</p>
+        )}
+        <p className="ref mt-1.5">{devis.number}</p>
+        <p className="text-[11.5px] text-ink-2 font-semibold tabular-nums mt-1.5">
+          {eur(Number(devis.total_ttc ?? 0), true)} TTC
+        </p>
+      </Card>
+    </Link>
   );
 }
 
