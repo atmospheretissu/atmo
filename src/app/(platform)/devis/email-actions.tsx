@@ -123,7 +123,7 @@ export async function sendDevisEmailAction(
           </a>
         </p>`
       : `<p style="margin:8px 0 16px 0;font-size:12px;color:#9ca3af;font-style:italic">
-          Pour valider et payer l'acompte, contactez Atmosphère Tissus au 05 56 XX XX XX.
+          Pour valider et payer l'acompte, contactez Atmosphère Tissus au 03.20.72.46.15.
         </p>`;
 
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8f7fb;padding:24px;margin:0;color:#111111">
@@ -152,8 +152,10 @@ export async function sendDevisEmailAction(
       <p style="margin:16px 0">
         <a href="${pdfLink}" style="display:inline-block;padding:10px 16px;background:#111111;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Télécharger le PDF du devis</a>
       </p>
-      <p style="margin:24px 0 0 0;font-size:12px;color:#6b7280">
-        À très vite,<br/>L'équipe Atmosphère Tissus
+      <p style="margin:24px 0 0 0;font-size:12px;color:#6b7280;line-height:1.6">
+        À très vite,<br/>
+        L'équipe Atmosphère Tissus<br/>
+        <a href="tel:+33320724615" style="color:#6b7280;text-decoration:none">03.20.72.46.15</a>
       </p>
     </div>
     <div style="padding:14px 24px;background:#f8f7fb;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af">

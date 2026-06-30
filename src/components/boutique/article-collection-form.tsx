@@ -1,12 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sparkles, AlertCircle, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Hint, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
+import {
+  listCollectionTissusAction,
+  type CollectionTissu,
+} from "@/app/(platform)/boutique/catalog-search-action";
 
 const eurFmt = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -96,6 +100,38 @@ export function ArticleCollectionForm({
 }) {
   const [v, setV] = useState<Inputs>(initial);
   const update = (patch: Partial<Inputs>) => setV((s) => ({ ...s, ...patch }));
+
+  // Charge la Collection Atmosphère au montage
+  const [collectionTissus, setCollectionTissus] = useState<CollectionTissu[]>([]);
+  const [collectionLoading, setCollectionLoading] = useState(true);
+  const [tissuId, setTissuId] = useState<string>("");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listCollectionTissusAction();
+        if (!cancelled) {
+          setCollectionTissus(list);
+          setCollectionLoading(false);
+        }
+      } catch {
+        if (!cancelled) setCollectionLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectTissu = (id: string) => {
+    setTissuId(id);
+    const t = collectionTissus.find((x) => x.id === id);
+    if (!t) return;
+    update({
+      reference: `${t.name} · ${t.ref}`,
+      prixTissu: t.unit_price_ht || v.prixTissu,
+    });
+  };
 
   const validationError = useMemo(() => {
     if (!v.largeurFinie || v.largeurFinie <= 0) return "Largeur requise.";
@@ -247,12 +283,29 @@ export function ArticleCollectionForm({
               />
             </div>
             <div>
-              <Label>Référence interne</Label>
-              <Input
-                value={v.reference}
-                onChange={(e) => update({ reference: e.target.value })}
-                placeholder="ex: COLL-LIN-NAT"
-              />
+              <Label>Tissu Collection Atmosphère</Label>
+              <Select
+                value={tissuId}
+                onChange={(e) => selectTissu(e.target.value)}
+                disabled={collectionLoading}
+              >
+                <option value="">
+                  {collectionLoading
+                    ? "Chargement…"
+                    : collectionTissus.length === 0
+                      ? "Aucun tissu collection — ajoute-en dans /paramètres → Catalogue"
+                      : "— Choisir un tissu —"}
+                </option>
+                {collectionTissus.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} · {t.ref} · {t.unit_price_ht.toFixed(2)} €/m
+                  </option>
+                ))}
+              </Select>
+              <Hint>
+                Tarif appliqué automatiquement depuis la grille catalogue.
+                {collectionTissus.length === 0 && " Vérifie que les tissus sont marqués is_collection=true."}
+              </Hint>
             </div>
             <div>
               <Label>Métrage estimé (m) *</Label>
