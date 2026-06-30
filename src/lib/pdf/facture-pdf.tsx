@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Database } from "@/lib/supabase/types";
+import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
 
 type Devis = Database["public"]["Tables"]["devis"]["Row"];
 type Client = Database["public"]["Tables"]["clients"]["Row"];
@@ -30,125 +31,147 @@ const date = (d: string | null | Date) =>
     : "—";
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 32,
-    fontFamily: "Helvetica",
-    fontSize: 9.5,
-    color: "#111111",
-    lineHeight: 1.4,
-  },
+  page: { ...PAGE },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottom: "1px solid #E5E7EB",
+    marginBottom: SPACING.xl,
+    paddingBottom: SPACING.md,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
   brand: { flexDirection: "column" },
-  brandName: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#111", letterSpacing: -0.3 },
-  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.8, marginTop: 2 },
+  brandName: TYPE.wordmark,
   meta: { textAlign: "right" },
-  metaLabel: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase" },
-  metaValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
-  twoCol: { flexDirection: "row", gap: 20, marginBottom: 22 },
+  metaLabel: TYPE.eyebrow,
+  metaValue: { ...TYPE.h3, marginTop: SPACING.xs },
+  metaDate: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.textMuted,
+    marginTop: 3,
+    lineHeight: 1.3,
+  },
+  twoCol: { flexDirection: "row", gap: SPACING.xl, marginBottom: SPACING.xl },
   col: { flex: 1 },
-  blockTitle: {
-    fontSize: 8.5,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
-    fontFamily: "Helvetica-Bold",
-  },
-  blockBody: { fontSize: 10 },
-  blockSub: { color: "#374151" },
+  blockTitle: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  blockBody: { ...TYPE.body, fontFamily: "Helvetica-Bold", color: COLORS.ink },
+  blockSub: { ...TYPE.body, color: COLORS.text, marginTop: 2 },
   hero: {
-    marginBottom: 22,
-    padding: 16,
-    borderRadius: 6,
-    backgroundColor: "#F8F7FB",
-    border: "1px solid #E5E7EB",
+    marginBottom: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.lg,
+    borderRadius: 4,
+    backgroundColor: COLORS.surface,
+    border: `0.5px solid ${COLORS.border}`,
   },
-  heroLabel: {
-    fontSize: 8.5,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
+  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  heroValue: TYPE.heroNumber,
+  heroSub: {
+    fontSize: FONT_SIZE.body,
+    color: COLORS.textMuted,
+    marginTop: SPACING.sm,
+    lineHeight: 1.4,
   },
-  heroValue: { fontSize: 26, fontFamily: "Helvetica-Bold" },
-  heroSub: { fontSize: 9, color: "#6B7280", marginTop: 4 },
-  // Tableau résumé
   summary: {
-    marginTop: 16,
-    border: "1px solid #E5E7EB",
-    borderRadius: 6,
+    marginTop: SPACING.lg,
+    border: `0.5px solid ${COLORS.border}`,
+    borderRadius: 4,
   },
   sumRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingLeft: 12,
-    paddingRight: 12,
-    borderBottom: "1px solid #E5E7EB",
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.md,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
   sumRowLast: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingLeft: 12,
-    paddingRight: 12,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.md,
   },
-  sumLabel: { color: "#374151" },
-  sumValue: { fontFamily: "Helvetica-Bold" },
-  // Bloc paid stamp
+  sumLabel: { ...TYPE.body, color: COLORS.text },
+  sumValue: {
+    ...TYPE.body,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.ink,
+  },
   paidStamp: {
-    marginTop: 18,
-    padding: 14,
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.lg,
     backgroundColor: "#ECFDF5",
-    border: "1px solid #10B981",
-    borderRadius: 6,
+    border: "0.5px solid #10B981",
+    borderRadius: 4,
     flexDirection: "row",
     justifyContent: "space-between",
   },
   paidLabel: {
-    fontSize: 9,
+    fontSize: FONT_SIZE.micro,
     color: "#047857",
     letterSpacing: 1.2,
     textTransform: "uppercase",
     fontFamily: "Helvetica-Bold",
+    lineHeight: 1.3,
   },
-  paidSub: { fontSize: 8.5, color: "#047857", marginTop: 4 },
+  paidSub: {
+    fontSize: FONT_SIZE.small,
+    color: "#047857",
+    marginTop: SPACING.xs,
+    lineHeight: 1.4,
+  },
   duStamp: {
-    marginTop: 18,
-    padding: 14,
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.lg,
     backgroundColor: "#FEF3C7",
-    border: "1px solid #F59E0B",
-    borderRadius: 6,
+    border: "0.5px solid #F59E0B",
+    borderRadius: 4,
   },
   duLabel: {
-    fontSize: 9,
+    fontSize: FONT_SIZE.micro,
     color: "#92400E",
     letterSpacing: 1.2,
     textTransform: "uppercase",
     fontFamily: "Helvetica-Bold",
+    lineHeight: 1.3,
   },
-  duValue: { fontSize: 18, fontFamily: "Helvetica-Bold", color: "#92400E", marginTop: 4 },
-  duSub: { fontSize: 8.5, color: "#92400E", marginTop: 4 },
+  duValue: {
+    fontSize: 22,
+    fontFamily: "Helvetica-Bold",
+    color: "#92400E",
+    marginTop: SPACING.xs,
+    lineHeight: 1.1,
+    letterSpacing: -0.3,
+  },
+  duSub: {
+    fontSize: FONT_SIZE.small,
+    color: "#92400E",
+    marginTop: SPACING.xs,
+    lineHeight: 1.4,
+  },
   footer: {
     position: "absolute",
-    bottom: 18,
-    left: 32,
-    right: 32,
-    paddingTop: 8,
-    borderTop: "1px solid #E5E7EB",
-    fontSize: 7.5,
-    color: "#9CA3AF",
+    bottom: 24,
+    left: PAGE.paddingHorizontal,
+    right: PAGE.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    borderTop: `0.5px solid ${COLORS.border}`,
+    fontSize: FONT_SIZE.micro,
+    color: COLORS.textFaint,
     flexDirection: "row",
     justifyContent: "space-between",
+    lineHeight: 1.4,
   },
 });
 
@@ -194,14 +217,13 @@ export function FacturePDF({
         <View style={styles.header}>
           <View style={styles.brand}>
             <Text style={styles.brandName}>Atmosphère.</Text>
-            <Text style={styles.brandSub}>DÉCORATION SUR MESURE</Text>
           </View>
           <View style={styles.meta}>
             <Text style={styles.metaLabel}>
               {isAcompte ? "Facture acompte" : "Facture de solde"}
             </Text>
             <Text style={styles.metaValue}>{invoiceNumber}</Text>
-            <Text style={{ fontSize: 8, color: "#6B7280", marginTop: 2 }}>
+            <Text style={styles.metaDate}>
               {date(paidAt ?? new Date())}
             </Text>
           </View>

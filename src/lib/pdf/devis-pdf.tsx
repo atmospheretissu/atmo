@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Database } from "@/lib/supabase/types";
+import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
 
 type Devis = Database["public"]["Tables"]["devis"]["Row"];
 type DevisLine = Database["public"]["Tables"]["devis_lines"]["Row"];
@@ -29,134 +30,199 @@ const date = (d: string | null) =>
     : "—";
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 32,
-    fontFamily: "Helvetica",
-    fontSize: 9.5,
-    color: "#111111",
-    lineHeight: 1.4,
-  },
+  page: { ...PAGE },
   // Header
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottom: "1px solid #E5E7EB",
+    marginBottom: SPACING.xl,
+    paddingBottom: SPACING.md,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
   brand: { flexDirection: "column" },
-  brandName: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#111", letterSpacing: -0.3 },
-  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.8, marginTop: 2 },
+  brandName: TYPE.wordmark,
   meta: { textAlign: "right" },
-  metaLabel: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase" },
-  metaValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
-  // Two-column block
-  twoCol: { flexDirection: "row", gap: 20, marginBottom: 22 },
-  col: { flex: 1 },
-  blockTitle: {
-    fontSize: 8.5,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
-    fontFamily: "Helvetica-Bold",
+  metaLabel: TYPE.eyebrow,
+  metaValue: { ...TYPE.h3, marginTop: SPACING.xs },
+  metaDate: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.textMuted,
+    marginTop: 3,
+    lineHeight: 1.3,
   },
-  blockBody: { fontSize: 10 },
-  blockSub: { color: "#374151" },
+  // Two-column block (Émetteur / Client)
+  twoCol: { flexDirection: "row", gap: SPACING.xl, marginBottom: SPACING.xl },
+  col: { flex: 1 },
+  blockTitle: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  blockBody: { ...TYPE.body, fontFamily: "Helvetica-Bold", color: COLORS.ink },
+  blockSub: { ...TYPE.body, color: COLORS.text, marginTop: 2 },
   // Hero number
   hero: {
-    marginBottom: 22,
-    padding: 16,
-    borderRadius: 6,
-    backgroundColor: "#F8F7FB",
-    border: "1px solid #E5E7EB",
+    marginBottom: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.lg,
+    borderRadius: 4,
+    backgroundColor: COLORS.surface,
+    border: `0.5px solid ${COLORS.border}`,
   },
-  heroLabel: {
-    fontSize: 8.5,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
+  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  heroValue: TYPE.heroNumber,
+  heroSub: {
+    fontSize: FONT_SIZE.body,
+    color: COLORS.textMuted,
+    marginTop: SPACING.sm,
+    lineHeight: 1.4,
   },
-  heroValue: { fontSize: 26, fontFamily: "Helvetica-Bold" },
-  heroSub: { fontSize: 9, color: "#6B7280", marginTop: 4 },
   // Table
-  table: { marginBottom: 18 },
+  table: { marginBottom: SPACING.lg },
   tHead: {
     flexDirection: "row",
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingLeft: 8,
-    paddingRight: 8,
-    backgroundColor: "#F4F4F4",
-    borderTop: "1px solid #E5E7EB",
-    borderBottom: "1px solid #E5E7EB",
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderBottom: `0.5px solid ${COLORS.borderStrong}`,
   },
   tRow: {
     flexDirection: "row",
-    paddingTop: 7,
-    paddingBottom: 7,
-    paddingLeft: 8,
-    paddingRight: 8,
-    borderBottom: "1px solid #E5E7EB",
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
-  tHeadText: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase" },
-  cRef: { width: 60 },
-  cLabel: { flex: 1 },
-  cQty: { width: 50, textAlign: "right" },
+  tHeadText: { ...TYPE.eyebrow, fontSize: 7 },
+  cRef: { width: 70 },
+  cLabel: { flex: 1, paddingRight: SPACING.sm },
+  cQty: { width: 55, textAlign: "right" },
   cUnit: { width: 70, textAlign: "right" },
-  cTotal: { width: 70, textAlign: "right" },
-  lineLabel: { fontFamily: "Helvetica-Bold" },
-  lineDetail: { fontSize: 8, color: "#6B7280", marginTop: 2 },
-  specRow: { flexDirection: "row", marginTop: 2 },
-  specLabel: { fontSize: 8, color: "#6B7280", width: 95 },
-  specValue: { fontSize: 8, color: "#374151", flex: 1, fontFamily: "Helvetica-Bold" },
+  cTotal: { width: 75, textAlign: "right" },
+  lineLabel: { ...TYPE.cellBold },
+  lineRefMuted: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.textFaint,
+    fontFamily: "Helvetica",
+    lineHeight: 1.3,
+  },
+  lineDetail: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.textMuted,
+    marginTop: 3,
+    lineHeight: 1.4,
+  },
+  cellNum: {
+    fontSize: FONT_SIZE.body,
+    color: COLORS.text,
+    lineHeight: 1.35,
+  },
+  cellNumBold: {
+    fontSize: FONT_SIZE.body,
+    color: COLORS.ink,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1.35,
+  },
+  specRow: { flexDirection: "row", marginTop: 3 },
+  specLabel: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.textMuted,
+    width: 100,
+    lineHeight: 1.35,
+  },
+  specValue: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.text,
+    flex: 1,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1.35,
+  },
   // Totals
-  totals: { width: 240, marginLeft: "auto", marginTop: 4 },
-  tot: { flexDirection: "row", justifyContent: "space-between", paddingTop: 4, paddingBottom: 4 },
-  totLabel: { color: "#6B7280" },
-  totValue: {},
+  totals: { width: 240, marginLeft: "auto", marginTop: SPACING.sm },
+  tot: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 5,
+    paddingBottom: 5,
+  },
+  totLabel: { ...TYPE.body, color: COLORS.textMuted },
+  totValue: { ...TYPE.body, color: COLORS.text },
   totTtc: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 8,
-    paddingBottom: 8,
-    marginTop: 4,
-    borderTop: "1px solid #E5E7EB",
+    alignItems: "baseline",
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    marginTop: SPACING.xs,
+    borderTop: `0.5px solid ${COLORS.border}`,
   },
-  totTtcLabel: { fontSize: 11, fontFamily: "Helvetica-Bold" },
-  totTtcValue: { fontSize: 13, fontFamily: "Helvetica-Bold" },
+  totTtcLabel: {
+    fontSize: FONT_SIZE.h4,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.ink,
+    lineHeight: 1.1,
+  },
+  totTtcValue: {
+    fontSize: FONT_SIZE.h2,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.ink,
+    lineHeight: 1.1,
+  },
   // Acompte block
   acompte: {
-    marginTop: 18,
-    padding: 14,
-    backgroundColor: "#111111",
-    color: "#FFFFFF",
-    borderRadius: 6,
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.lg,
+    backgroundColor: COLORS.ink,
+    borderRadius: 4,
   },
+  acompteRow: { flexDirection: "row", justifyContent: "space-between" },
   acompteLabel: {
-    fontSize: 8.5,
+    fontSize: FONT_SIZE.micro,
     color: "#FFFFFF",
-    opacity: 0.7,
+    opacity: 0.65,
     letterSpacing: 1.2,
     textTransform: "uppercase",
-    marginBottom: 6,
+    marginBottom: SPACING.sm,
+    lineHeight: 1.3,
   },
-  acompteValue: { color: "#FFFFFF", fontSize: 22, fontFamily: "Helvetica-Bold" },
-  acompteSub: { color: "#FFFFFF", opacity: 0.8, fontSize: 9, marginTop: 6, maxWidth: 360 },
+  acompteValue: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1.05,
+    letterSpacing: -0.3,
+  },
+  acompteSub: {
+    color: "#FFFFFF",
+    opacity: 0.8,
+    fontSize: FONT_SIZE.small,
+    marginTop: SPACING.sm,
+    maxWidth: 380,
+    lineHeight: 1.5,
+  },
+  acompteSideValue: {
+    color: "#FFFFFF",
+    fontSize: FONT_SIZE.h3,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1.1,
+  },
   // Footer
   footer: {
     position: "absolute",
-    bottom: 18,
-    left: 32,
-    right: 32,
-    paddingTop: 8,
-    borderTop: "1px solid #E5E7EB",
-    fontSize: 7.5,
-    color: "#9CA3AF",
+    bottom: 24,
+    left: PAGE.paddingHorizontal,
+    right: PAGE.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    borderTop: `0.5px solid ${COLORS.border}`,
+    fontSize: FONT_SIZE.micro,
+    color: COLORS.textFaint,
     flexDirection: "row",
     justifyContent: "space-between",
+    lineHeight: 1.4,
   },
 });
 
@@ -396,12 +462,11 @@ export function DevisPDF({
         <View style={styles.header}>
           <View style={styles.brand}>
             <Text style={styles.brandName}>Atmosphère.</Text>
-            <Text style={styles.brandSub}>DÉCORATION SUR MESURE</Text>
           </View>
           <View style={styles.meta}>
-            <Text style={styles.metaLabel}>DEVIS</Text>
+            <Text style={styles.metaLabel}>Devis</Text>
             <Text style={styles.metaValue}>{devis.number}</Text>
-            <Text style={{ fontSize: 8, color: "#6B7280", marginTop: 2 }}>
+            <Text style={styles.metaDate}>
               Version {devis.version} · {date(devis.created_at)}
             </Text>
           </View>
@@ -458,17 +523,15 @@ export function DevisPDF({
             const useSpecs = specs.length > 0;
             return (
               <View style={styles.tRow} key={l.id}>
-                <Text style={[styles.cRef, { fontSize: 8, color: "#6B7280" }]}>
-                  {l.ref ?? "—"}
-                </Text>
+                <Text style={[styles.cRef, styles.lineRefMuted]}>{l.ref ?? "—"}</Text>
                 <View style={styles.cLabel}>
                   <Text style={styles.lineLabel}>{l.label}</Text>
                   {useSpecs ? (
-                    <View style={{ marginTop: 3 }}>
+                    <View style={{ marginTop: SPACING.xs }}>
                       {specs.map((s, i) => (
                         <View key={i} style={styles.specRow}>
                           <Text style={styles.specLabel}>{s.label}</Text>
-                          <Text style={styles.specValue}>: {s.value}</Text>
+                          <Text style={styles.specValue}>{s.value}</Text>
                         </View>
                       ))}
                     </View>
@@ -476,11 +539,11 @@ export function DevisPDF({
                     l.detail && <Text style={styles.lineDetail}>{l.detail}</Text>
                   )}
                 </View>
-                <Text style={styles.cQty}>
+                <Text style={[styles.cQty, styles.cellNum]}>
                   {Number(l.qty)} {l.unit_label}
                 </Text>
-                <Text style={styles.cUnit}>{eur(Number(l.unit_price_ht))}</Text>
-                <Text style={styles.cTotal}>{eur(Number(l.total_ht ?? 0))}</Text>
+                <Text style={[styles.cUnit, styles.cellNum]}>{eur(Number(l.unit_price_ht))}</Text>
+                <Text style={[styles.cTotal, styles.cellNumBold]}>{eur(Number(l.total_ht ?? 0))}</Text>
               </View>
             );
           })}
@@ -504,12 +567,12 @@ export function DevisPDF({
 
         {/* Acompte */}
         <View style={styles.acompte}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <View>
+          <View style={styles.acompteRow}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.acompteLabel}>
                 {acomptePct === 100
-                  ? "PAIEMENT INTÉGRAL À LA COMMANDE"
-                  : `RÈGLE ${acomptePct} % · ACOMPTE DE VALIDATION`}
+                  ? "Paiement intégral à la commande"
+                  : `Acompte ${acomptePct} % à la validation`}
               </Text>
               <Text style={styles.acompteValue}>{eur(acompte)}</Text>
               <Text style={styles.acompteSub}>
@@ -519,9 +582,9 @@ export function DevisPDF({
               </Text>
             </View>
             {acomptePct < 100 && (
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[styles.acompteLabel, { textAlign: "right" }]}>SOLDE</Text>
-                <Text style={{ color: "#FFFFFF", fontSize: 12 }}>{eur(solde)}</Text>
+              <View style={{ alignItems: "flex-end", marginLeft: SPACING.xl }}>
+                <Text style={[styles.acompteLabel, { textAlign: "right" }]}>Solde</Text>
+                <Text style={styles.acompteSideValue}>{eur(solde)}</Text>
               </View>
             )}
           </View>

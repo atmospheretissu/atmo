@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { BCDetail } from "@/lib/db/bons-commande";
+import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
 
 const eur = (n: number) =>
   new Intl.NumberFormat("fr-FR", {
@@ -113,103 +114,109 @@ const I18N: Record<Lang, {
 };
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 32,
-    fontFamily: "Helvetica",
-    fontSize: 9.5,
-    color: "#111111",
-    lineHeight: 1.4,
-  },
+  page: { ...PAGE },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottom: "1px solid #E5E7EB",
+    marginBottom: SPACING.xl,
+    paddingBottom: SPACING.md,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
   brand: { flexDirection: "column" },
-  brandName: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#111", letterSpacing: -0.3 },
-  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.8, marginTop: 2 },
+  brandName: TYPE.wordmark,
   meta: { textAlign: "right" },
-  metaLabel: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase" },
-  metaValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
-  twoCol: { flexDirection: "row", gap: 20, marginBottom: 22 },
+  metaLabel: TYPE.eyebrow,
+  metaValue: { ...TYPE.h3, marginTop: SPACING.xs },
+  metaDate: {
+    fontSize: FONT_SIZE.small,
+    color: COLORS.textMuted,
+    marginTop: 3,
+    lineHeight: 1.3,
+  },
+  twoCol: { flexDirection: "row", gap: SPACING.xl, marginBottom: SPACING.xl },
   col: { flex: 1 },
-  blockTitle: {
-    fontSize: 8.5,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
-    fontFamily: "Helvetica-Bold",
-  },
-  blockBody: { fontSize: 10 },
-  blockSub: { color: "#374151" },
+  blockTitle: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  blockBody: { ...TYPE.body, fontFamily: "Helvetica-Bold", color: COLORS.ink },
+  blockSub: { ...TYPE.body, color: COLORS.text, marginTop: 2 },
   hero: {
-    marginBottom: 22,
-    padding: 16,
-    borderRadius: 6,
-    backgroundColor: "#F8F7FB",
-    border: "1px solid #E5E7EB",
+    marginBottom: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.lg,
+    borderRadius: 4,
+    backgroundColor: COLORS.surface,
+    border: `0.5px solid ${COLORS.border}`,
   },
-  heroLabel: {
-    fontSize: 8.5,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 4,
+  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  heroValue: TYPE.heroNumber,
+  heroSub: {
+    fontSize: FONT_SIZE.body,
+    color: COLORS.textMuted,
+    marginTop: SPACING.sm,
+    lineHeight: 1.4,
   },
-  heroValue: { fontSize: 26, fontFamily: "Helvetica-Bold" },
-  heroSub: { fontSize: 9, color: "#6B7280", marginTop: 4 },
-  table: { marginBottom: 18 },
+  table: { marginBottom: SPACING.lg },
   tHead: {
     flexDirection: "row",
-    paddingTop: 6,
-    paddingBottom: 6,
-    paddingLeft: 8,
-    paddingRight: 8,
-    backgroundColor: "#F4F4F4",
-    borderTop: "1px solid #E5E7EB",
-    borderBottom: "1px solid #E5E7EB",
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderBottom: `0.5px solid ${COLORS.borderStrong}`,
   },
   tRow: {
     flexDirection: "row",
-    paddingTop: 7,
-    paddingBottom: 7,
-    paddingLeft: 8,
-    paddingRight: 8,
-    borderBottom: "1px solid #E5E7EB",
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
-  tHeadText: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1, textTransform: "uppercase" },
-  cRef: { width: 60 },
-  cLabel: { flex: 1 },
-  cQty: { width: 50, textAlign: "right" },
+  tHeadText: { ...TYPE.eyebrow, fontSize: 7 },
+  cRef: { width: 70 },
+  cLabel: { flex: 1, paddingRight: SPACING.sm },
+  cQty: { width: 55, textAlign: "right" },
   cUnit: { width: 70, textAlign: "right" },
-  cTotal: { width: 70, textAlign: "right" },
-  lineLabel: { fontFamily: "Helvetica-Bold" },
-  totals: { width: 240, marginLeft: "auto", marginTop: 4 },
+  cTotal: { width: 75, textAlign: "right" },
+  lineLabel: { ...TYPE.cellBold },
+  cellNum: { ...TYPE.cell },
+  cellNumBold: { ...TYPE.cellBold },
+  totals: { width: 240, marginLeft: "auto", marginTop: SPACING.sm },
   totTtc: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 8,
-    paddingBottom: 8,
-    marginTop: 4,
-    borderTop: "1px solid #E5E7EB",
+    alignItems: "baseline",
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    marginTop: SPACING.xs,
+    borderTop: `0.5px solid ${COLORS.border}`,
   },
-  totTtcLabel: { fontSize: 11, fontFamily: "Helvetica-Bold" },
-  totTtcValue: { fontSize: 13, fontFamily: "Helvetica-Bold" },
+  totTtcLabel: {
+    fontSize: FONT_SIZE.h4,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.ink,
+    lineHeight: 1.1,
+  },
+  totTtcValue: {
+    fontSize: FONT_SIZE.h2,
+    fontFamily: "Helvetica-Bold",
+    color: COLORS.ink,
+    lineHeight: 1.1,
+  },
   footer: {
     position: "absolute",
-    bottom: 18,
-    left: 32,
-    right: 32,
-    paddingTop: 8,
-    borderTop: "1px solid #E5E7EB",
-    fontSize: 7.5,
-    color: "#9CA3AF",
+    bottom: 24,
+    left: PAGE.paddingHorizontal,
+    right: PAGE.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    borderTop: `0.5px solid ${COLORS.border}`,
+    fontSize: FONT_SIZE.micro,
+    color: COLORS.textFaint,
     flexDirection: "row",
     justifyContent: "space-between",
+    lineHeight: 1.4,
   },
 });
 
@@ -229,12 +236,11 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
         <View style={styles.header}>
           <View style={styles.brand}>
             <Text style={styles.brandName}>Atmosphère.</Text>
-            <Text style={styles.brandSub}>DÉCORATION SUR MESURE</Text>
           </View>
           <View style={styles.meta}>
             <Text style={styles.metaLabel}>{t.poDocument}</Text>
             <Text style={styles.metaValue}>{bc.number}</Text>
-            <Text style={{ fontSize: 8, color: "#6B7280", marginTop: 2 }}>{date(bc.created_at)}</Text>
+            <Text style={styles.metaDate}>{date(bc.created_at)}</Text>
           </View>
         </View>
 

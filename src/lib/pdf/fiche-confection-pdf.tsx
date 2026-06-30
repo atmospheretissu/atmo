@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type { Database } from "@/lib/supabase/types";
+import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
 
 type Dossier = Database["public"]["Tables"]["dossiers"]["Row"];
 type Client = Database["public"]["Tables"]["clients"]["Row"];
@@ -15,120 +16,107 @@ const date = (d: string | null) =>
     : "—";
 
 const styles = StyleSheet.create({
-  page: {
-    padding: 28,
-    fontFamily: "Helvetica",
-    fontSize: 10,
-    color: "#111",
-    lineHeight: 1.4,
-  },
+  page: { ...PAGE },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 18,
-    paddingBottom: 14,
-    borderBottom: "2px solid #111",
+    marginBottom: SPACING.xl,
+    paddingBottom: SPACING.md,
+    borderBottom: `0.5px solid ${COLORS.border}`,
   },
   brand: { flexDirection: "column" },
-  brandName: { fontSize: 22, fontFamily: "Helvetica-Bold", color: "#111", letterSpacing: -0.3 },
-  brandSub: { fontSize: 7.5, color: "#6B7280", letterSpacing: 1.8, marginTop: 2 },
+  brandName: TYPE.wordmark,
   titleBlock: { textAlign: "right" },
-  titleLabel: {
-    fontSize: 8,
-    color: "#6B7280",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
-  titleMain: {
-    fontSize: 16,
-    fontFamily: "Helvetica-Bold",
-    color: "#111",
-  },
+  titleLabel: { ...TYPE.eyebrow, marginBottom: SPACING.xs },
+  titleMain: TYPE.h2,
 
-  identityRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 14,
-  },
+  identityRow: { flexDirection: "row", gap: SPACING.md, marginBottom: SPACING.lg },
   identityCol: {
     flex: 1,
-    border: "1px solid #E5E7EB",
+    border: `0.5px solid ${COLORS.border}`,
     borderRadius: 4,
-    padding: 10,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.md,
   },
-  identityLabel: {
-    fontSize: 8,
-    color: "#6B7280",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 4,
+  identityLabel: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
+  identityValue: {
+    fontSize: FONT_SIZE.bodyLg,
+    color: COLORS.ink,
+    lineHeight: 1.4,
+    marginBottom: 2,
   },
-  identityValue: { fontSize: 10.5, color: "#111", marginBottom: 1 },
 
   pieceSection: {
-    border: "1px solid #D1D5DB",
+    border: `0.5px solid ${COLORS.borderStrong}`,
     borderRadius: 4,
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: "#FAFAFA",
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.surface,
   },
   pieceTitle: {
-    fontSize: 13,
+    fontSize: FONT_SIZE.h4,
     fontFamily: "Helvetica-Bold",
     color: "#fff",
-    backgroundColor: "#111",
-    paddingTop: 4,
-    paddingBottom: 4,
-    paddingLeft: 8,
-    paddingRight: 8,
-    marginTop: -12,
-    marginLeft: -12,
-    marginRight: -12,
+    backgroundColor: COLORS.ink,
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingLeft: 10,
+    paddingRight: 10,
+    marginTop: -SPACING.md,
+    marginLeft: -SPACING.md,
+    marginRight: -SPACING.md,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
-    marginBottom: 10,
+    marginBottom: SPACING.md,
+    lineHeight: 1.2,
+    letterSpacing: -0.1,
   },
 
   article: {
     backgroundColor: "#fff",
     borderRadius: 3,
-    padding: 10,
-    marginBottom: 8,
-    border: "1px solid #E5E7EB",
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.md,
+    marginBottom: SPACING.sm,
+    border: `0.5px solid ${COLORS.border}`,
   },
   articleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: SPACING.sm,
   },
   articleLabel: {
-    fontSize: 11,
+    fontSize: FONT_SIZE.bodyLg,
     fontFamily: "Helvetica-Bold",
-    color: "#111",
+    color: COLORS.ink,
     flex: 1,
+    lineHeight: 1.3,
   },
   articleType: {
-    fontSize: 8,
+    fontSize: FONT_SIZE.micro,
     fontFamily: "Helvetica-Bold",
-    color: "#7C3AED",
-    backgroundColor: "#EDE9FE",
-    paddingTop: 2,
-    paddingBottom: 2,
+    color: COLORS.accent,
+    backgroundColor: COLORS.accentSoft,
+    paddingTop: 3,
+    paddingBottom: 3,
     paddingLeft: 6,
     paddingRight: 6,
     borderRadius: 2,
     letterSpacing: 0.5,
     textTransform: "uppercase",
+    lineHeight: 1.3,
   },
 
   metaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 4,
+    marginTop: SPACING.xs,
     marginLeft: -3,
     marginRight: -3,
   },
@@ -136,107 +124,106 @@ const styles = StyleSheet.create({
     width: "33.33%",
     paddingLeft: 3,
     paddingRight: 3,
-    marginBottom: 4,
+    marginBottom: SPACING.sm,
   },
   metaLabel: {
-    fontSize: 7.5,
-    color: "#6B7280",
+    fontSize: FONT_SIZE.micro,
+    color: COLORS.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    lineHeight: 1.3,
   },
   metaValue: {
-    fontSize: 10.5,
-    color: "#111",
+    fontSize: FONT_SIZE.bodyLg,
+    color: COLORS.ink,
     fontFamily: "Helvetica-Bold",
+    lineHeight: 1.3,
+    marginTop: 2,
   },
 
-  table: { marginTop: 6 },
+  table: { marginTop: SPACING.sm },
   tHead: {
     flexDirection: "row",
-    backgroundColor: "#F4F4F4",
-    borderTop: "1px solid #D1D5DB",
-    borderBottom: "1px solid #D1D5DB",
-    paddingTop: 5,
-    paddingBottom: 5,
+    borderBottom: `0.5px solid ${COLORS.borderStrong}`,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   tHeadText: {
-    fontSize: 7.5,
-    color: "#6B7280",
+    fontSize: FONT_SIZE.micro,
+    color: COLORS.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     fontFamily: "Helvetica-Bold",
     paddingLeft: 6,
     paddingRight: 6,
+    lineHeight: 1.3,
   },
   tRow: {
     flexDirection: "row",
-    borderBottom: "1px solid #E5E7EB",
-    paddingTop: 5,
-    paddingBottom: 5,
+    borderBottom: `0.5px solid ${COLORS.border}`,
+    paddingTop: 7,
+    paddingBottom: 7,
   },
   tCell: {
-    fontSize: 9.5,
-    color: "#111",
+    fontSize: FONT_SIZE.body,
+    color: COLORS.text,
     paddingLeft: 6,
     paddingRight: 6,
+    lineHeight: 1.35,
   },
 
   observBlock: {
-    marginTop: 8,
-    padding: 8,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
     backgroundColor: "#FFFBEB",
     borderRadius: 3,
-    border: "1px solid #FDE68A",
+    border: "0.5px solid #FDE68A",
   },
   observLabel: {
-    fontSize: 8,
+    fontSize: FONT_SIZE.micro,
     fontFamily: "Helvetica-Bold",
     color: "#92400E",
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    lineHeight: 1.3,
   },
-  observText: { fontSize: 9.5, color: "#451A03" },
+  observText: { fontSize: FONT_SIZE.body, color: "#451A03", lineHeight: 1.45 },
 
   qrChip: {
-    backgroundColor: "#111",
+    backgroundColor: COLORS.ink,
     color: "#fff",
-    fontSize: 8,
+    fontSize: FONT_SIZE.micro,
     fontFamily: "Courier-Bold",
-    paddingTop: 2,
-    paddingBottom: 2,
-    paddingLeft: 5,
-    paddingRight: 5,
+    paddingTop: 3,
+    paddingBottom: 3,
+    paddingLeft: 6,
+    paddingRight: 6,
     borderRadius: 2,
+    lineHeight: 1.3,
   },
 
   commentSection: {
-    marginTop: 14,
-    border: "1px solid #D1D5DB",
+    marginTop: SPACING.lg,
+    border: `0.5px solid ${COLORS.borderStrong}`,
     borderRadius: 4,
-    padding: 12,
+    padding: SPACING.md,
     minHeight: 70,
   },
-  commentTitle: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    color: "#6B7280",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    marginBottom: 6,
-  },
+  commentTitle: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
 
   footer: {
     position: "absolute",
-    bottom: 14,
-    left: 28,
-    right: 28,
-    paddingTop: 6,
-    borderTop: "1px solid #E5E7EB",
-    fontSize: 7,
-    color: "#9CA3AF",
+    bottom: 24,
+    left: PAGE.paddingHorizontal,
+    right: PAGE.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    borderTop: `0.5px solid ${COLORS.border}`,
+    fontSize: FONT_SIZE.micro,
+    color: COLORS.textFaint,
     flexDirection: "row",
     justifyContent: "space-between",
+    lineHeight: 1.4,
   },
 });
 
@@ -335,17 +322,25 @@ export function FicheConfectionPDF({
         <View style={styles.header}>
           <View style={styles.brand}>
             <Text style={styles.brandName}>Atmosphère.</Text>
-            <Text style={styles.brandSub}>FICHE DE CONFECTION · ATELIER</Text>
           </View>
           <View style={styles.titleBlock}>
-            <Text style={styles.titleLabel}>Dossier</Text>
+            <Text style={styles.titleLabel}>Fiche de confection</Text>
             <Text style={styles.titleMain}>{dossier.number}</Text>
             {devisNumber && (
-              <Text style={{ fontSize: 8, color: "#6B7280", marginTop: 4 }}>
-                Devis source: {devisNumber}
+              <Text
+                style={{
+                  fontSize: FONT_SIZE.small,
+                  color: COLORS.textMuted,
+                  marginTop: SPACING.xs,
+                  lineHeight: 1.35,
+                }}
+              >
+                Devis source : {devisNumber}
               </Text>
             )}
-            <Text style={{ fontSize: 8, color: "#6B7280" }}>
+            <Text
+              style={{ fontSize: FONT_SIZE.small, color: COLORS.textMuted, lineHeight: 1.35 }}
+            >
               Édité le {date(new Date().toISOString())}
             </Text>
           </View>
