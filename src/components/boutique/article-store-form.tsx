@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Hint, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
-import { Sparkles, AlertCircle } from "lucide-react";
+import { Sparkles, AlertCircle, AlertTriangle } from "lucide-react";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { CONFIG, type TypeStore } from "@/lib/boutique/data";
 import { calculateStore } from "@/lib/boutique/pricing/helpers";
+import { TissuPicker } from "@/components/boutique/tissu-picker";
 
 const eurFmt = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -22,6 +23,15 @@ const TYPES_STORE: { value: TypeStore; label: string; sub: string }[] = [
 ];
 
 type ChainetteCote = "gauche" | "droite";
+type Doublure = "aucune" | "occultante" | "thermique" | "cotonnade" | "ouatine";
+
+const DOUBLURE_OPTIONS: { value: Doublure; label: string }[] = [
+  { value: "aucune", label: "Aucune" },
+  { value: "occultante", label: "Occultante" },
+  { value: "thermique", label: "Thermique" },
+  { value: "cotonnade", label: "Cotonnade" },
+  { value: "ouatine", label: "Ouatine" },
+];
 
 type Inputs = {
   typeStore: TypeStore;
@@ -29,10 +39,12 @@ type Inputs = {
   largeurFinie: number;
   hauteurFinie: number;
   laizeTissu: number;
+  raccordTissu: number;
   prixTissu: number;
-  double: boolean;
+  doublure: Doublure;
   chainetteCouleur: string;
   chainetteCote: ChainetteCote;
+  chainetteDimensions: number;
   hauteurRefoulement: number;
   avecPose: boolean;
 };
@@ -43,10 +55,12 @@ const initial: Inputs = {
   largeurFinie: 120,
   hauteurFinie: 180,
   laizeTissu: 140,
+  raccordTissu: 0,
   prixTissu: 60,
-  double: false,
+  doublure: "aucune",
   chainetteCouleur: "blanc",
   chainetteCote: "droite",
+  chainetteDimensions: 100,
   hauteurRefoulement: 0,
   avecPose: true,
 };
@@ -68,6 +82,18 @@ export function StoreForm({
     return null;
   }, [v]);
 
+  // Auto : si le tissu a un raccord (motif), force doublure + glissières plates
+  const aMotif = v.raccordTissu > 0;
+  const doublureEffective: Doublure = aMotif && v.doublure === "aucune" ? "occultante" : v.doublure;
+
+  // Quand le raccord passe > 0 et que doublure était "aucune", la bascule
+  // automatiquement vers occultante (sans bloquer l'utilisateur de changer).
+  useEffect(() => {
+    if (v.raccordTissu > 0 && v.doublure === "aucune") {
+      setV((s) => ({ ...s, doublure: "occultante" }));
+    }
+  }, [v.raccordTissu, v.doublure]);
+
   const calc = useMemo(() => {
     if (validationError) return null;
     try {
@@ -77,14 +103,14 @@ export function StoreForm({
         hauteurFinie: v.hauteurFinie,
         laizeTissu: v.laizeTissu,
         prixTissuMetre: v.prixTissu,
-        double: v.double,
+        double: doublureEffective !== "aucune",
         chainetteCouleur: v.chainetteCouleur,
         avecPose: v.avecPose,
       });
     } catch {
       return null;
     }
-  }, [v, validationError]);
+  }, [v, validationError, doublureEffective]);
 
   const update = (patch: Partial<Inputs>) => setV((s) => ({ ...s, ...patch }));
 
@@ -117,7 +143,8 @@ export function StoreForm({
       detail:
         `${baseDetail}${refSlug}` +
         ` · métrage ${calc.metrageTotal.toFixed(2)}m (${calc.details.sensConfection}, ${calc.details.nombreLes} lé${calc.details.nombreLes > 1 ? "s" : ""})` +
-        (v.double ? " · doublure occultante" : ""),
+        (doublureEffective !== "aucune" ? ` · doublure ${doublureEffective}` : "") +
+        (aMotif ? " · raccord motif" : ""),
       qty: 1,
       unitLabel: "u",
       unitPriceHt: Math.round(prixArticle1 * 100) / 100,
@@ -128,9 +155,12 @@ export function StoreForm({
         largeurFinie: v.largeurFinie,
         hauteurFinie: v.hauteurFinie,
         laizeTissu: v.laizeTissu,
+        raccordTissu: v.raccordTissu,
         prixTissuMetre: v.prixTissu,
-        double: v.double,
+        doublure: doublureEffective,
+        double: doublureEffective !== "aucune", // backward-compat
         chainetteCote: v.chainetteCote,
+        chainetteDimensions: v.chainetteDimensions,
         hauteurRefoulement: v.hauteurRefoulement,
         metrageTotal: calc.metrageTotal,
         sensConfection: calc.details.sensConfection,
@@ -140,8 +170,27 @@ export function StoreForm({
         prixDoublure: calc.prixDoublure,
         prixConfection: calc.prixConfection,
         prixAccessoires: calc.prixAccessoires,
+        motifAvecRaccord: aMotif,
       },
     });
+
+    // AUTO — Glissières plates quand le tissu a un raccord (motif)
+    if (aMotif) {
+      articles.push({
+        type: "produit",
+        designation: "Glissières plates (raccord motif)",
+        ref: "GLIS-PLAT",
+        detail: `Pour store ${v.typeStore} ${v.largeurFinie}×${v.hauteurFinie}cm — préserve l'alignement du motif`,
+        qty: 1,
+        unitLabel: "u",
+        unitPriceHt: 0,
+        meta: {
+          typeArticle: "produit",
+          autoAddedReason: "raccord_motif",
+          parentTypeArticle: "store_tissu_confection",
+        },
+      });
+    }
 
     // ARTICLE 2 — Mécanisme (+ chainette)
     const prixArticle2 = calc.prixMecanisme + calc.supplementChainette;
@@ -165,6 +214,7 @@ export function StoreForm({
         typeArticle: "mecanisme",
         chainetteCouleur: v.chainetteCouleur,
         chainetteCote: v.chainetteCote,
+        chainetteDimensions: v.chainetteDimensions,
         hauteurRefoulement: v.hauteurRefoulement,
         prixMecanismeBase: calc.details.prixMecanismeAffiche,
         prixMecanisme: calc.prixMecanisme,
@@ -248,15 +298,19 @@ export function StoreForm({
           <section>
             <p className="eyebrow mb-2">Tissu</p>
             <div className="space-y-3">
-              <div>
-                <Label>Référence tissu</Label>
-                <Input
-                  value={v.referenceTissu}
-                  onChange={(e) => update({ referenceTissu: e.target.value })}
-                  placeholder="ex: Linder Ottoman · OTT-12"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              <TissuPicker
+                value={v.referenceTissu}
+                onChange={(next) => update({ referenceTissu: next })}
+                onProductSelected={(p) =>
+                  update({
+                    referenceTissu: `${p.name} · ${p.ref}`,
+                    prixTissu: p.unit_price_ht || v.prixTissu,
+                    laizeTissu: p.width_cm ?? v.laizeTissu,
+                    raccordTissu: p.raccord_cm ?? v.raccordTissu,
+                  })
+                }
+              />
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>Laize (cm) *</Label>
                   <Input
@@ -264,6 +318,15 @@ export function StoreForm({
                     min={1}
                     value={v.laizeTissu || ""}
                     onChange={(e) => update({ laizeTissu: Number(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <Label>Raccord (cm)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={v.raccordTissu || ""}
+                    onChange={(e) => update({ raccordTissu: Number(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -277,17 +340,44 @@ export function StoreForm({
                   />
                 </div>
               </div>
-              <label className="inline-flex items-center gap-2 text-[13px] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={v.double}
-                  onChange={(e) => update({ double: e.target.checked })}
-                  className="h-4 w-4 rounded border-line-strong"
-                />
-                <span className="text-ink-2">
-                  Doublure occultante (+ {CONFIG.doublureOccultante.prixParMetre} €/m)
+              <div
+                className={
+                  "text-[11.5px] rounded-md px-3 py-2 leading-relaxed flex items-start gap-2 " +
+                  (aMotif
+                    ? "bg-amber-soft/60 border border-amber/30 text-amber"
+                    : "bg-canvas-2/40 border border-line text-muted")
+                }
+              >
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" strokeWidth={2.4} />
+                <span>
+                  <strong>Tissu à motif (raccord &gt; 0)</strong> : ajouter des glissières
+                  plates et la doublure est obligatoire pour ne pas couper le motif.
+                  {aMotif && (
+                    <> &nbsp;<strong>Auto-ajouté</strong> au devis : glissières plates + doublure {doublureEffective}.</>
+                  )}
                 </span>
-              </label>
+              </div>
+              <div>
+                <Label>Doublure</Label>
+                <div className="grid grid-cols-5 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                  {DOUBLURE_OPTIONS.map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => update({ doublure: o.value })}
+                      disabled={aMotif && o.value === "aucune"}
+                      className={
+                        "text-[12px] font-semibold rounded-[5px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed " +
+                        (v.doublure === o.value
+                          ? "bg-ink text-white"
+                          : "text-muted hover:text-ink")
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
 
@@ -327,6 +417,19 @@ export function StoreForm({
                     </button>
                   ))}
                 </div>
+              </div>
+              <div className="col-span-2">
+                <Label>Dimensions chaînette (cm)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={v.chainetteDimensions || ""}
+                  onChange={(e) =>
+                    update({ chainetteDimensions: Number(e.target.value) || 0 })
+                  }
+                  placeholder="ex. 100"
+                />
+                <Hint>Longueur visible de la chaînette une fois posée.</Hint>
               </div>
               <div className="col-span-2">
                 <Label>Hauteur de refoulement (cm)</Label>
