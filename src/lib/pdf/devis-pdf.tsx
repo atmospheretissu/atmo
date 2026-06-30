@@ -259,6 +259,7 @@ const DOUBLURE_LABELS: Record<string, string> = {
   occultante: "Oui — Occultante",
   thermique: "Oui — Thermique",
   cotonnade: "Oui — Cotonnade",
+  ouatine: "Oui — Ouatine",
 };
 
 type SpecRow = { label: string; value: string };
@@ -285,8 +286,9 @@ function buildSpecsFromMeta(
     const largeur = metaNum(meta, "largeurFinie");
     const hauteur = metaNum(meta, "hauteurFinie");
     const nbGalets = metaNum(meta, "nombreGalets");
-    const ourletHaut = metaNum(meta, "ourletHaut");
-    const ourletBas = metaNum(meta, "ourletBas");
+    const ongletCote = metaNum(meta, "ongletCote", "ourletBas");
+    const supportMural = metaGet(meta, "supportMural");
+    const supportMuralRef = metaGet(meta, "supportMuralRef");
     const sensConf = metaGet(meta, "sensConfectionPref");
     const couleurOeillets = metaGet(meta, "couleurOeillets");
 
@@ -305,12 +307,16 @@ function buildSpecsFromMeta(
     if (ref) rows.push({ label: "Tissu", value: ref });
     if (doublure) rows.push({ label: "Doublage", value: DOUBLURE_LABELS[doublure] ?? doublure });
     if (pose) rows.push({ label: "Pose", value: pose === "plafond" ? "Plafond" : "Mural" });
+    if (supportMural) {
+      rows.push({
+        label: "Support mural",
+        value: supportMuralRef ? `${supportMural} (${supportMuralRef})` : supportMural,
+      });
+    }
     if (!hideMeasurements && largeur) rows.push({ label: "Largeur finie", value: `${largeur} cm` });
     if (!hideMeasurements && hauteur) rows.push({ label: "Hauteur finie", value: `${hauteur} cm` });
-    if (ourletHaut && !hideMeasurements)
-      rows.push({ label: "Ourlet haut", value: `${ourletHaut} cm` });
-    if (ourletBas && !hideMeasurements)
-      rows.push({ label: "Ourlet bas", value: `${ourletBas} cm` });
+    if (ongletCote && !hideMeasurements)
+      rows.push({ label: "Onglet sur le côté", value: `${ongletCote} cm` });
     if (couleurOeillets) rows.push({ label: "Couleur œillets", value: couleurOeillets });
     if (sensConf && sensConf !== "auto") {
       rows.push({

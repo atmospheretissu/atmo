@@ -504,18 +504,22 @@ export function FicheConfectionPDF({
                           }
                         />
                         <MetaCell
-                          label="Ourlet haut"
+                          label="Onglet sur le côté"
                           value={
-                            getNumber(meta, "ourletHaut") != null
-                              ? `${getNumber(meta, "ourletHaut")} cm`
+                            getNumber(meta, "ongletCote", "ourletBas") != null
+                              ? `${getNumber(meta, "ongletCote", "ourletBas")} cm`
                               : null
                           }
                         />
                         <MetaCell
-                          label="Ourlet bas"
+                          label="Support mural"
                           value={
-                            getNumber(meta, "ourletBas") != null
-                              ? `${getNumber(meta, "ourletBas")} cm`
+                            get(meta, "supportMural")
+                              ? `${get(meta, "supportMural")}${
+                                  get(meta, "supportMuralRef")
+                                    ? ` · ${get(meta, "supportMuralRef")}`
+                                    : ""
+                                }`
                               : null
                           }
                         />

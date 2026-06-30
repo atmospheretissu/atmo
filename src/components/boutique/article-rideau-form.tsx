@@ -9,6 +9,7 @@ import { Sparkles, AlertCircle } from "lucide-react";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { CONFIG, type TypeRideau, type TypeRail, type TypePose } from "@/lib/boutique/data";
 import { calculateRideau } from "@/lib/boutique/pricing/helpers";
+import { TissuPicker } from "@/components/boutique/tissu-picker";
 
 const eurFmt = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -42,9 +43,22 @@ const RAILS: { value: TypeRail; label: string }[] = [
 ];
 
 type TypeMontage = "paire" | "panneau";
-type Doublure = "aucune" | "occultante" | "thermique" | "cotonnade";
+type Doublure = "aucune" | "occultante" | "thermique" | "cotonnade" | "ouatine";
 type FinitionBasse = "ras_du_sol" | "reserve_proprete" | "cassant";
 type SensConfectionPref = "auto" | "droit_gauche" | "haut_bas";
+type SupportMural =
+  | "aucun"
+  | "face_simple_6"
+  | "face_simple_9"
+  | "face_double"
+  | "cache_vis";
+
+const SUPPORT_MURAL_OPTIONS: { value: SupportMural; label: string; ref: string }[] = [
+  { value: "face_simple_6", label: "Support de face simple 6cm", ref: "7815.4" },
+  { value: "face_simple_9", label: "Support de face simple 9cm", ref: "7816.4" },
+  { value: "face_double", label: "Support de face double", ref: "7817.4" },
+  { value: "cache_vis", label: "Cache vis", ref: "78158.4" },
+];
 
 type Inputs = {
   typeRideau: TypeRideauUI;
@@ -70,10 +84,10 @@ type Inputs = {
   // Spécifique Panneau
   finitionHautePanneau: FinitionHautePanneau;
   finitionBassePanneau: FinitionBassePanneau;
-  // Fiche atelier — précisions confection
-  nombreGalets: number;
-  ourletHaut: number;
-  ourletBas: number;
+  // Fiche atelier — précisions confection (ourletHaut retiré : standard atelier)
+  ongletCote: number;
+  // Support mural (uniquement si pose murale)
+  supportMural: SupportMural;
 };
 
 const initial: Inputs = {
@@ -98,9 +112,8 @@ const initial: Inputs = {
   couleurOeillets: "",
   finitionHautePanneau: "glissiere",
   finitionBassePanneau: "barre_lestage",
-  nombreGalets: 0,
-  ourletHaut: 5,
-  ourletBas: 10,
+  ongletCote: 5,
+  supportMural: "face_simple_6",
 };
 
 const DOUBLURE_OPTIONS: { value: Doublure; label: string }[] = [
@@ -108,6 +121,7 @@ const DOUBLURE_OPTIONS: { value: Doublure; label: string }[] = [
   { value: "occultante", label: "Occultante" },
   { value: "thermique", label: "Thermique" },
   { value: "cotonnade", label: "Cotonnade" },
+  { value: "ouatine", label: "Ouatine" },
 ];
 
 const FINITION_OPTIONS: { value: FinitionBasse; label: string }[] = [
@@ -146,6 +160,17 @@ export function RideauForm({
   onCancel: () => void;
 }) {
   const [v, setV] = useState<Inputs>(initial);
+
+  /**
+   * Nombre de galets calculé auto.
+   * Convention : 1 pli simple par 10cm de largeur finie (pour plis simples).
+   * Pour Vague / Œillets / Panneau : ne s'applique pas (0).
+   */
+  const nombreGaletsAuto = useMemo(() => {
+    if (v.typeRideau !== "Plis simples") return 0;
+    if (!v.largeurFinie) return 0;
+    return Math.max(1, Math.round(v.largeurFinie / 10));
+  }, [v.typeRideau, v.largeurFinie]);
 
   const validationError = useMemo(() => {
     if (!v.largeurFinie || v.largeurFinie <= 0) return "Largeur tringle requise.";
@@ -257,9 +282,16 @@ export function RideauForm({
         prixDoublure: calc.prixDoublure,
         prixConfection: calc.prixConfection,
         prixAccessoires: calc.prixAccessoires,
-        nombreGalets: v.nombreGalets,
-        ourletHaut: v.ourletHaut,
-        ourletBas: v.ourletBas,
+        nombreGalets: nombreGaletsAuto,
+        ongletCote: v.ongletCote,
+        supportMural:
+          v.poseRail === "face"
+            ? SUPPORT_MURAL_OPTIONS.find((o) => o.value === v.supportMural)?.label ?? null
+            : null,
+        supportMuralRef:
+          v.poseRail === "face"
+            ? SUPPORT_MURAL_OPTIONS.find((o) => o.value === v.supportMural)?.ref ?? null
+            : null,
       },
     });
 
@@ -421,36 +453,31 @@ export function RideauForm({
           {/* Fiche atelier — précisions confection */}
           <section>
             <p className="eyebrow mb-2">Confection — fiche atelier</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Nombre de galets</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={v.nombreGalets || ""}
-                  onChange={(e) => update({ nombreGalets: Number(e.target.value) || 0 })}
-                  placeholder="ex. 12"
-                />
+                <div className="h-9 px-3 rounded-md border border-line bg-canvas-2/30 text-[13px] text-ink-2 flex items-center justify-between">
+                  <span className="tabular-nums">
+                    {nombreGaletsAuto > 0 ? nombreGaletsAuto : "—"}
+                  </span>
+                  <span className="text-[10.5px] text-muted-2 uppercase tracking-wider">Auto</span>
+                </div>
+                <Hint>
+                  {v.typeRideau === "Plis simples"
+                    ? "Calculé automatiquement (1 pli / 10 cm de largeur finie)"
+                    : "Ne s'applique pas à ce type de rideau"}
+                </Hint>
               </div>
               <div>
-                <Label>Ourlet haut (cm)</Label>
+                <Label>Onglet sur le côté (cm)</Label>
                 <Input
                   type="number"
                   min={0}
-                  value={v.ourletHaut || ""}
-                  onChange={(e) => update({ ourletHaut: Number(e.target.value) || 0 })}
+                  value={v.ongletCote || ""}
+                  onChange={(e) => update({ ongletCote: Number(e.target.value) || 0 })}
                   placeholder="5"
                 />
-              </div>
-              <div>
-                <Label>Ourlet bas (cm)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={v.ourletBas || ""}
-                  onChange={(e) => update({ ourletBas: Number(e.target.value) || 0 })}
-                  placeholder="10"
-                />
+                <Hint>Standard atelier : 5 cm</Hint>
               </div>
             </div>
           </section>
@@ -459,14 +486,18 @@ export function RideauForm({
           <section>
             <p className="eyebrow mb-2">Tissu</p>
             <div className="space-y-3">
-              <div>
-                <Label>Référence tissu</Label>
-                <Input
-                  value={v.referenceTissu}
-                  onChange={(e) => update({ referenceTissu: e.target.value })}
-                  placeholder="ex: Casamance Saumon · 204"
-                />
-              </div>
+              <TissuPicker
+                value={v.referenceTissu}
+                onChange={(next) => update({ referenceTissu: next })}
+                onProductSelected={(p) =>
+                  update({
+                    referenceTissu: `${p.name} · ${p.ref}`,
+                    prixTissu: p.unit_price_ht || v.prixTissu,
+                    laizeTissu: p.width_cm ?? v.laizeTissu,
+                    raccordTissu: p.raccord_cm ?? v.raccordTissu,
+                  })
+                }
+              />
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>Laize (cm) *</Label>
@@ -615,6 +646,21 @@ export function RideauForm({
                   </Select>
                 </div>
               </div>
+              {v.poseRail === "face" && (
+                <div>
+                  <Label>Support mural</Label>
+                  <Select
+                    value={v.supportMural}
+                    onChange={(e) => update({ supportMural: e.target.value as SupportMural })}
+                  >
+                    {SUPPORT_MURAL_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label} — {o.ref}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Couleur rail</Label>
