@@ -16,6 +16,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
+    "@tailwindcss/postcss": "^4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "croner": "^9.1.0",
@@ -27,7 +28,6 @@
     "stripe": "^22.1.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4",
-    "@tailwindcss/postcss": "^4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -38,6 +38,7 @@
     "pg": "^8.20.0",
     "supabase": "^2.98.2",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "xlsx": "^0.18.5"
   }
 }

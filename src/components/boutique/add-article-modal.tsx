@@ -15,6 +15,7 @@ import { StoreEnrouleurForm } from "@/components/boutique/article-store-enrouleu
 import { RideauSerieForm } from "@/components/boutique/article-rideau-serie-form";
 import { ArticleLibreForm } from "@/components/boutique/article-libre-form";
 import { ArticleCollectionForm } from "@/components/boutique/article-collection-form";
+import { ArticleNewCollectionForm } from "@/components/boutique/article-new-collection-form";
 import { ArticleMobilierForm } from "@/components/boutique/article-mobilier-form";
 
 type ArticleType =
@@ -25,6 +26,7 @@ type ArticleType =
   | "rideau_serie"
   | "libre"
   | "collection"
+  | "new_collection"
   | "mobilier";
 
 const TYPES: {
@@ -85,9 +87,17 @@ const TYPES: {
   },
   {
     key: "collection",
-    label: "Collection Atmosphère",
+    label: "Collection Atmosphère (générique)",
     description: "Rideau / store en LIN ou Polyester — routing Pologne/Ukraine auto",
     tone: "violet",
+    icon: Sparkles,
+    available: true,
+  },
+  {
+    key: "new_collection",
+    label: "New Collection Atmosphère",
+    description: "Grille tarifaire officielle (LIN / Polyester / doublé) — prix auto",
+    tone: "pink",
     icon: Sparkles,
     available: true,
   },
@@ -124,6 +134,7 @@ export function AddArticleModal({
     selectedType === "store" ||
     selectedType === "store_enrouleur" ||
     selectedType === "collection" ||
+    selectedType === "new_collection" ||
     selectedType === "mobilier" ||
     selectedType === "libre";
 
@@ -154,6 +165,8 @@ export function AddArticleModal({
                 ? "Autre produit (champ libre)"
                 : selectedType === "collection"
                 ? "Collection Atmosphère"
+                : selectedType === "new_collection"
+                ? "New Collection Atmosphère"
                 : selectedType === "mobilier"
                 ? "Mobilier sur mesure"
                 : "Rideau en série"}
@@ -199,6 +212,10 @@ export function AddArticleModal({
 
         {selectedType === "collection" && (
           <ArticleCollectionForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+        )}
+
+        {selectedType === "new_collection" && (
+          <ArticleNewCollectionForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
 
         {selectedType === "mobilier" && (
