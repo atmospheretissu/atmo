@@ -1,21 +1,37 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertCircle, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Hint, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
-import {
-  NEW_COLLECTION_TARIFS,
-  lookupPrice,
-  tissusByFamily,
-  type NewCollectionCategory,
-  type NewCollectionFamily,
-  type ConfectionKey,
-  type Tissu,
-} from "@/lib/boutique/new-collection-tarifs";
+import { listTarifTissusAction } from "@/app/(platform)/boutique/tarifs-action";
+import type {
+  NewCollectionCategory,
+  NewCollectionFamily,
+  ConfectionKey,
+  Tissu,
+  TarifGrid,
+} from "@/lib/db/boutique-tarifs";
+
+function lookupPriceClient(
+  grid: TarifGrid,
+  largeurCm: number,
+  hauteurCm: number,
+) {
+  const iLargeur = grid.largeurs.findIndex((l) => l >= largeurCm);
+  const iHauteur = grid.hauteurs.findIndex((h) => h >= hauteurCm);
+  if (iLargeur < 0 || iHauteur < 0) return null;
+  const price = grid.grid[iHauteur]?.[iLargeur];
+  if (!Number.isFinite(price) || price <= 0) return null;
+  return {
+    price,
+    largeurSeuil: grid.largeurs[iLargeur],
+    hauteurSeuil: grid.hauteurs[iHauteur],
+  };
+}
 
 const eurFmt = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -44,6 +60,13 @@ const CONFECTION_LABELS: Record<ConfectionKey, string> = {
   store: "Store",
 };
 
+const CATEGORIES: NewCollectionCategory[] = [
+  "rideau",
+  "store_bateau",
+  "store_enrouleur",
+  "store_screen",
+];
+
 export function ArticleNewCollectionForm({
   onAdd,
   onCancel,
@@ -59,27 +82,48 @@ export function ArticleNewCollectionForm({
   const [avecPose, setAvecPose] = useState(true);
   const [prixPose, setPrixPose] = useState(120);
 
-  const categories = useMemo(() => {
-    return (Object.keys(NEW_COLLECTION_TARIFS) as NewCollectionCategory[]).filter(
-      (c) => NEW_COLLECTION_TARIFS[c].tissus.length > 0,
-    );
-  }, []);
+  // Fetch tissus depuis la DB à chaque changement de catégorie
+  const [tissus, setTissus] = useState<Tissu[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const list = await listTarifTissusAction(category);
+        if (!cancelled) {
+          setTissus(list);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setTissus([]);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [category]);
 
   const availableFamilies = useMemo(() => {
-    const byFam = tissusByFamily(category);
+    const byFam: Record<NewCollectionFamily, Tissu[]> = {
+      LIN: [],
+      POLYESTER: [],
+      POLYESTER_DOUBLE: [],
+      COLLECTION: [],
+    };
+    for (const t of tissus) if (byFam[t.family]) byFam[t.family].push(t);
     return (Object.entries(byFam) as [NewCollectionFamily, Tissu[]][]).filter(
       ([, list]) => list.length > 0,
     );
-  }, [category]);
-
-  const tissusFlat = useMemo(() => {
-    return NEW_COLLECTION_TARIFS[category].tissus;
-  }, [category]);
+  }, [tissus]);
 
   const selectedTissu: Tissu | null = useMemo(() => {
     if (!tissuId) return null;
-    return tissusFlat.find((t) => `${t.family}::${t.name}` === tissuId) ?? null;
-  }, [tissuId, tissusFlat]);
+    return tissus.find((t) => t.id === tissuId) ?? null;
+  }, [tissuId, tissus]);
 
   const availableConfections = useMemo(() => {
     if (!selectedTissu) return [] as ConfectionKey[];
@@ -97,7 +141,7 @@ export function ArticleNewCollectionForm({
     if (!selectedTissu || !effectiveConfection) return null;
     const grid = selectedTissu.confections[effectiveConfection];
     if (!grid) return null;
-    return lookupPrice(grid, largeur, hauteur);
+    return lookupPriceClient(grid, largeur, hauteur);
   }, [selectedTissu, effectiveConfection, largeur, hauteur]);
 
   const validationError = useMemo(() => {
@@ -140,6 +184,7 @@ export function ArticleNewCollectionForm({
         category,
         family: selectedTissu.family,
         tissu: selectedTissu.name,
+        tissuId: selectedTissu.id,
         confection: effectiveConfection,
         largeur,
         hauteur,
@@ -178,7 +223,7 @@ export function ArticleNewCollectionForm({
         <section>
           <p className="eyebrow mb-2">Catégorie</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-1 rounded-md border border-line p-0.5 bg-white h-10">
-            {categories.map((c) => (
+            {CATEGORIES.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -202,12 +247,22 @@ export function ArticleNewCollectionForm({
         {/* Tissu (groupé par famille) */}
         <section>
           <p className="eyebrow mb-2">Tissu Collection Atmosphère</p>
-          <Select value={tissuId} onChange={(e) => setTissuId(e.target.value)}>
-            <option value="">— Choisir un tissu —</option>
+          <Select
+            value={tissuId}
+            onChange={(e) => setTissuId(e.target.value)}
+            disabled={loading || tissus.length === 0}
+          >
+            <option value="">
+              {loading
+                ? "Chargement des tissus…"
+                : tissus.length === 0
+                  ? "Aucun tissu — configure-les dans /paramètres → Boutique tarifs"
+                  : "— Choisir un tissu —"}
+            </option>
             {availableFamilies.map(([fam, list]) => (
               <optgroup key={fam} label={FAMILY_LABELS[fam]}>
                 {list.map((t) => (
-                  <option key={`${t.family}::${t.name}`} value={`${t.family}::${t.name}`}>
+                  <option key={t.id} value={t.id}>
                     {t.name}
                     {t.laize ? ` · laize ${t.laize}cm` : ""}
                   </option>
@@ -215,7 +270,15 @@ export function ArticleNewCollectionForm({
               </optgroup>
             ))}
           </Select>
-          <Hint>Grille tarifaire = fichier TARIFS/ correspondant, prix tout inclus.</Hint>
+          <Hint>
+            {loading ? (
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> chargement depuis la base
+              </span>
+            ) : (
+              <>Grille tarifaire officielle · éditable dans /paramètres → Boutique tarifs</>
+            )}
+          </Hint>
         </section>
 
         {/* Confection */}
