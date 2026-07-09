@@ -46,13 +46,6 @@ const CATEGORY_LABELS: Record<NewCollectionCategory, string> = {
   store_screen: "Store screen",
 };
 
-const FAMILY_LABELS: Record<NewCollectionFamily, string> = {
-  LIN: "Lin",
-  POLYESTER: "Polyester",
-  POLYESTER_DOUBLE: "Polyester doublé",
-  COLLECTION: "Collection",
-};
-
 const CONFECTION_LABELS: Record<ConfectionKey, string> = {
   pli_simple: "Plis simples",
   wave: "Wave",
@@ -67,6 +60,23 @@ const CATEGORIES: NewCollectionCategory[] = [
   "store_screen",
 ];
 
+/** Normalise le nom d'un tissu pour matcher base ↔ doublé.
+ *  "VOGUE" ↔ "VOGUE - DOUBLE" → base = "VOGUE"
+ */
+function baseName(name: string): string {
+  return name.replace(/\s*-\s*DOUBLE\s*$/i, "").trim().toUpperCase();
+}
+
+type Doublure = "aucune" | "occultante" | "thermique";
+
+const DOUBLURE_OPTIONS: { value: Doublure; label: string; hint: string }[] = [
+  { value: "aucune", label: "Aucune", hint: "Rideau simple (polyester non doublé)" },
+  { value: "occultante", label: "Occultante / classique", hint: "Grille polyester doublé" },
+  { value: "thermique", label: "Thermique", hint: "Doublé + supplément option thermique" },
+];
+
+type Montage = "panneau" | "paire";
+
 export function ArticleNewCollectionForm({
   onAdd,
   onCancel,
@@ -75,10 +85,12 @@ export function ArticleNewCollectionForm({
   onCancel: () => void;
 }) {
   const [category, setCategory] = useState<NewCollectionCategory>("rideau");
-  const [tissuId, setTissuId] = useState<string>("");
+  const [tissuBase, setTissuBase] = useState<string>("");
+  const [doublure, setDoublure] = useState<Doublure>("aucune");
+  const [montage, setMontage] = useState<Montage>("panneau");
   const [confection, setConfection] = useState<ConfectionKey>("pli_simple");
-  const [largeur, setLargeur] = useState<number>(200);
-  const [hauteur, setHauteur] = useState<number>(250);
+  const [largeur, setLargeur] = useState<number>(210);
+  const [hauteur, setHauteur] = useState<number>(157);
   const [avecPose, setAvecPose] = useState(true);
   const [prixPose, setPrixPose] = useState(120);
 
@@ -107,108 +119,181 @@ export function ArticleNewCollectionForm({
     };
   }, [category]);
 
-  const availableFamilies = useMemo(() => {
-    const byFam: Record<NewCollectionFamily, Tissu[]> = {
-      LIN: [],
-      POLYESTER: [],
-      POLYESTER_DOUBLE: [],
-      COLLECTION: [],
-    };
-    for (const t of tissus) if (byFam[t.family]) byFam[t.family].push(t);
-    return (Object.entries(byFam) as [NewCollectionFamily, Tissu[]][]).filter(
-      ([, list]) => list.length > 0,
+  /** Regroupe les tissus par nom de base et détermine les doublures dispo pour chacun.
+   *  Ex : {"VOGUE": {LIN: null, POLYESTER: <Tissu>, POLYESTER_DOUBLE: <Tissu - DOUBLE>}}
+   */
+  const tissuGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      Partial<Record<NewCollectionFamily, Tissu>>
+    >();
+    const thermiqueTissu = tissus.find(
+      (t) => baseName(t.name) === "OPTION THERMIQUE POLYESTER" || t.name.toUpperCase().includes("OPTION THERMIQUE"),
     );
+    for (const t of tissus) {
+      // On skip le supplément thermique de la liste des tissus sélectionnables
+      if (thermiqueTissu && t.id === thermiqueTissu.id) continue;
+      const bn = baseName(t.name);
+      const g = groups.get(bn) ?? {};
+      g[t.family] = t;
+      groups.set(bn, g);
+    }
+    return { groups, thermiqueTissu };
   }, [tissus]);
 
-  const selectedTissu: Tissu | null = useMemo(() => {
-    if (!tissuId) return null;
-    return tissus.find((t) => t.id === tissuId) ?? null;
-  }, [tissuId, tissus]);
+  const availableTissuBaseNames = useMemo(
+    () => Array.from(tissuGroups.groups.keys()).sort(),
+    [tissuGroups],
+  );
+
+  /** Le tissu "actif" selon la doublure sélectionnée + éventuel supplément. */
+  const activeTissu: Tissu | null = useMemo(() => {
+    if (!tissuBase) return null;
+    const group = tissuGroups.groups.get(tissuBase);
+    if (!group) return null;
+    // LIN : ignore la doublure (LIN a sa propre grille)
+    if (group.LIN && !group.POLYESTER && !group.POLYESTER_DOUBLE) return group.LIN;
+    // Polyester : selon doublure
+    if (doublure === "aucune") return group.POLYESTER ?? null;
+    // occultante ou thermique → grille doublé
+    return group.POLYESTER_DOUBLE ?? group.POLYESTER ?? null;
+  }, [tissuBase, tissuGroups, doublure]);
+
+  const supplementThermique: Tissu | null = useMemo(() => {
+    if (doublure !== "thermique") return null;
+    return tissuGroups.thermiqueTissu ?? null;
+  }, [doublure, tissuGroups]);
+
+  // Doublures disponibles selon le tissu sélectionné
+  const availableDoublures = useMemo(() => {
+    if (!tissuBase) return [] as Doublure[];
+    const group = tissuGroups.groups.get(tissuBase);
+    if (!group) return [];
+    const out: Doublure[] = [];
+    if (group.POLYESTER || group.LIN) out.push("aucune");
+    if (group.POLYESTER_DOUBLE) {
+      out.push("occultante");
+      if (tissuGroups.thermiqueTissu) out.push("thermique");
+    }
+    return out;
+  }, [tissuBase, tissuGroups]);
+
+  // S'assure que la doublure sélectionnée reste valide
+  useEffect(() => {
+    if (availableDoublures.length > 0 && !availableDoublures.includes(doublure)) {
+      setDoublure(availableDoublures[0]);
+    }
+  }, [availableDoublures, doublure]);
 
   const availableConfections = useMemo(() => {
-    if (!selectedTissu) return [] as ConfectionKey[];
-    return Object.keys(selectedTissu.confections);
-  }, [selectedTissu]);
+    if (!activeTissu) return [] as ConfectionKey[];
+    return Object.keys(activeTissu.confections);
+  }, [activeTissu]);
 
-  // Assure que confection sélectionnée reste valide
   const effectiveConfection: ConfectionKey | null = useMemo(() => {
-    if (!selectedTissu) return null;
+    if (!activeTissu) return null;
     if (availableConfections.includes(confection)) return confection;
     return availableConfections[0] ?? null;
-  }, [selectedTissu, availableConfections, confection]);
+  }, [activeTissu, availableConfections, confection]);
 
-  const lookup = useMemo(() => {
-    if (!selectedTissu || !effectiveConfection) return null;
-    const grid = selectedTissu.confections[effectiveConfection];
+  const lookupMain = useMemo(() => {
+    if (!activeTissu || !effectiveConfection) return null;
+    const grid = activeTissu.confections[effectiveConfection];
     if (!grid) return null;
     return lookupPriceClient(grid, largeur, hauteur);
-  }, [selectedTissu, effectiveConfection, largeur, hauteur]);
+  }, [activeTissu, effectiveConfection, largeur, hauteur]);
+
+  const lookupThermiqueSupp = useMemo(() => {
+    if (!supplementThermique || !effectiveConfection) return null;
+    const grid = supplementThermique.confections[effectiveConfection];
+    if (!grid) return null;
+    return lookupPriceClient(grid, largeur, hauteur);
+  }, [supplementThermique, effectiveConfection, largeur, hauteur]);
+
+  const prixBase = lookupMain?.price ?? 0;
+  const prixThermique = lookupThermiqueSupp?.price ?? 0;
+  const prixArticle = prixBase + prixThermique;
+  const totalGlobal = prixArticle + (avecPose ? prixPose : 0);
 
   const validationError = useMemo(() => {
-    if (!selectedTissu) return "Sélectionne un tissu.";
+    if (!tissuBase) return "Sélectionne un tissu.";
+    if (!activeTissu) return "Ce tissu n'est pas disponible dans cette famille de doublure.";
     if (!effectiveConfection) return "Aucun type de confection disponible pour ce tissu.";
     if (largeur <= 0) return "Largeur invalide.";
     if (hauteur <= 0) return "Hauteur invalide.";
-    if (!lookup) {
-      const maxL = selectedTissu.confections[effectiveConfection].largeurs.slice(-1)[0];
-      const maxH = selectedTissu.confections[effectiveConfection].hauteurs.slice(-1)[0];
+    if (!lookupMain) {
+      const grid = activeTissu.confections[effectiveConfection];
+      const maxL = grid.largeurs.slice(-1)[0];
+      const maxH = grid.hauteurs.slice(-1)[0];
       return `Dimensions hors grille (max ${maxL}×${maxH}cm).`;
     }
+    if (doublure === "thermique" && !lookupThermiqueSupp) {
+      return "Supplément thermique introuvable pour cette taille.";
+    }
     return null;
-  }, [selectedTissu, effectiveConfection, largeur, hauteur, lookup]);
-
-  const prixArticle = lookup?.price ?? 0;
-  const totalGlobal = prixArticle + (avecPose ? prixPose : 0);
+  }, [
+    tissuBase,
+    activeTissu,
+    effectiveConfection,
+    largeur,
+    hauteur,
+    lookupMain,
+    doublure,
+    lookupThermiqueSupp,
+  ]);
 
   const handleAdd = () => {
-    if (validationError || !lookup || !selectedTissu || !effectiveConfection) return;
+    if (validationError || !lookupMain || !activeTissu || !effectiveConfection) return;
 
     const articles: BoutiquePieceArticle[] = [];
+    const doublureLabel = doublure === "aucune" ? "" : ` · doublure ${doublure}`;
+    const montageLabel = category === "rideau" ? ` · ${montage === "paire" ? "Paire" : "Panneau"}` : "";
+    const label = `Collection Atmosphère — ${CATEGORY_LABELS[category]} ${tissuBase}`;
 
-    // Article 1 — tissu + confection all-in
-    const label = `New Collection Atmosphère — ${CATEGORY_LABELS[category]} ${selectedTissu.name}`;
     articles.push({
       type: category === "rideau" ? "rideau" : "store",
       designation: label,
-      ref: selectedTissu.name,
+      ref: tissuBase,
       detail:
         `${CONFECTION_LABELS[effectiveConfection] ?? effectiveConfection} · ${largeur}×${hauteur}cm` +
-        ` · ${FAMILY_LABELS[selectedTissu.family]}` +
-        (selectedTissu.laize ? ` · laize ${selectedTissu.laize}cm` : "") +
-        ` · seuil grille ${lookup.largeurSeuil}×${lookup.hauteurSeuil}cm`,
+        montageLabel +
+        doublureLabel +
+        (activeTissu.laize ? ` · laize ${activeTissu.laize}cm` : "") +
+        ` · seuil grille ${lookupMain.largeurSeuil}×${lookupMain.hauteurSeuil}cm`,
       qty: 1,
       unitLabel: "u",
       unitPriceHt: prixArticle,
       meta: {
         typeArticle: "new_collection_atmosphere",
         category,
-        family: selectedTissu.family,
-        tissu: selectedTissu.name,
-        tissuId: selectedTissu.id,
+        tissu: tissuBase,
+        family: activeTissu.family,
+        tissuId: activeTissu.id,
         confection: effectiveConfection,
+        doublure,
+        montage: category === "rideau" ? montage : null,
         largeur,
         hauteur,
-        laize: selectedTissu.laize,
-        coefficient: selectedTissu.coefficient,
-        largeurSeuil: lookup.largeurSeuil,
-        hauteurSeuil: lookup.hauteurSeuil,
+        laize: activeTissu.laize,
+        largeurSeuil: lookupMain.largeurSeuil,
+        hauteurSeuil: lookupMain.hauteurSeuil,
+        prixBase,
+        prixSupplementThermique: prixThermique,
         prixAllIn: prixArticle,
       },
     });
 
-    // Article 2 — pose éventuelle
     if (avecPose && prixPose > 0) {
       articles.push({
         type: category === "rideau" ? "rideau" : "store",
-        designation: `Pose ${CATEGORY_LABELS[category]} (New Collection)`,
+        designation: `Pose ${CATEGORY_LABELS[category]} (Collection)`,
         ref: undefined,
         detail: `${largeur}×${hauteur}cm`,
         qty: 1,
         unitLabel: "forfait",
         unitPriceHt: prixPose,
         meta: {
-          typeArticle:
-            category === "rideau" ? "pose_rideau" : "pose_store",
+          typeArticle: category === "rideau" ? "pose_rideau" : "pose_store",
         },
       });
     }
@@ -229,13 +314,11 @@ export function ArticleNewCollectionForm({
                 type="button"
                 onClick={() => {
                   setCategory(c);
-                  setTissuId("");
+                  setTissuBase("");
                 }}
                 className={
                   "text-[12px] font-semibold rounded-[5px] transition-colors " +
-                  (category === c
-                    ? "bg-ink text-white"
-                    : "text-muted hover:text-ink")
+                  (category === c ? "bg-ink text-white" : "text-muted hover:text-ink")
                 }
               >
                 {CATEGORY_LABELS[c]}
@@ -244,42 +327,66 @@ export function ArticleNewCollectionForm({
           </div>
         </section>
 
-        {/* Tissu (groupé par famille) */}
+        {/* Tissu */}
         <section>
-          <p className="eyebrow mb-2">Tissu Collection Atmosphère</p>
+          <p className="eyebrow mb-2">Tissu</p>
           <Select
-            value={tissuId}
-            onChange={(e) => setTissuId(e.target.value)}
-            disabled={loading || tissus.length === 0}
+            value={tissuBase}
+            onChange={(e) => setTissuBase(e.target.value)}
+            disabled={loading || availableTissuBaseNames.length === 0}
           >
             <option value="">
               {loading
                 ? "Chargement des tissus…"
-                : tissus.length === 0
-                  ? "Aucun tissu — configure-les dans /paramètres → Boutique tarifs"
+                : availableTissuBaseNames.length === 0
+                  ? "Aucun tissu — /paramètres → Boutique tarifs"
                   : "— Choisir un tissu —"}
             </option>
-            {availableFamilies.map(([fam, list]) => (
-              <optgroup key={fam} label={FAMILY_LABELS[fam]}>
-                {list.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                    {t.laize ? ` · laize ${t.laize}cm` : ""}
-                  </option>
-                ))}
-              </optgroup>
+            {availableTissuBaseNames.map((bn) => (
+              <option key={bn} value={bn}>
+                {bn}
+              </option>
             ))}
           </Select>
           <Hint>
             {loading ? (
               <span className="inline-flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> chargement depuis la base
+                <Loader2 className="h-3 w-3 animate-spin" /> chargement
               </span>
             ) : (
               <>Grille tarifaire officielle · éditable dans /paramètres → Boutique tarifs</>
             )}
           </Hint>
         </section>
+
+        {/* Doublure */}
+        {availableDoublures.length > 0 && (
+          <section>
+            <p className="eyebrow mb-2">Doublure</p>
+            <div className="grid grid-cols-3 gap-1 rounded-md border border-line p-0.5 bg-white h-10">
+              {DOUBLURE_OPTIONS.filter((o) => availableDoublures.includes(o.value)).map(
+                (o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setDoublure(o.value)}
+                    className={
+                      "text-[12px] font-semibold rounded-[5px] transition-colors " +
+                      (doublure === o.value
+                        ? "bg-ink text-white"
+                        : "text-muted hover:text-ink")
+                    }
+                  >
+                    {o.label}
+                  </button>
+                ),
+              )}
+            </div>
+            <Hint>
+              {DOUBLURE_OPTIONS.find((o) => o.value === doublure)?.hint}
+            </Hint>
+          </section>
+        )}
 
         {/* Confection */}
         {availableConfections.length > 1 && (
@@ -302,6 +409,29 @@ export function ArticleNewCollectionForm({
                 </button>
               ))}
             </div>
+          </section>
+        )}
+
+        {/* Montage (rideau uniquement, pas d'impact prix) */}
+        {category === "rideau" && (
+          <section>
+            <p className="eyebrow mb-2">Montage</p>
+            <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-10">
+              {(["panneau", "paire"] as Montage[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMontage(m)}
+                  className={
+                    "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
+                    (montage === m ? "bg-ink text-white" : "text-muted hover:text-ink")
+                  }
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <Hint>Paire ou panneau : prix identique.</Hint>
           </section>
         )}
 
@@ -373,9 +503,12 @@ export function ArticleNewCollectionForm({
           ) : (
             <div className="space-y-2 text-[12.5px]">
               <Row
-                label={`${selectedTissu?.name} — ${CONFECTION_LABELS[effectiveConfection ?? ""] ?? ""}`}
-                value={prixArticle}
+                label={`${tissuBase} · ${CONFECTION_LABELS[effectiveConfection ?? ""] ?? ""}`}
+                value={prixBase}
               />
+              {prixThermique > 0 && (
+                <Row label="Supplément thermique" value={prixThermique} />
+              )}
               {avecPose && prixPose > 0 && <Row label="Pose" value={prixPose} />}
               <div className="mt-2 pt-2 border-t border-line flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-ink">Total HT</span>
@@ -384,7 +517,8 @@ export function ArticleNewCollectionForm({
                 </span>
               </div>
               <p className="text-[11px] text-muted-2 pt-2">
-                Grille : {lookup?.largeurSeuil}×{lookup?.hauteurSeuil}cm (seuil arrondi)
+                Grille : {lookupMain?.largeurSeuil}×{lookupMain?.hauteurSeuil}cm (seuil arrondi)
+                {activeTissu ? ` · famille ${activeTissu.family}` : ""}
               </p>
             </div>
           )}

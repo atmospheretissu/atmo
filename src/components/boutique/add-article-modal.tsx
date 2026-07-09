@@ -14,7 +14,6 @@ import { StoreForm } from "@/components/boutique/article-store-form";
 import { StoreEnrouleurForm } from "@/components/boutique/article-store-enrouleur-form";
 import { RideauSerieForm } from "@/components/boutique/article-rideau-serie-form";
 import { ArticleLibreForm } from "@/components/boutique/article-libre-form";
-import { ArticleCollectionForm } from "@/components/boutique/article-collection-form";
 import { ArticleNewCollectionForm } from "@/components/boutique/article-new-collection-form";
 import { ArticleMobilierForm } from "@/components/boutique/article-mobilier-form";
 
@@ -25,7 +24,6 @@ type ArticleType =
   | "produit"
   | "rideau_serie"
   | "libre"
-  | "collection"
   | "new_collection"
   | "mobilier";
 
@@ -86,17 +84,9 @@ const TYPES: {
     available: true,
   },
   {
-    key: "collection",
-    label: "Collection Atmosphère (générique)",
-    description: "Rideau / store en LIN ou Polyester — routing Pologne/Ukraine auto",
-    tone: "violet",
-    icon: Sparkles,
-    available: true,
-  },
-  {
     key: "new_collection",
-    label: "New Collection Atmosphère",
-    description: "Grille tarifaire officielle (LIN / Polyester / doublé) — prix auto",
+    label: "Collection Atmosphère",
+    description: "Grille tarifaire officielle (LIN / Polyester / doublé occultant ou thermique) — prix auto depuis /paramètres",
     tone: "pink",
     icon: Sparkles,
     available: true,
@@ -133,7 +123,6 @@ export function AddArticleModal({
     selectedType === "rideau" ||
     selectedType === "store" ||
     selectedType === "store_enrouleur" ||
-    selectedType === "collection" ||
     selectedType === "new_collection" ||
     selectedType === "mobilier" ||
     selectedType === "libre";
@@ -163,10 +152,8 @@ export function AddArticleModal({
                 ? "Store enrouleur"
                 : selectedType === "libre"
                 ? "Autre produit (champ libre)"
-                : selectedType === "collection"
-                ? "Collection Atmosphère"
                 : selectedType === "new_collection"
-                ? "New Collection Atmosphère"
+                ? "Collection Atmosphère"
                 : selectedType === "mobilier"
                 ? "Mobilier sur mesure"
                 : "Rideau en série"}
@@ -208,10 +195,6 @@ export function AddArticleModal({
 
         {selectedType === "libre" && (
           <ArticleLibreForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
-        )}
-
-        {selectedType === "collection" && (
-          <ArticleCollectionForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
         )}
 
         {selectedType === "new_collection" && (

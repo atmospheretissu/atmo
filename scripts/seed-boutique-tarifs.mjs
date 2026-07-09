@@ -112,4 +112,4 @@ for (const [category, catData] of Object.entries(data)) {
   }
 }
 
-console.log(`\n✓ ${totalTissus} tissus, ${totalGrids} grilles chargées en ${target}`);
+console.log(`\n✓ ${totalTissus} tissus, ${totalGrids} grilles chargées`);

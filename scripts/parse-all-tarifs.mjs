@@ -49,6 +49,18 @@ function slugify(s) {
     .replace(/^_+|_+$/g, "");
 }
 
+/** Convertit "≤20" ou "21-30" en valeur numérique max. */
+function rangeToMax(s) {
+  const str = normalize(s);
+  if (!str) return null;
+  const m = str.match(/(\d+)\s*[-–]\s*(\d+)/); // "21-30"
+  if (m) return Number(m[2]);
+  const le = str.match(/[≤<=]?\s*(\d+)/); // "≤20"
+  if (le) return Number(le[1]);
+  const n = Number(str);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Extrait une seule sheet type "grille tissu × dimensions" au format Atmosphère. */
 function extractGridSheet(rows, sheetName) {
   // Cherche la ligne "Largeur" ou "Largeur en cm" — chaque famille a un
@@ -137,6 +149,84 @@ function detectConfection(sheetName) {
   return slugify(sheetName);
 }
 
+/** Parse un fichier Excel enrouleur/screen (format ranges "≤20", "21-30"). */
+function parseRangeFormat(filepath, category, family) {
+  const wb = XLSX.read(readFileSync(filepath));
+  const filename = filepath.split("/").pop().replace(/\.xlsx?$/i, "");
+  const tissuName = filename
+    .replace(/^Tarif\s+Collection\s+/i, "")
+    .trim()
+    .toUpperCase();
+
+  const confections = {};
+
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+    // Cherche une ligne "width" avec des ranges
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] ?? [];
+      const label = normalize(row[0]).toLowerCase();
+      if (label !== "width") continue;
+      const largeurs = [];
+      for (let c = 1; c < row.length; c++) {
+        const v = rangeToMax(row[c]);
+        if (v && v > 0) largeurs.push(v);
+      }
+      if (largeurs.length === 0) continue;
+
+      // Cherche la 1ère ligne suivante avec "height" label ou avec un range en col 0
+      let heightStartRow = i + 1;
+      while (
+        heightStartRow < rows.length &&
+        (normalize(rows[heightStartRow]?.[0]).toLowerCase() === "height" ||
+          !rows[heightStartRow]?.[0])
+      ) {
+        heightStartRow++;
+      }
+
+      const hauteurs = [];
+      const grid = [];
+      for (let r = heightStartRow; r < rows.length; r++) {
+        const rr = rows[r] ?? [];
+        const h = rangeToMax(rr[0]);
+        if (!h) {
+          // Stop dès qu'on tombe sur une ligne "SYSTEM M ▼" ou autre header
+          const lbl = normalize(rr[0]).toLowerCase();
+          if (lbl.startsWith("stores") || lbl.includes("system")) break;
+          continue;
+        }
+        const prices = [];
+        for (let c = 1; c < 1 + largeurs.length; c++) {
+          const p = Number(rr[c]);
+          prices.push(Number.isFinite(p) && p > 0 ? Math.round(p * 100) / 100 : 0);
+        }
+        if (prices.some((p) => p > 0)) {
+          hauteurs.push(h);
+          grid.push(prices);
+        }
+      }
+
+      if (hauteurs.length > 0) {
+        // Une seule confection par collection enrouleur/screen : "store"
+        confections["store"] = { largeurs, hauteurs, grid };
+        break; // On prend le premier SYSTEM (S) et on ignore les autres
+      }
+    }
+  }
+
+  if (Object.keys(confections).length === 0) return null;
+
+  return {
+    name: tissuName,
+    family,
+    laize: null,
+    coefficient: null,
+    confections,
+  };
+}
+
 /** Parse un fichier Excel et retourne les infos tissu + confections. */
 function parseTissuFile(filepath, family) {
   const wb = XLSX.read(readFileSync(filepath));
@@ -219,7 +309,10 @@ for (const [category, dirs] of Object.entries(paths)) {
       const files = collectXlsxFilesRecursive(full);
       for (const f of files) {
         try {
-          const parsed = parseTissuFile(f, family);
+          const parsed =
+            category === "store_enrouleur" || category === "store_screen"
+              ? parseRangeFormat(f, category, family)
+              : parseTissuFile(f, family);
           if (parsed) result[category].tissus.push(parsed);
         } catch (e) {
           console.error(`ERR ${f}:`, e.message);
