@@ -146,20 +146,19 @@ export function ArticleNewCollectionForm({
     [tissuGroups],
   );
 
-  /** Le tissu "actif" selon la doublure sélectionnée + éventuel supplément. */
+  /** Le tissu "actif" selon la doublure sélectionnée + éventuel supplément.
+   *  Simplifié :
+   *    - Doublure "aucune"    → cherche POLYESTER, puis LIN, puis COLLECTION
+   *    - Doublure occultante/thermique → cherche POLYESTER_DOUBLE d'abord
+   */
   const activeTissu: Tissu | null = useMemo(() => {
     if (!tissuBase) return null;
     const group = tissuGroups.groups.get(tissuBase);
     if (!group) return null;
-    // Enrouleur / Screen : family = COLLECTION, pas de doublure
-    if (group.COLLECTION && !group.POLYESTER && !group.POLYESTER_DOUBLE && !group.LIN) {
-      return group.COLLECTION;
+    if (doublure === "aucune") {
+      return group.POLYESTER ?? group.LIN ?? group.COLLECTION ?? group.POLYESTER_DOUBLE ?? null;
     }
-    // LIN : ignore la doublure (LIN a sa propre grille)
-    if (group.LIN && !group.POLYESTER && !group.POLYESTER_DOUBLE) return group.LIN;
-    // Polyester : selon doublure
-    if (doublure === "aucune") return group.POLYESTER ?? group.LIN ?? null;
-    return group.POLYESTER_DOUBLE ?? group.POLYESTER ?? null;
+    return group.POLYESTER_DOUBLE ?? group.POLYESTER ?? group.LIN ?? group.COLLECTION ?? null;
   }, [tissuBase, tissuGroups, doublure]);
 
   const supplementThermique: Tissu | null = useMemo(() => {
@@ -366,19 +365,22 @@ export function ArticleNewCollectionForm({
           </Hint>
         </section>
 
-        {/* Doublure */}
-        {availableDoublures.length > 0 && (
+        {/* Doublure — visible seulement pour rideau + store bateau
+             (Enrouleur / Screen n'ont pas de notion de doublure). */}
+        {(category === "rideau" || category === "store_bateau") && (
           <section>
             <p className="eyebrow mb-2">Doublure</p>
             <div className="grid grid-cols-3 gap-1 rounded-md border border-line p-0.5 bg-white h-10">
-              {DOUBLURE_OPTIONS.filter((o) => availableDoublures.includes(o.value)).map(
-                (o) => (
+              {DOUBLURE_OPTIONS.map((o) => {
+                const disabled = tissuBase !== "" && !availableDoublures.includes(o.value);
+                return (
                   <button
                     key={o.value}
                     type="button"
-                    onClick={() => setDoublure(o.value)}
+                    onClick={() => !disabled && setDoublure(o.value)}
+                    disabled={disabled}
                     className={
-                      "text-[12px] font-semibold rounded-[5px] transition-colors " +
+                      "text-[12px] font-semibold rounded-[5px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed " +
                       (doublure === o.value
                         ? "bg-ink text-white"
                         : "text-muted hover:text-ink")
@@ -386,11 +388,14 @@ export function ArticleNewCollectionForm({
                   >
                     {o.label}
                   </button>
-                ),
-              )}
+                );
+              })}
             </div>
             <Hint>
               {DOUBLURE_OPTIONS.find((o) => o.value === doublure)?.hint}
+              {tissuBase !== "" && availableDoublures.length < 3 && (
+                <> · certaines doublures indisponibles pour ce tissu</>
+              )}
             </Hint>
           </section>
         )}
