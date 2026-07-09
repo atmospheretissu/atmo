@@ -99,6 +99,14 @@ function extractGridSheet(rows, sheetName) {
   }
   if (largeurs.length === 0) return null;
 
+  // Bug fix : certains fichiers Excel ont des cellules mal formatées
+  // ex: 205 → 2.05 (facteur 100). Détecte si un largeur << précédent, corrige.
+  for (let i = 1; i < largeurs.length; i++) {
+    if (largeurs[i] < 10 && largeurs[i - 1] >= 100) {
+      largeurs[i] = Math.round(largeurs[i] * 100);
+    }
+  }
+
   // Les hauteurs sont dans une des premières colonnes ; on cherche laquelle
   // en regardant la première ligne suivante avec un nombre.
   let hauteurCol = -1;
@@ -119,8 +127,12 @@ function extractGridSheet(rows, sheetName) {
   const grid = [];
   for (let r = largeurRowIdx + 1; r < rows.length; r++) {
     const row = rows[r] ?? [];
-    const hauteur = Number(row[hauteurCol]);
+    let hauteur = Number(row[hauteurCol]);
     if (!Number.isFinite(hauteur) || hauteur <= 0) continue;
+    // Fix : hauteur en "2,05" → 205
+    if (hauteur < 10 && hauteurs.length > 0 && hauteurs[hauteurs.length - 1] >= 100) {
+      hauteur = Math.round(hauteur * 100);
+    }
     const prices = [];
     for (let c = largeurStartCol; c < largeurStartCol + largeurs.length; c++) {
       const p = Number(row[c]);
