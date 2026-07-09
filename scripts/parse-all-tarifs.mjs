@@ -36,7 +36,7 @@ import { readdirSync, readFileSync, writeFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = "../TARIFS";
-const OUT = "src/lib/boutique/new-collection-tarifs.json";
+const OUT = "scripts/parsed-tarifs.json";
 
 function normalize(s) {
   return String(s ?? "").trim();

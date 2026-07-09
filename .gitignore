@@ -45,3 +45,4 @@ supabase/.env
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+scripts/parsed-tarifs.json

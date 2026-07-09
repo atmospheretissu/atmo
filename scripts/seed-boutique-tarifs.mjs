@@ -27,7 +27,7 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 }
 
 const data = JSON.parse(
-  readFileSync("src/lib/boutique/new-collection-tarifs.json", "utf8"),
+  readFileSync("scripts/parsed-tarifs.json", "utf8"),
 );
 
 async function rest(path, init = {}) {
