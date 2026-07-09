@@ -86,6 +86,7 @@ export function ArticleNewCollectionForm({
 }) {
   const [category, setCategory] = useState<NewCollectionCategory>("rideau");
   const [tissuBase, setTissuBase] = useState<string>("");
+  const [coloris, setColoris] = useState<string>("");
   const [doublure, setDoublure] = useState<Doublure>("aucune");
   const [montage, setMontage] = useState<Montage>("panneau");
   const [confection, setConfection] = useState<ConfectionKey>("pli_simple");
@@ -171,16 +172,15 @@ export function ArticleNewCollectionForm({
     if (!tissuBase) return [] as Doublure[];
     const group = tissuGroups.groups.get(tissuBase);
     if (!group) return [];
-    // Enrouleur / Screen : pas de doublure (grille unique)
+    // Enrouleur / Screen : pas de doublure
     if (group.COLLECTION && !group.POLYESTER && !group.POLYESTER_DOUBLE && !group.LIN) {
       return [];
     }
-    const out: Doublure[] = [];
-    if (group.POLYESTER || group.LIN) out.push("aucune");
-    if (group.POLYESTER_DOUBLE) {
-      out.push("occultante");
-      if (tissuGroups.thermiqueTissu) out.push("thermique");
-    }
+    // Sinon : toutes les doublures disponibles. Si POLYESTER_DOUBLE n'existe
+    // pas pour ce tissu, on utilise sa grille POLYESTER/LIN comme base.
+    // Thermique nécessite la grille OPTION THERMIQUE seedée.
+    const out: Doublure[] = ["aucune", "occultante"];
+    if (tissuGroups.thermiqueTissu) out.push("thermique");
     return out;
   }, [tissuBase, tissuGroups]);
 
@@ -193,8 +193,15 @@ export function ArticleNewCollectionForm({
 
   const availableConfections = useMemo(() => {
     if (!activeTissu) return [] as ConfectionKey[];
+    // Pour rideau/store bateau : toujours proposer les 3 confections
+    // (fallback wave → pli_simple si le tissu n'a pas de tarif wave).
+    if (category === "rideau" || category === "store_bateau") {
+      const base = new Set(Object.keys(activeTissu.confections));
+      if (base.has("pli_simple") && !base.has("wave")) base.add("wave");
+      return Array.from(base);
+    }
     return Object.keys(activeTissu.confections);
-  }, [activeTissu]);
+  }, [activeTissu, category]);
 
   const effectiveConfection: ConfectionKey | null = useMemo(() => {
     if (!activeTissu) return null;
@@ -204,7 +211,10 @@ export function ArticleNewCollectionForm({
 
   const lookupMain = useMemo(() => {
     if (!activeTissu || !effectiveConfection) return null;
-    const grid = activeTissu.confections[effectiveConfection];
+    // Fallback wave → pli_simple si pas de grille wave
+    const grid =
+      activeTissu.confections[effectiveConfection] ??
+      (effectiveConfection === "wave" ? activeTissu.confections["pli_simple"] : undefined);
     if (!grid) return null;
     return lookupPriceClient(grid, largeur, hauteur);
   }, [activeTissu, effectiveConfection, largeur, hauteur]);
@@ -256,6 +266,7 @@ export function ArticleNewCollectionForm({
     const montageLabel = category === "rideau" ? ` · ${montage === "paire" ? "Paire" : "Panneau"}` : "";
     const label = `Collection Atmosphère — ${CATEGORY_LABELS[category]} ${tissuBase}`;
 
+    const colorisLabel = coloris.trim() ? ` · coloris ${coloris.trim()}` : "";
     articles.push({
       type: category === "rideau" ? "rideau" : "store",
       designation: label,
@@ -264,6 +275,7 @@ export function ArticleNewCollectionForm({
         `${CONFECTION_LABELS[effectiveConfection] ?? effectiveConfection} · ${largeur}×${hauteur}cm` +
         montageLabel +
         doublureLabel +
+        colorisLabel +
         (activeTissu.laize ? ` · laize ${activeTissu.laize}cm` : "") +
         ` · seuil grille ${lookupMain.largeurSeuil}×${lookupMain.hauteurSeuil}cm`,
       qty: 1,
@@ -278,6 +290,7 @@ export function ArticleNewCollectionForm({
         confection: effectiveConfection,
         doublure,
         montage: category === "rideau" ? montage : null,
+        coloris: coloris.trim() || null,
         largeur,
         hauteur,
         laize: activeTissu.laize,
@@ -286,6 +299,8 @@ export function ArticleNewCollectionForm({
         prixBase,
         prixSupplementThermique: prixThermique,
         prixAllIn: prixArticle,
+        // Marqueur pour l'auto-supplier "Collection Atmosphere" dans BC
+        supplierPreferHint: "collection_atmosphere",
       },
     });
 
@@ -364,6 +379,19 @@ export function ArticleNewCollectionForm({
             )}
           </Hint>
         </section>
+
+        {/* Coloris libre — visible seulement pour enrouleur / screen */}
+        {(category === "store_enrouleur" || category === "store_screen") && (
+          <section>
+            <p className="eyebrow mb-2">Coloris</p>
+            <Input
+              value={coloris}
+              onChange={(e) => setColoris(e.target.value)}
+              placeholder="ex : Blanc lin · Sable · Anthracite…"
+            />
+            <Hint>Coloris affiché sur le devis et le bon de commande.</Hint>
+          </section>
+        )}
 
         {/* Doublure — visible seulement pour rideau + store bateau
              (Enrouleur / Screen n'ont pas de notion de doublure). */}

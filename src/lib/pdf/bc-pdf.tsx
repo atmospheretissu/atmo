@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
 });
 
 export function BcPDF({ detail }: { detail: BCDetail }) {
-  const { bc, supplier, lines } = detail;
+  const { bc, supplier, dossier, lines } = detail;
   const lang = (bc.language ?? "FR") as Lang;
   const t = I18N[lang] ?? I18N.FR;
   const total = Number(bc.amount_ht ?? 0);
@@ -241,6 +241,11 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
             <Text style={styles.metaLabel}>{t.poDocument}</Text>
             <Text style={styles.metaValue}>{bc.number}</Text>
             <Text style={styles.metaDate}>{date(bc.created_at)}</Text>
+            {dossier?.number && (
+              <Text style={styles.metaDate}>
+                {lang === "FR" ? "Confection" : "Ref."} {dossier.number}
+              </Text>
+            )}
           </View>
         </View>
 

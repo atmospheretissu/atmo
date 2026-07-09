@@ -89,9 +89,23 @@ export async function getDevisBcPreview(devisId: string): Promise<DevisBcPreview
   }
 
   const supplierById = new Map((suppliers ?? []).map((s) => [s.id, s]));
+  // Fournisseur "Collection Atmosphère" (défaut pour les items New Collection)
+  const collectionSupplierId =
+    (suppliers ?? []).find((s) => s.name === "Collection Atmosphère")?.id ?? null;
 
   const enrichedLines: DevisLineForBc[] = (lines ?? []).map((l) => {
-    const sid = l.catalog_product_id ? productSuppliers.get(l.catalog_product_id) ?? null : null;
+    let sid = l.catalog_product_id ? productSuppliers.get(l.catalog_product_id) ?? null : null;
+    const meta = (l.meta as Record<string, unknown> | null) ?? null;
+    // Article Collection Atmosphère → force le fournisseur interne
+    if (
+      collectionSupplierId &&
+      meta &&
+      (meta["supplierPreferHint"] === "collection_atmosphere" ||
+        meta["typeArticle"] === "new_collection_atmosphere" ||
+        meta["typeArticle"] === "collection_atmosphere")
+    ) {
+      sid = collectionSupplierId;
+    }
     const sup = sid ? supplierById.get(sid) ?? null : null;
     return {
       id: l.id,
@@ -103,7 +117,7 @@ export async function getDevisBcPreview(devisId: string): Promise<DevisBcPreview
       unit_label: l.unit_label,
       unit_price_ht: Number(l.unit_price_ht ?? 0),
       catalog_product_id: l.catalog_product_id,
-      meta: (l.meta as Record<string, unknown> | null) ?? null,
+      meta,
       supplier_id: sid,
       supplier_name: sup?.name ?? null,
     };
