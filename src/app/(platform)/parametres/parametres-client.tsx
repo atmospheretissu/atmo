@@ -17,6 +17,7 @@ import {
   Mail,
   Inbox,
   Activity,
+  Sparkles,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { SuppliersTab } from "@/components/parametres/suppliers-tab";
@@ -28,6 +29,7 @@ import { EquipeTab } from "@/components/parametres/equipe-tab";
 import { SourcesSection } from "@/components/parametres/sources-section";
 import { StoresSection } from "@/components/parametres/stores-section";
 import { CatalogTab, type CatalogProduct } from "@/components/parametres/catalog-tab";
+import { BoutiqueTarifsTab } from "@/components/parametres/boutique-tarifs-tab";
 import { SmsTemplatesTab } from "@/components/parametres/sms-templates-tab";
 import { EmailTemplatesTab } from "@/components/parametres/email-templates-tab";
 import { ArchitectureTab } from "@/components/parametres/architecture-tab";
@@ -51,6 +53,7 @@ type TabKey =
   | "roles"
   // Données
   | "catalogue"
+  | "boutique-tarifs"
   | "sources"
   | "templates-sms"
   | "templates-email"
@@ -279,6 +282,13 @@ export default function ParametresClient({
                   count={catalogTotal}
                 />
                 <TabBtn
+                  active={tab === "boutique-tarifs"}
+                  onClick={() => setTab("boutique-tarifs")}
+                  icon={Sparkles}
+                  label="Boutique tarifs"
+                  count={51}
+                />
+                <TabBtn
                   active={tab === "sources"}
                   onClick={() => setTab("sources")}
                   icon={Inbox}
@@ -363,6 +373,7 @@ export default function ParametresClient({
               initialCategories={catalogCategories}
             />
           )}
+          {tab === "boutique-tarifs" && <BoutiqueTarifsTab />}
           {tab === "sources" && <SourcesSection initialSources={sources} />}
           {tab === "templates-sms" && (
             <SmsTemplatesTab

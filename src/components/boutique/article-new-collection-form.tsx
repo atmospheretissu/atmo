@@ -151,11 +151,14 @@ export function ArticleNewCollectionForm({
     if (!tissuBase) return null;
     const group = tissuGroups.groups.get(tissuBase);
     if (!group) return null;
+    // Enrouleur / Screen : family = COLLECTION, pas de doublure
+    if (group.COLLECTION && !group.POLYESTER && !group.POLYESTER_DOUBLE && !group.LIN) {
+      return group.COLLECTION;
+    }
     // LIN : ignore la doublure (LIN a sa propre grille)
     if (group.LIN && !group.POLYESTER && !group.POLYESTER_DOUBLE) return group.LIN;
     // Polyester : selon doublure
-    if (doublure === "aucune") return group.POLYESTER ?? null;
-    // occultante ou thermique → grille doublé
+    if (doublure === "aucune") return group.POLYESTER ?? group.LIN ?? null;
     return group.POLYESTER_DOUBLE ?? group.POLYESTER ?? null;
   }, [tissuBase, tissuGroups, doublure]);
 
@@ -169,6 +172,10 @@ export function ArticleNewCollectionForm({
     if (!tissuBase) return [] as Doublure[];
     const group = tissuGroups.groups.get(tissuBase);
     if (!group) return [];
+    // Enrouleur / Screen : pas de doublure (grille unique)
+    if (group.COLLECTION && !group.POLYESTER && !group.POLYESTER_DOUBLE && !group.LIN) {
+      return [];
+    }
     const out: Doublure[] = [];
     if (group.POLYESTER || group.LIN) out.push("aucune");
     if (group.POLYESTER_DOUBLE) {
