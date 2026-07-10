@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { CalendarDays, Loader2, MapPin, Package, X } from "lucide-react";
+import { CalendarDays, CalendarPlus, Loader2, MapPin, Package, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip, StatusPill } from "@/components/ui/status-pill";
 import { bookAvailabilityAction } from "@/app/(platform)/poses/availability-actions";
+import { AdminAvailabilityModal } from "@/components/agenda/admin-availability-modal";
 import type {
   PoseurAvailability,
   SlotKey,
@@ -42,14 +43,17 @@ const eur = (n: number) =>
 export function PosePlanner({
   availabilities,
   awaitingDossiers,
+  poseurs,
 }: {
   availabilities: PoseurAvailability[];
   awaitingDossiers: Dossier[];
+  poseurs: { id: string; name: string }[];
 }) {
   const [selectedDossierId, setSelectedDossierId] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [collapsed, setCollapsed] = useState(false);
+  const [adminModal, setAdminModal] = useState(false);
 
   const availableSlots = useMemo(
     () => availabilities.filter((a) => a.status === "available"),
@@ -125,13 +129,25 @@ export function PosePlanner({
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setCollapsed(true)}
-            className="text-muted-2 hover:text-ink"
-            aria-label="Fermer"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {poseurs.length > 0 && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAdminModal(true)}
+              >
+                <CalendarPlus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                Ajouter des dispos
+              </Button>
+            )}
+            <button
+              onClick={() => setCollapsed(true)}
+              className="text-muted-2 hover:text-ink"
+              aria-label="Fermer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
@@ -263,6 +279,14 @@ export function PosePlanner({
           </div>
         )}
       </Card>
+
+      {adminModal && (
+        <AdminAvailabilityModal
+          poseurs={poseurs}
+          allAvailabilities={availabilities}
+          onClose={() => setAdminModal(false)}
+        />
+      )}
     </section>
   );
 }

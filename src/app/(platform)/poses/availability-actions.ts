@@ -52,6 +52,49 @@ export async function addAvailabilityAction(
   return { ok: true, id: data?.id };
 }
 
+/** Admin déclare un créneau pour un poseur donné. */
+export async function addAvailabilityForPoseurAction(
+  poseurId: string,
+  date: string,
+  slot: SlotKey,
+  notes?: string,
+): Promise<{ ok: boolean; message?: string; id?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Session expirée" };
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (me?.role !== "admin" && me?.role !== "resp_magasin") {
+    return { ok: false, message: "Réservé aux admin/resp_magasin" };
+  }
+  const { data, error } = await (supabase as unknown as {
+    from: (t: string) => {
+      insert: (v: unknown) => {
+        select: (s: string) => { single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> };
+      };
+    };
+  })
+    .from("poseur_availabilities")
+    .insert({
+      poseur_id: poseurId,
+      date,
+      slot,
+      status: "available",
+      notes: notes ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/agenda");
+  revalidatePath("/poses");
+  return { ok: true, id: data?.id };
+}
+
 /** Un poseur retire un créneau libre (uniquement si "available"). */
 export async function removeAvailabilityAction(
   id: string,

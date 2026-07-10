@@ -28,6 +28,7 @@ export default async function AgendaPage() {
       <PosePlanner
         availabilities={availabilities}
         awaitingDossiers={awaitingDossiers}
+        poseurs={poseurs.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))}
       />
       <AgendaClient
         poses={poses.map((p) => ({
