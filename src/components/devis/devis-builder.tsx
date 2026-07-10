@@ -68,10 +68,12 @@ export function DevisBuilder({
   clients,
   action,
   initialClientId,
+  decoratrices = [],
 }: {
   clients: ClientPick[];
   action: (prev: DevisFormState, formData: FormData) => Promise<DevisFormState>;
   initialClientId?: string | null;
+  decoratrices?: { id: string; full_name: string }[];
 }) {
   const initial =
     (initialClientId && clients.find((c) => c.id === initialClientId)) || null;
@@ -82,6 +84,7 @@ export function DevisBuilder({
   const [tvaRate, setTvaRate] = useState(20);
   const [workshopNotes, setWorkshopNotes] = useState("");
   const [channel, setChannel] = useState<Channel>("magasin");
+  const [decoratriceId, setDecoratriceId] = useState<string>("");
   const [lines, setLines] = useState<Line[]>([
     {
       id: crypto.randomUUID(),
@@ -141,6 +144,7 @@ export function DevisBuilder({
     const fd = new FormData();
     fd.set("client_id", selectedClient.id);
     fd.set("channel", channel);
+    fd.set("decoratrice_id", decoratriceId);
     fd.set("product_summary", productSummary);
     fd.set("product_detail", productDetail);
     fd.set("tva_rate", String(tvaRate));
@@ -376,6 +380,23 @@ export function DevisBuilder({
                 />
               </div>
             </div>
+            {decoratrices.length > 0 && (
+              <div>
+                <Label htmlFor="decoratrice_id">Décoratrice suivante</Label>
+                <Select
+                  id="decoratrice_id"
+                  value={decoratriceId}
+                  onChange={(e) => setDecoratriceId(e.target.value)}
+                >
+                  <option value="">— Aucune —</option>
+                  {decoratrices.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.full_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
           </Card>
 
           {/* Lignes */}

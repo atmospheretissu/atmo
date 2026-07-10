@@ -60,6 +60,7 @@ export const devisCreateSchema = z.object({
   tva_rate: z.coerce.number().min(0).max(100).default(20),
   workshop_notes: z.string().trim().max(2000).optional().or(z.literal("")),
   valid_until: z.string().optional().or(z.literal("")), // ISO date
+  decoratrice_id: z.string().uuid().optional().or(z.literal("")),
   lines: z.array(devisLineSchema).min(1, "Ajoute au moins une ligne"),
 });
 export type DevisCreateInput = z.infer<typeof devisCreateSchema>;
@@ -92,6 +93,7 @@ export function parseDevisForm(formData: FormData): {
     tva_rate: formData.get("tva_rate")?.toString() ?? "20",
     workshop_notes: formData.get("workshop_notes")?.toString() ?? "",
     valid_until: formData.get("valid_until")?.toString() ?? "",
+    decoratrice_id: formData.get("decoratrice_id")?.toString() ?? "",
     lines,
   };
 

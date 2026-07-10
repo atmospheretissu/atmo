@@ -58,25 +58,33 @@ export async function createDevisDraftAction(
   const storeId = await getCreationStoreId();
 
   // 1. Insert devis
-  const { data: devis, error: e1 } = await supabase
+  const devisPayload: Record<string, unknown> = {
+    number,
+    version: 1,
+    client_id: data.client_id,
+    channel: data.channel,
+    status: "brouillon",
+    product_summary: data.product_summary,
+    product_detail: data.product_detail || null,
+    qty: data.lines.reduce((acc, l) => acc + Math.ceil(l.qty), 0),
+    total_ht: totals.total_ht,
+    total_ttc: totals.total_ttc,
+    tva_rate: data.tva_rate,
+    workshop_notes: data.workshop_notes || null,
+    valid_until: validUntil,
+    commercial_id: user.id,
+    store_id: storeId,
+  };
+  if (data.decoratrice_id) devisPayload.decoratrice_id = data.decoratrice_id;
+  const { data: devis, error: e1 } = await (supabase as unknown as {
+    from: (t: string) => {
+      insert: (v: unknown) => {
+        select: (s: string) => { single: () => Promise<{ data: { id: string } | null; error: { code?: string; message: string } | null }> };
+      };
+    };
+  })
     .from("devis")
-    .insert({
-      number,
-      version: 1,
-      client_id: data.client_id,
-      channel: data.channel,
-      status: "brouillon",
-      product_summary: data.product_summary,
-      product_detail: data.product_detail || null,
-      qty: data.lines.reduce((acc, l) => acc + Math.ceil(l.qty), 0),
-      total_ht: totals.total_ht,
-      total_ttc: totals.total_ttc,
-      tva_rate: data.tva_rate,
-      workshop_notes: data.workshop_notes || null,
-      valid_until: validUntil,
-      commercial_id: user.id,
-      store_id: storeId,
-    })
+    .insert(devisPayload)
     .select("id")
     .single();
 

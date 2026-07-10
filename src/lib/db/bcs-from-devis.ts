@@ -283,7 +283,10 @@ export async function createBcsFromDevisAssignments(
       bc_id: bc.id,
       position: idx,
       ref: l.ref,
-      label: l.label,
+      // Concat détails (mesures / spécifications / doublure…) dans le label
+      // pour qu'ils apparaissent sur la fiche BC. La table bc_lines n'a pas
+      // de champ detail dédié.
+      label: l.detail ? `${l.label}\n${l.detail}` : l.label,
       qty: l.qty,
       unit_label: l.unit_label,
       unit_price_ht: l.unit_price_ht,

@@ -100,7 +100,19 @@ export function BcLinesEditor({
             <tr key={l.id} className="border-b border-line last:border-0 group">
               <td className="px-5 py-3">{l.ref ? <span className="ref">{l.ref}</span> : <span className="text-muted-2">—</span>}</td>
               <td className="px-2 py-3">
-                <p className="text-ink font-medium leading-tight">{l.label}</p>
+                {(() => {
+                  const parts = (l.label ?? "").split("\n");
+                  return (
+                    <>
+                      <p className="text-ink font-medium leading-tight">{parts[0]}</p>
+                      {parts.length > 1 && (
+                        <p className="text-[11px] text-muted mt-0.5 leading-snug">
+                          {parts.slice(1).join(" · ")}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </td>
               <td className="px-2 py-3 text-right">
                 <span className="text-ink-2 tabular-nums">

@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { listClients } from "@/lib/db/clients";
 import { DevisBuilder } from "@/components/devis/devis-builder";
 import { createDevisDraftAction } from "@/app/(platform)/devis/actions";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,16 @@ export default async function NewDevisPage({
   const sp = await searchParams;
   const clients = await listClients({ limit: 200 });
   const initialClientId = sp.client ?? null;
+
+  // Liste des décoratrices actives (pour la nouvelle sélection sur devis)
+  const supabase = await createClient();
+  const { data: decoratricesRaw } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "decoratrice")
+    .eq("active", true)
+    .order("full_name", { ascending: true });
+  const decoratrices = (decoratricesRaw ?? []) as { id: string; full_name: string }[];
 
   // Si pas de client, on bloque proprement avec une CTA
   if (clients.length === 0) {
@@ -73,6 +84,7 @@ export default async function NewDevisPage({
               email: c.email,
             }))}
             initialClientId={initialClientId}
+            decoratrices={decoratrices}
             action={createDevisDraftAction}
           />
         </div>

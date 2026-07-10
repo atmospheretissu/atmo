@@ -290,7 +290,28 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
                 {l.ref ?? "—"}
               </Text>
               <View style={styles.cLabel}>
-                <Text style={styles.lineLabel}>{l.label}</Text>
+                {(() => {
+                  const parts = (l.label ?? "").split("\n");
+                  const title = parts[0];
+                  const details = parts.slice(1).join(" · ");
+                  return (
+                    <>
+                      <Text style={styles.lineLabel}>{title}</Text>
+                      {details && (
+                        <Text
+                          style={{
+                            fontSize: 8,
+                            color: "#6B7280",
+                            marginTop: 2,
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {details}
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
               </View>
               <Text style={styles.cQty}>
                 {Number(l.qty)} {l.unit_label}
