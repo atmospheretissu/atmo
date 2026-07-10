@@ -181,5 +181,65 @@ export async function bookPoseOnAvailability(args: {
     .update({ status: "pose_a_venir" })
     .eq("id", args.dossierId);
 
+  // 6. Notifie le poseur par email (best-effort, silencieux si Brevo down)
+  try {
+    const { data: poseurRow } = await admin
+      .from("poseurs")
+      .select("name, email")
+      .eq("id", availRow.poseur_id)
+      .maybeSingle();
+    const poseurEmail = (poseurRow as { email?: string } | null)?.email;
+    if (poseurEmail) {
+      const { data: dossierRow } = await admin
+        .from("dossiers")
+        .select("number, client_id")
+        .eq("id", args.dossierId)
+        .maybeSingle();
+      const clientName = dossierRow?.client_id
+        ? (await admin
+            .from("clients")
+            .select("display_name, city, address_pose, phone")
+            .eq("id", dossierRow.client_id)
+            .maybeSingle()).data
+        : null;
+      const { sendBrevoEmail, isMailSandbox } = await import(
+        "@/lib/brevo/client"
+      );
+      const dateLabel = new Date(args.scheduledAt).toLocaleDateString("fr-FR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+      const heureLabel = new Date(args.scheduledAt).toLocaleTimeString(
+        "fr-FR",
+        { hour: "2-digit", minute: "2-digit" },
+      );
+      const html = `<div style="font-family:Arial,sans-serif;max-width:520px;color:#111">
+        <h2 style="margin:0 0 12px 0">Nouvelle pose planifiée</h2>
+        <p>Bonjour ${(poseurRow as { name?: string })?.name ?? ""},</p>
+        <p>Une pose vient de t'être affectée sur un créneau que tu avais rendu disponible :</p>
+        <table style="border-collapse:collapse;font-size:14px;margin:10px 0">
+          <tr><td style="padding:4px 8px;color:#6b7280">Date</td><td style="padding:4px 8px;font-weight:600">${dateLabel} · ${heureLabel}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280">Dossier</td><td style="padding:4px 8px;font-family:monospace">${dossierRow?.number ?? ""}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280">Client</td><td style="padding:4px 8px">${(clientName as { display_name?: string })?.display_name ?? "—"}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280">Ville</td><td style="padding:4px 8px">${(clientName as { city?: string })?.city ?? "—"}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280">Adresse</td><td style="padding:4px 8px">${(clientName as { address_pose?: string })?.address_pose ?? "—"}</td></tr>
+          <tr><td style="padding:4px 8px;color:#6b7280">Téléphone</td><td style="padding:4px 8px">${(clientName as { phone?: string })?.phone ?? "—"}</td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:12px;margin-top:20px">Détails complets sur ta page <a href="https://atmospheretissus.fr/poses">Poses</a>.</p>
+      </div>`;
+      // eslint-disable-next-line no-console
+      if (isMailSandbox()) console.log("[MAIL SANDBOX] Pose bookée →", poseurEmail);
+      await sendBrevoEmail({
+        to: [{ email: poseurEmail, name: (poseurRow as { name?: string })?.name }],
+        subject: `Nouvelle pose planifiée · ${dateLabel}`,
+        htmlContent: html,
+      });
+    }
+  } catch (e) {
+    console.warn("[bookPoseOnAvailability] notif email échouée:", e);
+  }
+
   return { ok: true, poseId: pose.id };
 }

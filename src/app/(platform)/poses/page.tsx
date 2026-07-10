@@ -47,10 +47,11 @@ export default async function PosesPage() {
   const effective = await getEffectiveProfile();
   const role = effective?.effectiveRole ?? null;
 
-  // Vue poseur : uniquement leur calendrier de dispos
+  // Vue poseur : leur calendrier de dispos + poses planifiées
   if (role === "poseur" || role === "poseur_externe") {
     const poseur = await getPoseurByProfileId(effective!.effectiveUserId);
     let items: Awaited<ReturnType<typeof listPoseurAvailabilities>> = [];
+    let ownPoses: Awaited<ReturnType<typeof listPoses>> = [];
     if (poseur) {
       const from = new Date();
       const to = new Date();
@@ -60,6 +61,8 @@ export default async function PosesPage() {
         toDate: to.toISOString().slice(0, 10),
         poseurId: poseur.id,
       });
+      // Poses assignées au user effectif (les RLS filtrent aux siennes)
+      ownPoses = await listPoses();
     }
     return (
       <>
@@ -81,9 +84,17 @@ export default async function PosesPage() {
             </p>
           </section>
           {poseur && (
-            <section className="px-8 pb-10">
-              <AvailabilityCalendar initial={items} weeksAhead={4} />
-            </section>
+            <>
+              <section className="px-8 pb-6">
+                <AvailabilityCalendar initial={items} weeksAhead={4} />
+              </section>
+              {ownPoses.length > 0 && (
+                <section className="px-8 pb-10">
+                  <p className="eyebrow mb-3">Mes poses planifiées · {ownPoses.length}</p>
+                  <PoseList poses={ownPoses} />
+                </section>
+              )}
+            </>
           )}
         </div>
       </>
