@@ -1,5 +1,7 @@
 import { Sidebar } from "@/components/shell/sidebar";
+import { ImpersonationBanner } from "@/components/shell/impersonation-banner";
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveProfile } from "@/lib/db/impersonation";
 import type { UserRole } from "@/lib/db/profiles-shared";
 import { listStores, getCurrentStoreId } from "@/lib/db/stores";
 
@@ -9,21 +11,21 @@ export default async function PlatformLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+
+  const effective = await getEffectiveProfile();
 
   let role: UserRole | null = null;
   let userEmail: string | null = null;
   let profileStoreId: string | null = null;
-  if (user) {
-    userEmail = user.email ?? null;
+  if (effective) {
+    role = effective.effectiveRole;
+    // Récupère l'email et store_id du profil effectif
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, store_id")
-      .eq("id", user.id)
+      .select("email, store_id")
+      .eq("id", effective.effectiveUserId)
       .maybeSingle();
-    if (profile?.role) role = profile.role as UserRole;
+    userEmail = profile?.email ?? null;
     profileStoreId = (profile as { store_id?: string | null })?.store_id ?? null;
   }
 
@@ -32,7 +34,6 @@ export default async function PlatformLayout({
     getCurrentStoreId(),
   ]);
 
-  // resp_magasin : forcé sur son store. Admin / autres : cookie ou "all"
   const currentStoreId =
     role === "resp_magasin" ? profileStoreId : cookieStoreId;
 
@@ -43,8 +44,17 @@ export default async function PlatformLayout({
         userEmail={userEmail}
         stores={stores}
         currentStoreId={currentStoreId}
+        adminActualRole={effective?.actualRole ?? null}
       />
-      <main className="flex-1 min-w-0 flex flex-col">{children}</main>
+      <main className="flex-1 min-w-0 flex flex-col">
+        {effective?.isImpersonating && (
+          <ImpersonationBanner
+            targetName={effective.impersonatedName ?? "?"}
+            targetRole={effective.effectiveRole ?? "?"}
+          />
+        )}
+        {children}
+      </main>
     </div>
   );
 }

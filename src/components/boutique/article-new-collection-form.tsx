@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { listTarifTissusAction } from "@/app/(platform)/boutique/tarifs-action";
+import { lookupPosePrice } from "@/lib/boutique/pose-lookup";
 import type {
   NewCollectionCategory,
   NewCollectionFamily,
@@ -93,7 +94,14 @@ export function ArticleNewCollectionForm({
   const [largeur, setLargeur] = useState<number>(210);
   const [hauteur, setHauteur] = useState<number>(157);
   const [avecPose, setAvecPose] = useState(true);
-  const [prixPose, setPrixPose] = useState(120);
+  const [prixPoseOverride, setPrixPoseOverride] = useState<number | null>(null);
+
+  // Prix pose auto depuis la grille selon dimensions + catégorie
+  const prixPoseAuto = useMemo(
+    () => lookupPosePrice(category, largeur, hauteur),
+    [category, largeur, hauteur],
+  );
+  const prixPose = prixPoseOverride ?? prixPoseAuto ?? 0;
 
   // Fetch tissus depuis la DB à chaque changement de catégorie
   const [tissus, setTissus] = useState<Tissu[]>([]);
@@ -513,15 +521,34 @@ export function ArticleNewCollectionForm({
             <span className="text-ink-2">Inclure la pose</span>
           </label>
           {avecPose && (
-            <div className="mt-3 max-w-[200px]">
+            <div className="mt-3 max-w-[220px]">
               <Label>Prix pose (€)</Label>
               <Input
                 type="number"
                 step="1"
                 min={0}
                 value={prixPose || ""}
-                onChange={(e) => setPrixPose(Number(e.target.value) || 0)}
+                onChange={(e) => setPrixPoseOverride(Number(e.target.value) || 0)}
               />
+              <Hint>
+                {prixPoseOverride === null && prixPoseAuto != null && (
+                  <>Auto : {prixPoseAuto}€ (grille pose {category === "rideau" ? "rideaux" : "stores"})</>
+                )}
+                {prixPoseOverride === null && prixPoseAuto == null && (
+                  <>Aucun tarif grille pour cette dimension — saisis manuellement</>
+                )}
+                {prixPoseOverride !== null && (
+                  <>
+                    Manuel · <button
+                      type="button"
+                      onClick={() => setPrixPoseOverride(null)}
+                      className="text-violet-strong hover:underline"
+                    >
+                      revenir à l'auto ({prixPoseAuto ?? "?"}€)
+                    </button>
+                  </>
+                )}
+              </Hint>
             </div>
           )}
         </section>

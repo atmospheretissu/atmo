@@ -68,7 +68,7 @@ export async function updateSession(request: NextRequest) {
 
   // Signed-in user on login page → redirect to role's home
   if (user && pathname === "/") {
-    const role = await getUserRole(supabase, user.id);
+    const role = await getUserRole(supabase, user.id, request);
     const home = role ? ROLE_ROUTES[role]?.homeRoute ?? "/dashboard" : "/dashboard";
     const url = request.nextUrl.clone();
     url.pathname = home;
@@ -77,7 +77,7 @@ export async function updateSession(request: NextRequest) {
 
   // Role-based gating for authenticated requests on platform routes
   if (user && !isPublic && !pathname.startsWith("/api/")) {
-    const role = await getUserRole(supabase, user.id);
+    const role = await getUserRole(supabase, user.id, request);
 
     // Pas de profil = on laisse passer mais on signale (cas démo/initial)
     // Profil avec rôle = on vérifie l'accès
@@ -99,6 +99,7 @@ export async function updateSession(request: NextRequest) {
 async function getUserRole(
   supabase: ReturnType<typeof createServerClient<Database>>,
   userId: string,
+  request?: NextRequest,
 ): Promise<UserRole | null> {
   const { data } = await supabase
     .from("profiles")
@@ -106,5 +107,17 @@ async function getUserRole(
     .eq("id", userId)
     .maybeSingle();
   if (!data || data.active === false) return null;
-  return data.role as UserRole;
+  const actualRole = data.role as UserRole;
+
+  // Impersonation : si un admin a activé un cookie, on renvoie le rôle du profil ciblé
+  const impersonatedId = request?.cookies.get("atmo_impersonated_profile")?.value;
+  if (actualRole === "admin" && impersonatedId && impersonatedId !== userId) {
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("role, active")
+      .eq("id", impersonatedId)
+      .maybeSingle();
+    if (target && target.active !== false) return target.role as UserRole;
+  }
+  return actualRole;
 }

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { EnvBadge } from "@/components/shell/env-indicator";
+import { ImpersonationSwitcher } from "@/components/shell/impersonation-switcher";
 import { ColorChip, ChipTone } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 import { canAccess, ROLE_LABELS } from "@/lib/db/profiles-shared";
@@ -150,11 +151,13 @@ export function Sidebar({
   userEmail,
   stores,
   currentStoreId,
+  adminActualRole = null,
 }: {
   role: UserRole | null;
   userEmail: string | null;
   stores: Store[];
   currentStoreId: string | null;
+  adminActualRole?: UserRole | null;
 }) {
   const initial = (userEmail ?? "?")[0]?.toUpperCase() ?? "?";
   const roleLabel = role ? ROLE_LABELS[role] : "";
@@ -182,6 +185,9 @@ export function Sidebar({
         <NavSection label="Magasin" items={navSecondary} role={role} />
         <NavSection label="Admin" items={navAdmin} role={role} />
       </nav>
+
+      {/* Impersonation switcher — admin réel uniquement */}
+      {adminActualRole === "admin" && <ImpersonationSwitcher />}
 
       {/* User */}
       <div className="border-t border-line p-3">

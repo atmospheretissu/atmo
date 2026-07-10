@@ -18,6 +18,12 @@ import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { listPoses, getPoseStats } from "@/lib/db/poses";
 import { shortDate, time } from "@/lib/formatters";
+import { getEffectiveProfile } from "@/lib/db/impersonation";
+import {
+  listPoseurAvailabilities,
+  getPoseurByProfileId,
+} from "@/lib/db/poseur-availability";
+import { AvailabilityCalendar } from "@/components/poses/availability-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +44,52 @@ const poseStatusTones: Record<string, "amber" | "blue" | "emerald" | "neutral" |
 };
 
 export default async function PosesPage() {
+  const effective = await getEffectiveProfile();
+  const role = effective?.effectiveRole ?? null;
+
+  // Vue poseur : uniquement leur calendrier de dispos
+  if (role === "poseur" || role === "poseur_externe") {
+    const poseur = await getPoseurByProfileId(effective!.effectiveUserId);
+    let items: Awaited<ReturnType<typeof listPoseurAvailabilities>> = [];
+    if (poseur) {
+      const from = new Date();
+      const to = new Date();
+      to.setDate(to.getDate() + 30);
+      items = await listPoseurAvailabilities({
+        fromDate: from.toISOString().slice(0, 10),
+        toDate: to.toISOString().slice(0, 10),
+        poseurId: poseur.id,
+      });
+    }
+    return (
+      <>
+        <Topbar breadcrumb={[{ label: "Atmosphère" }, { label: "Poses" }]} />
+        <div className="flex-1 overflow-auto">
+          <section className="px-8 pt-10 pb-6">
+            <p className="eyebrow mb-3">Espace poseur</p>
+            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-2">
+              Mes disponibilités
+            </h1>
+            <p className="text-[13.5px] text-muted max-w-2xl">
+              Déclare les créneaux où tu peux te déplacer poser. Le staff pourra
+              ensuite y affecter des dossiers depuis l&apos;agenda.
+              {!poseur && (
+                <span className="ml-2 text-amber">
+                  ⚠ Aucun profil poseur relié à ta session — contacte l&apos;admin.
+                </span>
+              )}
+            </p>
+          </section>
+          {poseur && (
+            <section className="px-8 pb-10">
+              <AvailabilityCalendar initial={items} weeksAhead={4} />
+            </section>
+          )}
+        </div>
+      </>
+    );
+  }
+
   const [poses, stats] = await Promise.all([listPoses(), getPoseStats()]);
 
   return (
