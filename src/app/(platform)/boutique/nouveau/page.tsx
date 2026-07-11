@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { listClients } from "@/lib/db/clients";
 import { BoutiqueWizard } from "@/components/boutique/wizard";
+import { listChainettePrices } from "@/lib/db/boutique-chainette";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,9 @@ export default async function NewBoutiqueDevisPage({
   const sp = await searchParams;
   const clients = await listClients({ limit: 500 });
   const initialClientId = sp.client ?? null;
+  const chainettePrices = await listChainettePrices({ activeOnly: true }).catch(
+    () => [],
+  );
 
   if (clients.length === 0) {
     return (
@@ -69,6 +73,7 @@ export default async function NewBoutiqueDevisPage({
               email: c.email,
             }))}
             initialClientId={initialClientId}
+            chainettePrices={chainettePrices}
           />
         </div>
       </div>

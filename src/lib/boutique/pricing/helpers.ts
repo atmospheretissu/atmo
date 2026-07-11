@@ -303,6 +303,7 @@ export interface StoreInput {
   double: boolean;
   chainetteCouleur: string; // "blanc" = pas de supplément
   avecPose: boolean;
+  supplementChainetteOverride?: number; // si fourni, remplace la valeur par défaut de CONFIG
 }
 
 export interface StoreCalculation {
@@ -384,7 +385,9 @@ export function calculateStore(input: StoreInput): StoreCalculation {
   calc.prixMecanisme = mecBase * CONFIG.coefficientCache;
   calc.details.prixMecanismeAffiche = mecBase;
 
-  if (input.chainetteCouleur && input.chainetteCouleur !== "blanc") {
+  if (input.supplementChainetteOverride !== undefined) {
+    calc.supplementChainette = input.supplementChainetteOverride;
+  } else if (input.chainetteCouleur && input.chainetteCouleur !== "blanc") {
     calc.supplementChainette = CONFIG.supplementChainette;
   }
 

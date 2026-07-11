@@ -368,6 +368,7 @@ export type UpdateDevisLineInput = {
 export async function updateDevisLinesAction(
   devisId: string,
   lines: UpdateDevisLineInput[],
+  decoratriceId?: string | null,
 ): Promise<DevisFormState> {
   const supabase = await createClient();
 
@@ -415,14 +416,26 @@ export async function updateDevisLinesAction(
   const { error: e2 } = await supabase.from("devis_lines").insert(payload);
   if (e2) return { ok: false, errors: {}, message: `Échec ajout : ${e2.message}` };
 
-  // 4. Update les totaux + version du devis
-  const { error: e3 } = await supabase
+  // 4. Update les totaux + version du devis (+ décoratrice si fournie)
+  const updatePayload: Record<string, unknown> = {
+    total_ht,
+    total_ttc,
+    qty: qty_total,
+  };
+  if (decoratriceId !== undefined) {
+    updatePayload.decoratrice_id = decoratriceId || null;
+  }
+  const { error: e3 } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => {
+          eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+    }
+  )
     .from("devis")
-    .update({
-      total_ht,
-      total_ttc,
-      qty: qty_total,
-    })
+    .update(updatePayload)
     .eq("id", devisId);
   if (e3) return { ok: false, errors: {}, message: e3.message };
 

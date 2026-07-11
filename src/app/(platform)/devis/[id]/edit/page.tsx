@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Topbar } from "@/components/shell/topbar";
 import { getDevisDetail } from "@/lib/db/devis";
 import { DevisEditForm } from "@/components/devis/devis-edit-form";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,23 @@ export default async function DevisEditPage({
   const result = await getDevisDetail(id);
   if (!result) notFound();
   const { devis, client, lines } = result;
+
+  // Décoratrices actives (pour sélection)
+  const supabase = await createClient();
+  const { data: decoratricesRaw } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .eq("role", "decoratrice")
+    .eq("active", true)
+    .order("full_name", { ascending: true });
+  const decoratrices = (decoratricesRaw ?? []) as {
+    id: string;
+    full_name: string;
+  }[];
+
+  const currentDecoratriceId =
+    (devis as unknown as { decoratrice_id?: string | null }).decoratrice_id ??
+    null;
 
   return (
     <>
@@ -51,6 +69,8 @@ export default async function DevisEditPage({
               unit_label: l.unit_label ?? "u",
               unit_price_ht: Number(l.unit_price_ht ?? 0),
             }))}
+            decoratrices={decoratrices}
+            initialDecoratriceId={currentDecoratriceId}
           />
         </section>
       </div>

@@ -65,9 +65,11 @@ const STEPS = [
 export function BoutiqueWizard({
   clients,
   initialClientId,
+  chainettePrices,
 }: {
   clients: ClientPick[];
   initialClientId?: string | null;
+  chainettePrices?: import("@/lib/db/boutique-chainette").ChainettePrice[];
 }) {
   const initial =
     (initialClientId && clients.find((c) => c.id === initialClientId)) || null;
@@ -520,6 +522,7 @@ export function BoutiqueWizard({
             <AddArticleModal
               onClose={() => setArticleModalPieceIdx(null)}
               onAdd={(articles) => handleAddArticles(articleModalPieceIdx, articles)}
+              chainettePrices={chainettePrices}
             />
           )}
         </div>

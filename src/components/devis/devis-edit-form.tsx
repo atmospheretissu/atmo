@@ -31,14 +31,21 @@ export function DevisEditForm({
   devisId,
   tvaRate,
   initialLines,
+  decoratrices = [],
+  initialDecoratriceId = null,
 }: {
   devisId: string;
   tvaRate: number;
   initialLines: LineDraft[];
+  decoratrices?: { id: string; full_name: string }[];
+  initialDecoratriceId?: string | null;
 }) {
   const router = useRouter();
   const [lines, setLines] = useState<LineDraft[]>(
     initialLines.length > 0 ? initialLines : [emptyLine()],
+  );
+  const [decoratriceId, setDecoratriceId] = useState<string>(
+    initialDecoratriceId ?? "",
   );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +117,7 @@ export function DevisEditForm({
           unit_label: l.unit_label,
           unit_price_ht: Number(l.unit_price_ht),
         })),
+        decoratriceId || null,
       );
       if (r?.ok) {
         router.push(`/devis/${devisId}`);
@@ -289,6 +297,30 @@ export function DevisEditForm({
 
       {/* Sidebar : totaux + actions */}
       <div className="space-y-4 sticky top-[80px]">
+        {decoratrices.length > 0 && (
+          <Card className="overflow-hidden">
+            <div className="px-5 py-4 border-b border-line">
+              <p className="eyebrow mb-1">Suivi</p>
+              <h3 className="text-[15px] font-semibold text-ink">Décoratrice</h3>
+            </div>
+            <div className="px-5 py-4">
+              <select
+                value={decoratriceId}
+                onChange={(e) => setDecoratriceId(e.target.value)}
+                disabled={pending}
+                className="w-full h-10 rounded-md border border-line-strong bg-white px-3 text-[13.5px] text-ink focus:border-violet focus:outline-none focus:ring-2 focus:ring-violet/15 appearance-none"
+              >
+                <option value="">— Aucune —</option>
+                {decoratrices.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Card>
+        )}
+
         <Card className="overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <p className="eyebrow mb-1">Récap</p>

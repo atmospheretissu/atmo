@@ -104,9 +104,11 @@ const TYPES: {
 export function AddArticleModal({
   onClose,
   onAdd,
+  chainettePrices,
 }: {
   onClose: () => void;
   onAdd: (articles: BoutiquePieceArticle[]) => void;
+  chainettePrices?: import("@/lib/db/boutique-chainette").ChainettePrice[];
 }) {
   const [selectedType, setSelectedType] = useState<ArticleType | null>(null);
 
@@ -182,7 +184,11 @@ export function AddArticleModal({
         )}
 
         {selectedType === "store" && (
-          <StoreForm onCancel={() => setSelectedType(null)} onAdd={onAdd} />
+          <StoreForm
+            onCancel={() => setSelectedType(null)}
+            onAdd={onAdd}
+            chainettePrices={chainettePrices}
+          />
         )}
 
         {selectedType === "store_enrouleur" && (

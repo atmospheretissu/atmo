@@ -12,6 +12,7 @@ import {
   updateTissuMetaAction,
 } from "@/app/(platform)/parametres/boutique-tarifs-actions";
 import type { Tissu, TarifGrid } from "@/lib/db/boutique-tarifs";
+import { ChainettePricesEditor } from "@/components/parametres/chainette-prices-editor";
 
 const CATEGORY_LABELS: Record<string, string> = {
   rideau: "Rideau",
@@ -101,7 +102,9 @@ export function BoutiqueTarifsTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <ChainettePricesEditor />
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-[18px] font-semibold text-ink">Grilles tarifaires Collection Atmosphère</h2>

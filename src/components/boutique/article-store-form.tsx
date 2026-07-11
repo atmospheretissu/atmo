@@ -10,6 +10,14 @@ import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
 import { CONFIG, type TypeStore } from "@/lib/boutique/data";
 import { calculateStore } from "@/lib/boutique/pricing/helpers";
 import { TissuPicker } from "@/components/boutique/tissu-picker";
+import type { ChainettePrice } from "@/lib/db/boutique-chainette";
+
+const FALLBACK_CHAINETTES: ChainettePrice[] = [
+  { id: "blanc", code: "blanc", label: "Blanc (standard)", price: 0, position: 0, active: true },
+  { id: "alu", code: "alu", label: "Aluminium", price: 4.42, position: 1, active: true },
+  { id: "noir", code: "noir", label: "Noir", price: 4.42, position: 2, active: true },
+  { id: "laiton", code: "laiton", label: "Laiton", price: 4.42, position: 3, active: true },
+];
 
 const eurFmt = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -68,11 +76,23 @@ const initial: Inputs = {
 export function StoreForm({
   onAdd,
   onCancel,
+  chainettePrices,
 }: {
   onAdd: (articles: BoutiquePieceArticle[]) => void;
   onCancel: () => void;
+  chainettePrices?: ChainettePrice[];
 }) {
-  const [v, setV] = useState<Inputs>(initial);
+  const chainettes =
+    chainettePrices && chainettePrices.length > 0
+      ? chainettePrices.filter((c) => c.active)
+      : FALLBACK_CHAINETTES;
+  const [v, setV] = useState<Inputs>({
+    ...initial,
+    chainetteCouleur: chainettes[0]?.code ?? "blanc",
+  });
+  const selectedChainette =
+    chainettes.find((c) => c.code === v.chainetteCouleur) ?? chainettes[0];
+  const chainettePriceValue = selectedChainette?.price ?? 0;
 
   const validationError = useMemo(() => {
     if (!v.largeurFinie || v.largeurFinie <= 0) return "Largeur store requise.";
@@ -106,11 +126,12 @@ export function StoreForm({
         double: doublureEffective !== "aucune",
         chainetteCouleur: v.chainetteCouleur,
         avecPose: v.avecPose,
+        supplementChainetteOverride: chainettePriceValue,
       });
     } catch {
       return null;
     }
-  }, [v, validationError, doublureEffective]);
+  }, [v, validationError, doublureEffective, chainettePriceValue]);
 
   const update = (patch: Partial<Inputs>) => setV((s) => ({ ...s, ...patch }));
 
@@ -203,9 +224,9 @@ export function StoreForm({
       ref: "MECA-STORE",
       detail:
         `largeur ${v.largeurFinie} cm` +
-        (v.chainetteCouleur && v.chainetteCouleur !== "blanc"
-          ? ` · chaînette ${v.chainetteCouleur} ${coteLabel} (+ ${CONFIG.supplementChainette}€)`
-          : ` · chaînette blanche ${coteLabel}`) +
+        (chainettePriceValue > 0
+          ? ` · chaînette ${selectedChainette?.label ?? v.chainetteCouleur} ${coteLabel} (+ ${chainettePriceValue.toFixed(2)}€)`
+          : ` · chaînette ${selectedChainette?.label ?? "blanche"} ${coteLabel}`) +
         refoulementLabel,
       qty: 1,
       unitLabel: "u",
@@ -391,12 +412,14 @@ export function StoreForm({
                   value={v.chainetteCouleur}
                   onChange={(e) => update({ chainetteCouleur: e.target.value })}
                 >
-                  <option value="blanc">Blanc (standard)</option>
-                  <option value="alu">Aluminium (+{CONFIG.supplementChainette}€)</option>
-                  <option value="noir">Noir (+{CONFIG.supplementChainette}€)</option>
-                  <option value="laiton">Laiton (+{CONFIG.supplementChainette}€)</option>
+                  {chainettes.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                      {c.price > 0 ? ` (+${c.price.toFixed(2)}€)` : ""}
+                    </option>
+                  ))}
                 </Select>
-                <Hint>Couleurs spéciales = supplément.</Hint>
+                <Hint>Tarifs éditables dans Paramètres → Boutique.</Hint>
               </div>
               <div>
                 <Label>Côté chaînette</Label>
