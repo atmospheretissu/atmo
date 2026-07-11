@@ -26,8 +26,14 @@ import {
   createTicketAction,
   searchCaisseCatalogAction,
   closeCashRegisterAction,
+  searchClientsForCaisseAction,
 } from "./actions";
-import type { TodayStats, PaymentMethod, TicketCreated } from "@/lib/db/caisse";
+import type {
+  TodayStats,
+  PaymentMethod,
+  TicketCreated,
+  Denominations,
+} from "@/lib/db/caisse";
 
 type CartItem = {
   ref: string;
@@ -36,6 +42,15 @@ type CartItem = {
   unit: number;
   qty: number;
   unitLabel: string;
+  isFree?: boolean;
+};
+
+type ClientPick = {
+  id: string;
+  display_name: string;
+  city: string | null;
+  phone: string | null;
+  email: string | null;
 };
 
 type SearchResult = {
@@ -65,7 +80,13 @@ const PAYMENT_ICONS = {
 
 const TVA_RATE = 20;
 
-export default function CaisseClient({ todayStats }: { todayStats: TodayStats }) {
+export default function CaisseClient({
+  todayStats,
+  blockedDay,
+}: {
+  todayStats: TodayStats;
+  blockedDay?: string | null;
+}) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -77,6 +98,15 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
   const [pending, startTransition] = useTransition();
   const [confirmed, setConfirmed] = useState<TicketCreated | null>(null);
   const [closureOpen, setClosureOpen] = useState(false);
+  const [client, setClient] = useState<ClientPick | null>(null);
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
+  const [freeLineOpen, setFreeLineOpen] = useState(false);
+
+  // Split payment
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [payment2, setPayment2] = useState<PaymentMethod>("especes");
+  const [amount1Str, setAmount1Str] = useState("");
+  const [amount2Str, setAmount2Str] = useState("");
 
   const subtotal = useMemo(
     () => cart.reduce((acc, c) => acc + c.unit * c.qty, 0),
@@ -135,28 +165,100 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
 
   const removeItem = (ref: string) => setCart(cart.filter((c) => c.ref !== ref));
 
+  const addFreeItem = (input: {
+    label: string;
+    detail: string;
+    qty: number;
+    unit: number;
+    unitLabel: string;
+  }) => {
+    const freeRef = `LIBRE-${Date.now().toString(36)}`;
+    setCart([
+      ...cart,
+      {
+        ref: freeRef,
+        label: input.label,
+        detail: input.detail,
+        qty: input.qty,
+        unit: input.unit,
+        unitLabel: input.unitLabel,
+        isFree: true,
+      },
+    ]);
+  };
+
   const reset = () => {
     setCart([]);
     setDiscount(0);
     setPayment("cb");
     setCashReceived("");
     setReceiptEmail("");
+    setClient(null);
+    setSplitEnabled(false);
+    setAmount1Str("");
+    setAmount2Str("");
+  };
+
+  // Auto-répartit le total sur les 2 modes quand on active le split.
+  useEffect(() => {
+    if (!splitEnabled) return;
+    if (totalTtc <= 0) return;
+    if (!amount1Str && !amount2Str) {
+      const half = Math.round((totalTtc / 2) * 100) / 100;
+      setAmount1Str(half.toFixed(2));
+      setAmount2Str((totalTtc - half).toFixed(2));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitEnabled, totalTtc]);
+
+  // Quand on change amount1, calcule amount2 automatiquement.
+  const updateAmount1 = (v: string) => {
+    setAmount1Str(v);
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0 && n <= totalTtc) {
+      setAmount2Str((totalTtc - n).toFixed(2));
+    }
   };
 
   const encaisser = () => {
+    if (blockedDay) {
+      alert(
+        `Impossible d'encaisser tant que la clôture du ${blockedDay} n'est pas faite.`,
+      );
+      return;
+    }
     if (cart.length === 0) {
       alert("Panier vide");
       return;
     }
-    if (payment === "especes") {
+    if (!splitEnabled && payment === "especes") {
       const cr = Number(cashReceived);
       if (!Number.isFinite(cr) || cr < totalTtc - 0.01) {
         alert(`Encaissement espèces : entrez un montant >= ${eur(totalTtc)}`);
         return;
       }
     }
+    if (splitEnabled) {
+      if (payment === payment2) {
+        alert("Paiement mixte : choisis deux modes de règlement différents.");
+        return;
+      }
+      const a1 = Number(amount1Str);
+      const a2 = Number(amount2Str);
+      if (!Number.isFinite(a1) || !Number.isFinite(a2) || a1 <= 0 || a2 <= 0) {
+        alert("Paiement mixte : renseigne les deux montants (> 0).");
+        return;
+      }
+      if (Math.abs(a1 + a2 - totalTtc) > 0.02) {
+        alert(
+          `Paiement mixte : la somme (${(a1 + a2).toFixed(2)}€) doit égaler le total (${totalTtc.toFixed(2)}€).`,
+        );
+        return;
+      }
+    }
     startTransition(async () => {
       const r = await createTicketAction({
+        client_id: client?.id ?? null,
         lines: cart.map((c) => ({
           ref: c.ref,
           label: c.label,
@@ -165,8 +267,12 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
           unit_price_ht: c.unit,
         })),
         payment_method: payment,
+        payment_method_2: splitEnabled ? payment2 : null,
+        amount_1: splitEnabled ? Number(amount1Str) : null,
+        amount_2: splitEnabled ? Number(amount2Str) : null,
         discount_pct: discount,
-        cash_received: payment === "especes" ? Number(cashReceived) : null,
+        cash_received:
+          !splitEnabled && payment === "especes" ? Number(cashReceived) : null,
         receipt_email: receiptEmail || null,
         tva_rate: TVA_RATE,
       });
@@ -182,6 +288,32 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
   return (
     <>
       <div>
+        {blockedDay && (
+          <section className="px-8 pt-6">
+            <div className="rounded-lg border border-pink/30 bg-pink-soft/40 p-4 flex items-start gap-3">
+              <div className="h-9 w-9 rounded-md bg-pink text-white inline-flex items-center justify-center shrink-0">
+                <Receipt className="h-4 w-4" strokeWidth={2.4} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-semibold text-ink">
+                  Caisse bloquée : clôture du {blockedDay} manquante
+                </p>
+                <p className="text-[12.5px] text-muted mt-0.5">
+                  Impossible d&apos;encaisser de nouveaux tickets tant que la
+                  journée précédente n&apos;a pas été comptée. Ouvre la clôture
+                  ci-dessous.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setClosureOpen(true)}
+              >
+                Compter et clôturer
+              </Button>
+            </div>
+          </section>
+        )}
         <section className="px-8 pt-8 pb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="eyebrow mb-2">Module · Caisse &amp; Ventes Comptoir</p>
@@ -224,6 +356,13 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2 animate-spin" />
                 )}
               </div>
+              <button
+                onClick={() => setFreeLineOpen(true)}
+                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-line bg-white hover:border-line-strong text-[12.5px] font-semibold text-ink-2 whitespace-nowrap"
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                Ligne libre
+              </button>
             </div>
 
             {query.length < 2 ? (
@@ -263,14 +402,37 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
 
           <Card className="sticky top-20 overflow-hidden flex flex-col" style={{ maxHeight: "calc(100vh - 6rem)" }}>
             <div className="p-4 border-b border-line">
-              <p className="text-[11.5px] font-semibold tracking-wider uppercase text-muted-2">Ticket en cours</p>
-              <button
-                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-dashed border-line hover:border-line-strong text-[12.5px] text-muted hover:text-ink transition-colors"
-                onClick={() => alert("Sélection client : à implémenter — sinon laisse vide pour un ticket comptoir anonyme.")}
-              >
-                <UserPlus className="h-3.5 w-3.5" strokeWidth={2.2} />
-                Associer un client (optionnel)
-              </button>
+              <p className="text-[11.5px] font-semibold tracking-wider uppercase text-muted-2">
+                Ticket en cours
+              </p>
+              {client ? (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-violet/30 bg-violet-soft/40 p-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-ink truncate">
+                      {client.display_name}
+                    </p>
+                    <p className="text-[11px] text-muted truncate">
+                      {[client.phone, client.city].filter(Boolean).join(" · ") ||
+                        "—"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setClient(null)}
+                    className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-2 hover:text-pink"
+                    aria-label="Retirer le client"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="mt-2 w-full inline-flex items-center justify-center gap-2 h-12 rounded-lg bg-violet text-white text-[14px] font-semibold hover:bg-violet-strong transition-colors shadow-sm"
+                  onClick={() => setClientPickerOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4" strokeWidth={2.4} />
+                  Associer à un client
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -347,9 +509,27 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
               </div>
 
               <div className="px-4 py-3 border-t border-line">
-                <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 mb-2">
-                  Mode de règlement
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">
+                    Mode de règlement
+                  </p>
+                  <label className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-ink-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={splitEnabled}
+                      onChange={(e) => {
+                        setSplitEnabled(e.target.checked);
+                        if (e.target.checked && totalTtc > 0) {
+                          const half = Math.round((totalTtc / 2) * 100) / 100;
+                          setAmount1Str(half.toFixed(2));
+                          setAmount2Str((totalTtc - half).toFixed(2));
+                        }
+                      }}
+                      className="h-3.5 w-3.5"
+                    />
+                    Paiement en 2 fois
+                  </label>
+                </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {(["especes", "cb", "cheque", "virement"] as const).map((mode) => {
                     const Icon = PAYMENT_ICONS[mode];
@@ -359,13 +539,12 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
                         key={mode}
                         onClick={() => {
                           setPayment(mode);
-                          // Auto-pré-remplit le montant pour les modes "exact"
-                          // (CB/chèque/virement : on prend rarement plus que le TTC).
-                          // Pour espèces, on laisse vide pour que l'opérateur saisisse.
-                          if (mode !== "especes" && totalTtc > 0) {
-                            setCashReceived(String(totalTtc));
-                          } else if (mode === "especes") {
-                            setCashReceived("");
+                          if (!splitEnabled) {
+                            if (mode !== "especes" && totalTtc > 0) {
+                              setCashReceived(String(totalTtc));
+                            } else if (mode === "especes") {
+                              setCashReceived("");
+                            }
                           }
                         }}
                         className={
@@ -379,7 +558,91 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
                     );
                   })}
                 </div>
-                {payment === "especes" && (
+
+                {splitEnabled && (
+                  <div className="mt-2 space-y-2 rounded-md bg-canvas-2/40 p-2 border border-line">
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={totalTtc}
+                        value={amount1Str}
+                        onChange={(e) => updateAmount1(e.target.value)}
+                        className="h-8 text-[12px] tabular-nums flex-1"
+                        placeholder="Montant 1"
+                      />
+                      <span className="text-[11.5px] text-muted-2">
+                        {PAYMENT_LABELS[payment]}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">
+                      Second mode
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(
+                        ["especes", "cb", "cheque", "virement"] as const
+                      ).map((mode) => {
+                        const Icon = PAYMENT_ICONS[mode];
+                        const active = payment2 === mode;
+                        const disabled = mode === payment;
+                        return (
+                          <button
+                            key={mode}
+                            onClick={() => setPayment2(mode)}
+                            disabled={disabled}
+                            className={
+                              "inline-flex items-center gap-1.5 px-2 h-7 rounded-md text-[11.5px] font-medium transition-colors " +
+                              (disabled
+                                ? "opacity-30 cursor-not-allowed border border-line bg-white"
+                                : active
+                                  ? "bg-ink text-white"
+                                  : "bg-white text-muted-2 hover:text-ink border border-line")
+                            }
+                          >
+                            <Icon className="h-3 w-3" strokeWidth={2.2} />
+                            {PAYMENT_LABELS[mode]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={totalTtc}
+                        value={amount2Str}
+                        onChange={(e) => setAmount2Str(e.target.value)}
+                        className="h-8 text-[12px] tabular-nums flex-1"
+                        placeholder="Montant 2"
+                      />
+                      <span className="text-[11.5px] text-muted-2">
+                        {PAYMENT_LABELS[payment2]}
+                      </span>
+                    </div>
+                    {(() => {
+                      const sum =
+                        (Number(amount1Str) || 0) + (Number(amount2Str) || 0);
+                      const diff = Math.round((sum - totalTtc) * 100) / 100;
+                      if (Math.abs(diff) < 0.01) {
+                        return (
+                          <p className="text-[11px] text-emerald font-medium">
+                            Total réparti : {eur(sum)} ✓
+                          </p>
+                        );
+                      }
+                      return (
+                        <p className="text-[11px] text-amber font-medium">
+                          {diff > 0 ? "Excédent" : "Manque"} :{" "}
+                          {eur(Math.abs(diff))}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {!splitEnabled && payment === "especes" && (
                   <div className="mt-2 space-y-2">
                     <div className="flex items-stretch gap-1.5">
                       <Input
@@ -492,9 +755,236 @@ export default function CaisseClient({ todayStats }: { todayStats: TodayStats })
         <ClosureModal
           onClose={() => setClosureOpen(false)}
           expectedCash={todayStats.byMethod.especes.amount}
+          blockedDay={blockedDay ?? null}
+        />
+      )}
+
+      {clientPickerOpen && (
+        <ClientPickerModal
+          onClose={() => setClientPickerOpen(false)}
+          onPick={(c) => {
+            setClient(c);
+            setClientPickerOpen(false);
+            if (c.email) setReceiptEmail(c.email);
+          }}
+        />
+      )}
+
+      {freeLineOpen && (
+        <FreeLineModal
+          onClose={() => setFreeLineOpen(false)}
+          onAdd={(input) => {
+            addFreeItem(input);
+            setFreeLineOpen(false);
+          }}
         />
       )}
     </>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
+// Modal picker client
+// ────────────────────────────────────────────────────────────────
+function ClientPickerModal({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  onPick: (c: ClientPick) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState<ClientPick[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchClientsForCaisseAction(q);
+        setItems(r);
+      } finally {
+        setLoading(false);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 className="text-[16px] font-semibold text-ink mb-3">
+        Associer un client
+      </h2>
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Nom, téléphone, email…"
+          autoFocus
+          className="pl-9"
+        />
+      </div>
+      <div className="max-h-[50vh] overflow-y-auto -mx-2">
+        {loading ? (
+          <div className="flex items-center justify-center py-8 text-muted">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Chargement…
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-center py-6 text-[13px] text-muted">
+            Aucun client trouvé.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {items.map((c) => (
+              <li key={c.id}>
+                <button
+                  onClick={() => onPick(c)}
+                  className="w-full text-left px-2 py-2.5 hover:bg-canvas-2/50 rounded-md transition-colors"
+                >
+                  <p className="text-[13.5px] font-semibold text-ink">
+                    {c.display_name}
+                  </p>
+                  <p className="text-[11.5px] text-muted mt-0.5 truncate">
+                    {[c.phone, c.email, c.city].filter(Boolean).join(" · ") ||
+                      "—"}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
+// Modal ajout d'une ligne libre au ticket
+// ────────────────────────────────────────────────────────────────
+function FreeLineModal({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (input: {
+    label: string;
+    detail: string;
+    qty: number;
+    unit: number;
+    unitLabel: string;
+  }) => void;
+}) {
+  const [label, setLabel] = useState("");
+  const [detail, setDetail] = useState("");
+  const [qty, setQty] = useState<number>(1);
+  const [unit, setUnit] = useState<number>(0);
+  const [unitLabel, setUnitLabel] = useState("u");
+
+  const submit = () => {
+    if (!label.trim()) {
+      alert("Désignation requise.");
+      return;
+    }
+    if (qty <= 0) {
+      alert("Quantité doit être > 0.");
+      return;
+    }
+    if (unit < 0) {
+      alert("Prix négatif interdit.");
+      return;
+    }
+    onAdd({
+      label: label.trim(),
+      detail: detail.trim(),
+      qty,
+      unit,
+      unitLabel,
+    });
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <h2 className="text-[16px] font-semibold text-ink mb-1">
+        Ligne libre au ticket
+      </h2>
+      <p className="text-[12px] text-muted mb-4">
+        Produit hors catalogue, forfait, ou correction ponctuelle.
+      </p>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+            Désignation *
+          </label>
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="ex: Retouche ourlet"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+            Description (optionnel)
+          </label>
+          <Input
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            placeholder="ex: 2 rideaux · pose immédiate"
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              Quantité
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={qty}
+              onChange={(e) => setQty(Number(e.target.value) || 0)}
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              Unité
+            </label>
+            <select
+              value={unitLabel}
+              onChange={(e) => setUnitLabel(e.target.value)}
+              className="w-full h-9 rounded-md border border-line-strong bg-white px-2 text-[13px] text-ink"
+            >
+              <option value="u">u</option>
+              <option value="m">m</option>
+              <option value="m²">m²</option>
+              <option value="h">h</option>
+              <option value="forfait">forfait</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              P.U. HT €
+            </label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={unit}
+              onChange={(e) => setUnit(Number(e.target.value) || 0)}
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-2 border-t border-line">
+          <Button variant="ghost" size="sm" onClick={onClose} className="flex-1">
+            Annuler
+          </Button>
+          <Button variant="primary" size="sm" onClick={submit} className="flex-1">
+            <Plus className="h-3.5 w-3.5" /> Ajouter
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -559,77 +1049,261 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
   );
 }
 
-function ClosureModal({ onClose, expectedCash }: { onClose: () => void; expectedCash: number }) {
-  const [cashCounted, setCashCounted] = useState<string>(expectedCash.toFixed(2));
+const DENOMS: {
+  key: keyof Denominations;
+  value: number;
+  label: string;
+  type: "billet" | "piece";
+}[] = [
+  { key: "b500", value: 500, label: "500 €", type: "billet" },
+  { key: "b200", value: 200, label: "200 €", type: "billet" },
+  { key: "b100", value: 100, label: "100 €", type: "billet" },
+  { key: "b50", value: 50, label: "50 €", type: "billet" },
+  { key: "b20", value: 20, label: "20 €", type: "billet" },
+  { key: "b10", value: 10, label: "10 €", type: "billet" },
+  { key: "b5", value: 5, label: "5 €", type: "billet" },
+  { key: "p2", value: 2, label: "2 €", type: "piece" },
+  { key: "p1", value: 1, label: "1 €", type: "piece" },
+  { key: "c50", value: 0.5, label: "50 cts", type: "piece" },
+  { key: "c20", value: 0.2, label: "20 cts", type: "piece" },
+  { key: "c10", value: 0.1, label: "10 cts", type: "piece" },
+  { key: "c5", value: 0.05, label: "5 cts", type: "piece" },
+  { key: "c2", value: 0.02, label: "2 cts", type: "piece" },
+  { key: "c1", value: 0.01, label: "1 ct", type: "piece" },
+];
+
+function ClosureModal({
+  onClose,
+  expectedCash,
+  blockedDay,
+}: {
+  onClose: () => void;
+  expectedCash: number;
+  blockedDay?: string | null;
+}) {
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
-  const date = new Date().toISOString().slice(0, 10);
-  const variance = Number(cashCounted) - expectedCash;
+  const [error, setError] = useState<string | null>(null);
+  // Priorité : la clôture concerne la journée bloquée si elle existe,
+  // sinon aujourd'hui.
+  const date = blockedDay ?? new Date().toISOString().slice(0, 10);
+
+  const total = useMemo(() => {
+    let t = 0;
+    for (const d of DENOMS) {
+      t += (counts[d.key] || 0) * d.value;
+    }
+    return Number(t.toFixed(2));
+  }, [counts]);
+
+  const variance = total - expectedCash;
+  const hasAny = DENOMS.some((d) => (counts[d.key] || 0) > 0);
 
   const submit = () => {
-    if (!confirm("Confirmer la clôture du jour ? Les tickets seront verrouillés.")) return;
+    if (!hasAny) {
+      setError(
+        "Renseigne le nombre de billets/pièces (comptage détaillé obligatoire).",
+      );
+      return;
+    }
+    if (!confirm(`Confirmer la clôture du ${date} avec un total compté de ${eur(total)} ?`))
+      return;
+    setError(null);
     startTransition(async () => {
-      const r = await closeCashRegisterAction(date, Number(cashCounted), notes || undefined);
+      const denominations: Denominations = {};
+      for (const d of DENOMS) {
+        if ((counts[d.key] || 0) > 0) {
+          (denominations as Record<string, number>)[d.key] = counts[d.key];
+        }
+      }
+      const r = await closeCashRegisterAction(date, total, denominations, notes || undefined);
       if (!r.ok) {
-        alert(`Erreur : ${r.message}`);
+        setError(r.message);
         return;
       }
       alert(
         r.variance != null && Math.abs(r.variance) > 0.01
           ? `Clôture créée. Écart caisse : ${eur(r.variance)}`
-          : "Clôture créée — caisse équilibrée."
+          : "Clôture créée — caisse équilibrée.",
       );
       onClose();
       window.location.reload();
     });
   };
 
+  const setCount = (key: string, v: string) => {
+    const n = Math.max(0, Math.floor(Number(v) || 0));
+    setCounts((c) => ({ ...c, [key]: n }));
+  };
+
   return (
-    <Modal onClose={onClose}>
-      <h2 className="text-[18px] font-semibold text-ink mb-1">Clôture du {date}</h2>
-      <p className="text-[12.5px] text-muted mb-4">
-        Espèces attendues : <span className="font-semibold tabular-nums">{eur(expectedCash, true)}</span>
-      </p>
-      <div className="space-y-3">
-        <label className="block">
-          <span className="block text-[11.5px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
-            Espèces comptées
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-auto p-6 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-muted-2 hover:text-ink"
+          aria-label="Fermer"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-[18px] font-semibold text-ink mb-1">
+          Clôture du {date}
+        </h2>
+        <p className="text-[12.5px] text-muted mb-4">
+          Espèces attendues :{" "}
+          <span className="font-semibold tabular-nums">
+            {eur(expectedCash, true)}
           </span>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            value={cashCounted}
-            onChange={(e) => setCashCounted(e.target.value)}
-            className="tabular-nums"
-          />
+          {" · "}Comptage détaillé <strong className="text-ink">obligatoire</strong>.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 mb-2">
+              Billets
+            </p>
+            <div className="space-y-1.5">
+              {DENOMS.filter((d) => d.type === "billet").map((d) => (
+                <DenomRow
+                  key={d.key}
+                  label={d.label}
+                  value={counts[d.key] || 0}
+                  onChange={(v) => setCount(d.key, v)}
+                  amount={(counts[d.key] || 0) * d.value}
+                  disabled={pending}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 mb-2">
+              Pièces
+            </p>
+            <div className="space-y-1.5">
+              {DENOMS.filter((d) => d.type === "piece").map((d) => (
+                <DenomRow
+                  key={d.key}
+                  label={d.label}
+                  value={counts[d.key] || 0}
+                  onChange={(v) => setCount(d.key, v)}
+                  amount={(counts[d.key] || 0) * d.value}
+                  disabled={pending}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 p-4 rounded-lg border border-line bg-canvas-2/40">
+          <div className="flex items-baseline justify-between mb-1">
+            <span className="text-[13px] font-semibold text-ink">
+              Total compté
+            </span>
+            <span className="text-[24px] font-bold text-ink tabular-nums">
+              {eur(total)}
+            </span>
+          </div>
           {Math.abs(variance) > 0.01 && (
-            <p className={"mt-1 text-[12px] font-medium " + (variance < 0 ? "text-pink" : "text-emerald")}>
-              Écart : {variance > 0 ? "+" : ""}{eur(variance)}
+            <p
+              className={
+                "text-[12.5px] font-medium " +
+                (variance < 0 ? "text-pink" : "text-emerald")
+              }
+            >
+              Écart caisse : {variance > 0 ? "+" : ""}
+              {eur(variance)}
             </p>
           )}
-        </label>
-        <label className="block">
-          <span className="block text-[11.5px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
-            Notes (optionnel)
-          </span>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className="w-full rounded-md border border-line-strong bg-surface p-3 text-[13.5px] text-ink placeholder:text-muted-2 hover:border-ink-3 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 resize-y"
-            placeholder="Pourquoi un écart, événement particulier…"
-          />
-        </label>
-        <div className="flex items-center gap-2 pt-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={pending} className="flex-1">
+        </div>
+
+        <div className="mt-4">
+          <label className="block">
+            <span className="block text-[11.5px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Notes (optionnel)
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full rounded-md border border-line-strong bg-surface p-3 text-[13.5px] text-ink placeholder:text-muted-2 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 resize-y"
+              placeholder="Raison d'un écart, événement particulier…"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <p className="mt-3 text-[12.5px] text-pink bg-pink-soft/40 border border-pink/30 rounded px-3 py-2">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2 pt-4 mt-4 border-t border-line">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={pending}
+            className="flex-1"
+          >
             Annuler
           </Button>
-          <Button variant="primary" size="sm" onClick={submit} disabled={pending} className="flex-1">
-            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Clôturer"}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={submit}
+            disabled={pending || !hasAny}
+            className="flex-1"
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              "Clôturer"
+            )}
           </Button>
         </div>
       </div>
-    </Modal>
+    </div>
+  );
+}
+
+function DenomRow({
+  label,
+  value,
+  onChange,
+  amount,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: string) => void;
+  amount: number;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[64px_1fr_88px] items-center gap-2">
+      <span className="text-[12px] font-mono font-semibold text-ink-2 tabular-nums">
+        {label}
+      </span>
+      <Input
+        type="number"
+        min="0"
+        step="1"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="h-8 text-[12px] tabular-nums text-right"
+        placeholder="0"
+      />
+      <span className="text-[11.5px] font-medium tabular-nums text-muted-2 text-right pr-1">
+        {amount > 0 ? eur(amount) : "—"}
+      </span>
+    </div>
   );
 }

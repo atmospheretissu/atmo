@@ -79,6 +79,14 @@ export type TicketInput = {
   cash_received?: number | null;
   receipt_email?: string | null;
   tva_rate?: number;
+  // Paiement mixte : 2 modes de règlement pour un seul ticket.
+  // Quand `payment_method_2` est renseigné :
+  //   - amount_1 = montant réglé via payment_method
+  //   - amount_2 = montant réglé via payment_method_2
+  //   - amount_1 + amount_2 doivent égaler total_ttc
+  payment_method_2?: PaymentMethod | null;
+  amount_1?: number | null;
+  amount_2?: number | null;
 };
 
 export type TicketCreated = {
@@ -102,6 +110,22 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
   );
   const totalHt = Number((subtotalHt * (1 - discount / 100)).toFixed(2));
   const totalTtc = Number((totalHt * (1 + tvaRate / 100)).toFixed(2));
+  // Validation paiement mixte
+  const isSplit =
+    input.payment_method_2 != null && input.payment_method_2 !== input.payment_method;
+  if (isSplit) {
+    const a1 = Number(input.amount_1 ?? 0);
+    const a2 = Number(input.amount_2 ?? 0);
+    if (a1 <= 0 || a2 <= 0) {
+      throw new Error("Paiement mixte : chaque montant doit être > 0.");
+    }
+    if (Math.abs(a1 + a2 - totalTtc) > 0.02) {
+      throw new Error(
+        `Paiement mixte : la somme des deux montants (${(a1 + a2).toFixed(2)}€) doit égaler le total TTC (${totalTtc.toFixed(2)}€).`,
+      );
+    }
+  }
+
   const change_due =
     input.payment_method === "especes" && input.cash_received != null
       ? Number((Number(input.cash_received) - totalTtc).toFixed(2))
@@ -116,7 +140,20 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
   const { getCreationStoreId } = await import("@/lib/db/stores");
   const storeId = await getCreationStoreId();
 
-  const { data: ticket, error: e1 } = await supabase
+  const { data: ticket, error: e1 } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: Record<string, unknown>) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string; number: string; total_ttc: number } | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("caisse_tickets")
     .insert({
       number,
@@ -130,6 +167,9 @@ export async function createTicket(input: TicketInput): Promise<TicketCreated> {
       change_due,
       receipt_email: input.receipt_email?.trim() || null,
       store_id: storeId,
+      payment_method_2: isSplit ? input.payment_method_2 : null,
+      amount_1: isSplit ? Number(input.amount_1) : null,
+      amount_2: isSplit ? Number(input.amount_2) : null,
     })
     .select("id, number, total_ttc")
     .single();
@@ -177,14 +217,80 @@ export async function listTodayTickets() {
   return data ?? [];
 }
 
+export type Denominations = {
+  b5?: number;
+  b10?: number;
+  b20?: number;
+  b50?: number;
+  b100?: number;
+  b200?: number;
+  b500?: number;
+  c1?: number;
+  c2?: number;
+  c5?: number;
+  c10?: number;
+  c20?: number;
+  c50?: number;
+  p1?: number;
+  p2?: number;
+};
+
+const DENOMINATION_VALUES: Record<keyof Denominations, number> = {
+  b5: 5,
+  b10: 10,
+  b20: 20,
+  b50: 50,
+  b100: 100,
+  b200: 200,
+  b500: 500,
+  c1: 0.01,
+  c2: 0.02,
+  c5: 0.05,
+  c10: 0.1,
+  c20: 0.2,
+  c50: 0.5,
+  p1: 1,
+  p2: 2,
+};
+
+export function totalFromDenominations(d: Denominations | null | undefined): number {
+  if (!d) return 0;
+  let total = 0;
+  for (const [k, v] of Object.entries(d)) {
+    const value = DENOMINATION_VALUES[k as keyof Denominations];
+    if (value != null) total += (Number(v) || 0) * value;
+  }
+  return Number(total.toFixed(2));
+}
+
 export async function createClosure(
   date: string,
   cash_counted: number | null,
-  notes?: string | null
+  notes: string | null | undefined,
+  denominations: Denominations | null | undefined,
 ): Promise<{ id: string; variance: number | null }> {
   const supabase = await createClient();
   const dayStart = new Date(`${date}T00:00:00`).toISOString();
   const dayEnd = new Date(`${date}T23:59:59.999`).toISOString();
+
+  // Le comptage détaillé est obligatoire pour clôturer.
+  if (!denominations || Object.values(denominations).every((v) => !v || Number(v) === 0)) {
+    throw new Error(
+      "Le comptage détaillé des coupures est obligatoire pour clôturer la journée.",
+    );
+  }
+  // Le total compté doit être cohérent avec la somme des coupures.
+  const denomsTotal = totalFromDenominations(denominations);
+  if (cash_counted == null) {
+    throw new Error("Montant compté requis.");
+  }
+  if (Math.abs(denomsTotal - Number(cash_counted)) > 0.02) {
+    throw new Error(
+      `Incohérence : total saisi ${cash_counted}€ ≠ somme des coupures ${denomsTotal}€.`,
+    );
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { data: tickets } = await supabase
     .from("caisse_tickets")
@@ -199,10 +305,20 @@ export async function createClosure(
     sums[k] += Number(t.total_ttc ?? 0);
   }
 
-  const variance =
-    cash_counted != null ? Number((cash_counted - sums.especes).toFixed(2)) : null;
-
-  const { data: closure, error } = await supabase
+  const { data: closure, error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: Record<string, unknown>) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string; variance: number | null } | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("caisse_closures")
     .insert({
       date,
@@ -211,9 +327,10 @@ export async function createClosure(
       total_cheque: sums.cheque,
       total_virement: sums.virement,
       cash_counted,
-      variance,
       closed_at: new Date().toISOString(),
+      closed_by: user?.id ?? null,
       notes: notes?.trim() || null,
+      denominations,
     })
     .select("id, variance")
     .single();
@@ -231,4 +348,33 @@ export async function createClosure(
   }
 
   return { id: closure.id, variance: closure.variance };
+}
+
+/**
+ * Vérifie s'il existe des jours précédents avec des tickets mais aucune clôture.
+ * Utilisé pour bloquer les nouvelles ventes tant que le compte n'a pas été fait.
+ */
+export async function getPreviousUnclosedDay(): Promise<string | null> {
+  const supabase = await createClient();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const todayStart = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  ).toISOString();
+
+  const { data: tickets } = await supabase
+    .from("caisse_tickets")
+    .select("created_at, closure_id")
+    .is("closure_id", null)
+    .lt("created_at", todayStart)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (!tickets || tickets.length === 0) return null;
+  const first = tickets[0];
+  const d = new Date(first.created_at as string);
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return dateStr === todayStr ? null : dateStr;
 }

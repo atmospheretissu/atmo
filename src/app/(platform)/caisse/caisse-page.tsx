@@ -18,9 +18,11 @@ import type { UnifiedPayment } from "@/lib/db/payments-feed";
 export default function CaissePageClient({
   todayStats,
   payments,
+  blockedDay,
 }: {
   todayStats: TodayStats;
   payments: UnifiedPayment[];
+  blockedDay?: string | null;
 }) {
   const [tab, setTab] = useState<"vente" | "paiements" | "comptabilite">("vente");
 
@@ -57,7 +59,7 @@ export default function CaissePageClient({
         </div>
 
         <TabsContent value="vente">
-          <CaisseClient todayStats={todayStats} />
+          <CaisseClient todayStats={todayStats} blockedDay={blockedDay ?? null} />
         </TabsContent>
         <TabsContent value="paiements">
           <div className="px-8 pt-8 pb-4">
