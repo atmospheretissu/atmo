@@ -12,6 +12,10 @@ import {
   PackageOpen,
   EyeOff,
   Eye,
+  Download,
+  Upload,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
@@ -20,7 +24,12 @@ import {
   deleteCatalogProductAction,
   toggleCatalogProductActiveAction,
   searchCatalogPageAction,
+  bulkUpdateCatalogAction,
+  bulkDeleteCatalogAction,
+  previewCsvImportAction,
+  commitCsvImportAction,
   type CatalogProductInput,
+  type ImportPreview,
 } from "@/app/(platform)/parametres/catalog-actions";
 
 export type CatalogProduct = {
@@ -98,6 +107,9 @@ export function CatalogTab({
   const [editing, setEditing] = useState<CatalogProduct | "new" | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [importOpen, setImportOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Server-side search/pagination — la table fait 45k+ lignes, pas de filtre
   // client side.
@@ -221,14 +233,72 @@ export function CatalogTab({
             (module "Produit catalogue") et utilisables sur les devis rapides.
           </p>
         </div>
-        <button
-          onClick={() => setEditing("new")}
-          disabled={pending}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[13px] font-semibold bg-ink text-white hover:bg-ink/90 disabled:opacity-40 transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Ajouter un produit
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href={
+              "/api/catalog/export" +
+              (catFilter !== "all" ? `?category=${encodeURIComponent(catFilter)}` : "") +
+              (query ? `${catFilter !== "all" ? "&" : "?"}q=${encodeURIComponent(query)}` : "")
+            }
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[13px] font-semibold border border-line bg-white hover:border-line-strong text-ink-2 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" strokeWidth={2.4} /> Exporter CSV
+          </a>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[13px] font-semibold border border-line bg-white hover:border-line-strong text-ink-2 transition-colors"
+          >
+            <Upload className="h-3.5 w-3.5" strokeWidth={2.4} /> Importer CSV
+          </button>
+          <button
+            onClick={() => setEditing("new")}
+            disabled={pending}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md text-[13px] font-semibold bg-ink text-white hover:bg-ink/90 disabled:opacity-40 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Ajouter un produit
+          </button>
+        </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-violet-soft/40 border border-violet/20">
+          <span className="text-[13px] text-ink-2">
+            <strong className="text-ink">{selectedIds.size}</strong> produit(s) sélectionné(s)
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setBulkOpen(true)}
+              className="h-8 px-3 rounded-md text-[12px] font-semibold bg-ink text-white hover:bg-ink/90"
+            >
+              Modifier en masse
+            </button>
+            <button
+              onClick={() => {
+                if (!confirm(`Supprimer ${selectedIds.size} produit(s) ? Irréversible.`)) return;
+                startTransition(async () => {
+                  const r = await bulkDeleteCatalogAction(Array.from(selectedIds));
+                  if (r.ok) {
+                    setProducts((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+                    setSelectedIds(new Set());
+                  } else {
+                    setError(r.message ?? "Échec suppression");
+                  }
+                });
+              }}
+              className="h-8 px-3 rounded-md text-[12px] font-semibold border border-pink text-pink hover:bg-pink hover:text-white"
+            >
+              Supprimer
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="h-8 px-2 text-muted hover:text-ink"
+              aria-label="Désélectionner"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -316,6 +386,22 @@ export function CatalogTab({
           <table className="w-full text-[13px]">
             <thead>
               <tr className="bg-canvas-2/40 border-b border-line">
+                <th className="pl-4 pr-2 py-2.5 w-8">
+                  <button
+                    onClick={() => {
+                      if (selectedIds.size === filtered.length) setSelectedIds(new Set());
+                      else setSelectedIds(new Set(filtered.map((p) => p.id)));
+                    }}
+                    className="text-muted hover:text-ink"
+                    aria-label="Tout sélectionner"
+                  >
+                    {selectedIds.size === filtered.length && filtered.length > 0 ? (
+                      <CheckSquare className="h-4 w-4" strokeWidth={2.2} />
+                    ) : (
+                      <Square className="h-4 w-4" strokeWidth={2.2} />
+                    )}
+                  </button>
+                </th>
                 <Th>Réf.</Th>
                 <Th>Nom</Th>
                 <Th>Catégorie</Th>
@@ -330,7 +416,7 @@ export function CatalogTab({
               {filtered.map((p) =>
                 editing && typeof editing !== "string" && editing.id === p.id ? (
                   <tr key={p.id} className="bg-canvas-2/30 border-b border-line">
-                    <td colSpan={8} className="p-3">
+                    <td colSpan={9} className="p-3">
                       <ProductForm
                         initial={{
                           ref: p.ref,
@@ -358,8 +444,28 @@ export function CatalogTab({
                     key={p.id}
                     className={`border-b border-line last:border-0 hover:bg-canvas-2/30 transition-colors group ${
                       !p.active ? "opacity-50" : ""
-                    }`}
+                    } ${selectedIds.has(p.id) ? "bg-violet-soft/20" : ""}`}
                   >
+                    <td className="pl-4 pr-2 py-3 w-8">
+                      <button
+                        onClick={() => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(p.id)) next.delete(p.id);
+                            else next.add(p.id);
+                            return next;
+                          });
+                        }}
+                        className="text-muted hover:text-ink"
+                        aria-label="Sélectionner"
+                      >
+                        {selectedIds.has(p.id) ? (
+                          <CheckSquare className="h-4 w-4 text-violet" strokeWidth={2.2} />
+                        ) : (
+                          <Square className="h-4 w-4" strokeWidth={2.2} />
+                        )}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 font-mono text-[12px] text-muted">
                       {p.ref}
                     </td>
@@ -429,6 +535,511 @@ export function CatalogTab({
           </table>
         )}
       </Card>
+
+      {importOpen && (
+        <ImportCsvModal
+          onClose={() => setImportOpen(false)}
+          onDone={async () => {
+            setImportOpen(false);
+            const r = await searchCatalogPageAction({
+              q: query,
+              category: catFilter === "all" ? null : catFilter,
+              page,
+              pageSize: PAGE_SIZE,
+            });
+            setProducts(r.products);
+            setTotal(r.total);
+          }}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkEditModal
+          count={selectedIds.size}
+          onClose={() => setBulkOpen(false)}
+          onApply={(patch, mult) => {
+            startTransition(async () => {
+              const r = await bulkUpdateCatalogAction(Array.from(selectedIds), {
+                ...patch,
+                ...(mult !== undefined ? { price_multiplier: mult } : {}),
+              });
+              if (r.ok) {
+                const rr = await searchCatalogPageAction({
+                  q: query,
+                  category: catFilter === "all" ? null : catFilter,
+                  page,
+                  pageSize: PAGE_SIZE,
+                });
+                setProducts(rr.products);
+                setTotal(rr.total);
+                setSelectedIds(new Set());
+                setBulkOpen(false);
+              } else {
+                setError(r.message ?? "Échec mise à jour en masse");
+              }
+            });
+          }}
+          pending={pending}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImportCsvModal({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: () => void | Promise<void>;
+}) {
+  const [csvText, setCsvText] = useState("");
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    created: number;
+    updated: number;
+    errors: number;
+  } | null>(null);
+
+  const onFile = (file: File) => {
+    setError(null);
+    setPreview(null);
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      setCsvText(text);
+      startTransition(async () => {
+        try {
+          const p = await previewCsvImportAction(text);
+          setPreview(p);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Erreur d'analyse du CSV");
+        }
+      });
+    };
+    reader.readAsText(file, "utf-8");
+  };
+
+  const commit = () => {
+    if (!csvText) return;
+    startTransition(async () => {
+      const r = await commitCsvImportAction(csvText);
+      if (r.ok) {
+        setResult({ created: r.created, updated: r.updated, errors: r.errors });
+      } else {
+        setError(r.message ?? "Erreur à l'import");
+      }
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-line flex items-center justify-between">
+          <div>
+            <p className="text-[15px] font-semibold text-ink">Importer un CSV</p>
+            <p className="text-[12px] text-muted mt-0.5">
+              Colonnes : ref, name, category, description, unit_price_ht, unit_label,
+              width_cm, raccord_cm, is_collection, stock_poland, stock_ukraine, active.
+              Match par <strong>ref</strong>.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {!result && (
+            <>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onFile(f);
+                }}
+                className="block text-[13px]"
+              />
+
+              {pending && (
+                <div className="text-[13px] text-muted inline-flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyse en cours…
+                </div>
+              )}
+
+              {error && (
+                <div className="text-[12.5px] text-pink bg-pink-soft/40 border border-pink/30 rounded px-3 py-2">
+                  {error}
+                </div>
+              )}
+
+              {preview && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <StatBox
+                      label="À créer"
+                      value={preview.toCreate.length}
+                      tone="emerald"
+                    />
+                    <StatBox
+                      label="À mettre à jour"
+                      value={preview.toUpdate.length}
+                      tone="violet"
+                    />
+                    <StatBox
+                      label="Erreurs"
+                      value={preview.errors.length}
+                      tone={preview.errors.length > 0 ? "pink" : "muted"}
+                    />
+                  </div>
+
+                  {preview.errors.length > 0 && (
+                    <div className="text-[12px] text-pink bg-pink-soft/30 border border-pink/20 rounded px-3 py-2 max-h-32 overflow-auto">
+                      <p className="font-semibold mb-1">Erreurs détectées :</p>
+                      <ul className="space-y-0.5 list-disc pl-4">
+                        {preview.errors.slice(0, 20).map((e, i) => (
+                          <li key={i}>
+                            <span className="font-mono">L{e.line}</span>{" "}
+                            {e.ref && (
+                              <span className="font-mono text-ink">[{e.ref}]</span>
+                            )}{" "}
+                            {e.message}
+                          </li>
+                        ))}
+                        {preview.errors.length > 20 && (
+                          <li className="italic">
+                            … et {preview.errors.length - 20} autres
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
+                    <button
+                      onClick={onClose}
+                      className="h-9 px-3 rounded-md text-[13px] font-semibold text-ink-2 hover:bg-canvas-2"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={commit}
+                      disabled={
+                        pending ||
+                        preview.errors.length > 0 ||
+                        (preview.toCreate.length === 0 && preview.toUpdate.length === 0)
+                      }
+                      className="h-9 px-4 rounded-md text-[13px] font-semibold bg-ink text-white hover:bg-ink/90 disabled:opacity-40 inline-flex items-center gap-1.5"
+                    >
+                      {pending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      Confirmer l&apos;import
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {result && (
+            <div className="space-y-3">
+              <div className="p-4 rounded-md bg-emerald-soft/40 border border-emerald/30">
+                <p className="text-[14px] font-semibold text-emerald-strong mb-1">
+                  Import terminé
+                </p>
+                <p className="text-[12.5px] text-ink-2">
+                  <strong>{result.created}</strong> créé(s), <strong>{result.updated}</strong>{" "}
+                  mis à jour.
+                  {result.errors > 0 && (
+                    <>
+                      {" "}
+                      <span className="text-pink">
+                        {result.errors} erreur(s).
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => onDone()}
+                  className="h-9 px-4 rounded-md text-[13px] font-semibold bg-ink text-white hover:bg-ink/90"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatBox({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "emerald" | "violet" | "pink" | "muted";
+}) {
+  const bg =
+    tone === "emerald"
+      ? "bg-emerald-soft/40 border-emerald/20 text-emerald-strong"
+      : tone === "violet"
+        ? "bg-violet-soft/40 border-violet/20 text-violet-strong"
+        : tone === "pink"
+          ? "bg-pink-soft/40 border-pink/20 text-pink"
+          : "bg-canvas-2 border-line text-muted-2";
+  return (
+    <div className={`p-3 rounded-md border ${bg}`}>
+      <p className="text-[10.5px] uppercase tracking-wider font-semibold opacity-70">
+        {label}
+      </p>
+      <p className="text-[22px] font-bold tabular-nums mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function BulkEditModal({
+  count,
+  onClose,
+  onApply,
+  pending,
+}: {
+  count: number;
+  onClose: () => void;
+  onApply: (
+    patch: {
+      category?: string;
+      unit_label?: string;
+      active?: boolean;
+      is_collection?: boolean;
+    },
+    priceMultiplier?: number,
+  ) => void;
+  pending: boolean;
+}) {
+  const [enCategory, setEnCategory] = useState(false);
+  const [category, setCategory] = useState("Tissu");
+  const [enUnit, setEnUnit] = useState(false);
+  const [unit, setUnit] = useState("m");
+  const [enActive, setEnActive] = useState(false);
+  const [active, setActive] = useState(true);
+  const [enCollection, setEnCollection] = useState(false);
+  const [collection, setCollection] = useState(false);
+  const [enMult, setEnMult] = useState(false);
+  const [mult, setMult] = useState<number>(1);
+
+  const submit = () => {
+    const patch: {
+      category?: string;
+      unit_label?: string;
+      active?: boolean;
+      is_collection?: boolean;
+    } = {};
+    if (enCategory) patch.category = category;
+    if (enUnit) patch.unit_label = unit;
+    if (enActive) patch.active = active;
+    if (enCollection) patch.is_collection = collection;
+    onApply(patch, enMult ? mult : undefined);
+  };
+
+  const hasAny = enCategory || enUnit || enActive || enCollection || enMult;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-line flex items-center justify-between">
+          <div>
+            <p className="text-[15px] font-semibold text-ink">
+              Modifier {count} produit(s) en masse
+            </p>
+            <p className="text-[12px] text-muted mt-0.5">
+              Coche les champs à modifier — les autres restent inchangés.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <BulkRow
+            checked={enCategory}
+            onToggle={() => setEnCategory((v) => !v)}
+            label="Catégorie"
+          >
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              disabled={!enCategory}
+              className="form-input"
+            >
+              <option value="Tissu">Tissu</option>
+              <option value="Doublure">Doublure</option>
+              <option value="Voilage">Voilage</option>
+              <option value="Rail">Rail</option>
+              <option value="Tringle">Tringle</option>
+              <option value="Accessoire">Accessoire</option>
+              <option value="Store">Store</option>
+              <option value="Confection">Confection</option>
+              <option value="Pose">Pose</option>
+              <option value="Divers">Divers</option>
+            </select>
+          </BulkRow>
+
+          <BulkRow
+            checked={enUnit}
+            onToggle={() => setEnUnit((v) => !v)}
+            label="Unité"
+          >
+            <select
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              disabled={!enUnit}
+              className="form-input"
+            >
+              <option value="m">m (mètre linéaire)</option>
+              <option value="m²">m²</option>
+              <option value="u">u (unité)</option>
+              <option value="h">h (heure)</option>
+              <option value="forfait">forfait</option>
+            </select>
+          </BulkRow>
+
+          <BulkRow
+            checked={enActive}
+            onToggle={() => setEnActive((v) => !v)}
+            label="Actif"
+          >
+            <select
+              value={active ? "1" : "0"}
+              onChange={(e) => setActive(e.target.value === "1")}
+              disabled={!enActive}
+              className="form-input"
+            >
+              <option value="1">Visible</option>
+              <option value="0">Masqué</option>
+            </select>
+          </BulkRow>
+
+          <BulkRow
+            checked={enCollection}
+            onToggle={() => setEnCollection((v) => !v)}
+            label="Collection Atmosphère"
+          >
+            <select
+              value={collection ? "1" : "0"}
+              onChange={(e) => setCollection(e.target.value === "1")}
+              disabled={!enCollection}
+              className="form-input"
+            >
+              <option value="1">Oui</option>
+              <option value="0">Non</option>
+            </select>
+          </BulkRow>
+
+          <BulkRow
+            checked={enMult}
+            onToggle={() => setEnMult((v) => !v)}
+            label="Prix × facteur"
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={mult}
+                onChange={(e) => setMult(Number(e.target.value))}
+                disabled={!enMult}
+                className="form-input"
+              />
+              <span className="text-[11.5px] text-muted whitespace-nowrap">
+                ex: 1.10 = +10%
+              </span>
+            </div>
+          </BulkRow>
+        </div>
+
+        <div className="p-5 border-t border-line flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="h-9 px-3 rounded-md text-[13px] font-semibold text-ink-2 hover:bg-canvas-2"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={submit}
+            disabled={pending || !hasAny}
+            className="h-9 px-4 rounded-md text-[13px] font-semibold bg-ink text-white hover:bg-ink/90 disabled:opacity-40 inline-flex items-center gap-1.5"
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+            Appliquer à {count}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkRow({
+  checked,
+  onToggle,
+  label,
+  children,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[auto_140px_1fr] items-center gap-3">
+      <button
+        onClick={onToggle}
+        className="text-muted hover:text-ink"
+        aria-label={`Modifier ${label}`}
+      >
+        {checked ? (
+          <CheckSquare className="h-4 w-4 text-violet" strokeWidth={2.2} />
+        ) : (
+          <Square className="h-4 w-4" strokeWidth={2.2} />
+        )}
+      </button>
+      <label className="text-[12.5px] font-medium text-ink-2">{label}</label>
+      {children}
     </div>
   );
 }

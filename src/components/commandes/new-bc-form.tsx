@@ -132,26 +132,32 @@ export function NewBcForm({
         </div>
       )}
 
-      <div className="flex items-center justify-end gap-2 pt-3 border-t border-line">
-        <Link href="/commandes">
-          <Button variant="ghost" size="md" type="button" disabled={pending}>
-            Annuler
+      <div className="flex items-center justify-between gap-2 pt-3 border-t border-line flex-wrap">
+        <p className="text-[11.5px] text-muted">
+          Le BC sera créé en <strong className="text-ink">brouillon</strong> —
+          tu pourras le compléter puis l&apos;envoyer plus tard.
+        </p>
+        <div className="flex items-center gap-2">
+          <Link href="/commandes">
+            <Button variant="ghost" size="md" type="button" disabled={pending}>
+              Annuler
+            </Button>
+          </Link>
+          <Button
+            variant="primary"
+            size="md"
+            type="button"
+            onClick={submit}
+            disabled={pending || !supplierId || suppliers.length === 0}
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />
+            ) : (
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+            )}
+            Enregistrer le brouillon
           </Button>
-        </Link>
-        <Button
-          variant="primary"
-          size="md"
-          type="button"
-          onClick={submit}
-          disabled={pending || !supplierId || suppliers.length === 0}
-        >
-          {pending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />
-          ) : (
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-          )}
-          Créer le BC
-        </Button>
+        </div>
       </div>
     </div>
   );
