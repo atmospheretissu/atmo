@@ -24,6 +24,8 @@ type Props = {
   hasDossier: boolean;
   dossierId: string | null;
   clientHasEmail: boolean;
+  /** True quand une signature électronique a été enregistrée. */
+  signed?: boolean;
 };
 
 type Step = {
@@ -60,13 +62,26 @@ function pickNextStep(p: Props): Step | null {
       };
 
     case "envoye":
+      if (!p.signed) {
+        return {
+          tone: "amber",
+          icon: Edit3,
+          eyebrow: "En attente",
+          title: "Devis envoyé · signature attendue",
+          description:
+            "Le client a reçu son devis. Il doit d'abord le signer électroniquement (lien dans le bloc « Signature » plus haut) avant que l'acompte puisse être encaissé.",
+          ctaLabel: "Voir le lien de signature",
+          ctaHref: `/devis/${p.devisId}#signature`,
+          variant: "accent",
+        };
+      }
       return {
         tone: "pink",
         icon: Send,
         eyebrow: "En attente",
-        title: "Devis envoyé · acompte attendu",
+        title: "Devis signé · acompte attendu",
         description:
-          "Le client a reçu son devis. Tu peux relancer par email, marquer manuellement l'acompte reçu, ou attendre le paiement Stripe.",
+          "Le client a signé électroniquement. Encaisse l'acompte (Stripe, CB, virement, chèque, espèces) pour démarrer la commande.",
         ctaLabel: "Marquer acompte reçu",
         ctaHref: `/devis/${p.devisId}`,
         variant: "primary",

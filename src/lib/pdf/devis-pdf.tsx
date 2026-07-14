@@ -7,7 +7,21 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Database } from "@/lib/supabase/types";
-import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
+import {
+  COLORS,
+  PAGE,
+  TYPE,
+  SPACING,
+  FONT_SIZE,
+  COMPANY,
+} from "./pdf-design";
+import {
+  PdfHeader,
+  PdfLegalFooter,
+  CgvPage,
+  ModalitesReglementBlock,
+  SignatureEvidenceBlock,
+} from "./pdf-shared";
 
 type Devis = Database["public"]["Tables"]["devis"]["Row"];
 type DevisLine = Database["public"]["Tables"]["devis_lines"]["Row"];
@@ -31,27 +45,6 @@ const date = (d: string | null) =>
 
 const styles = StyleSheet.create({
   page: { ...PAGE },
-  // Header
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: SPACING.xl,
-    paddingBottom: SPACING.md,
-    borderBottom: `0.5px solid ${COLORS.border}`,
-  },
-  brand: { flexDirection: "column" },
-  brandName: TYPE.wordmark,
-  meta: { textAlign: "right" },
-  metaLabel: TYPE.eyebrow,
-  metaValue: { ...TYPE.h3, marginTop: SPACING.xs },
-  metaDate: {
-    fontSize: FONT_SIZE.small,
-    color: COLORS.textMuted,
-    marginTop: 3,
-    lineHeight: 1.3,
-  },
-  // Two-column block (Émetteur / Client)
   twoCol: { flexDirection: "row", gap: SPACING.xl, marginBottom: SPACING.xl },
   col: { flex: 1 },
   blockTitle: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
@@ -68,12 +61,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     border: `0.5px solid ${COLORS.border}`,
   },
-  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
-  heroValue: TYPE.heroNumber,
+  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.md },
+  // paddingBottom : garde-fou contre chevauchement du sub sous les gros
+  // chiffres (@react-pdf bug baseline sur fontSize > 24).
+  heroValue: { ...TYPE.heroNumber, paddingBottom: 4 },
   heroSub: {
     fontSize: FONT_SIZE.body,
     color: COLORS.textMuted,
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     lineHeight: 1.4,
   },
   // Table
@@ -209,20 +204,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.h3,
     fontFamily: "Helvetica-Bold",
     lineHeight: 1.1,
-  },
-  // Footer
-  footer: {
-    position: "absolute",
-    bottom: 24,
-    left: PAGE.paddingHorizontal,
-    right: PAGE.paddingHorizontal,
-    paddingTop: SPACING.sm,
-    borderTop: `0.5px solid ${COLORS.border}`,
-    fontSize: FONT_SIZE.micro,
-    color: COLORS.textFaint,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    lineHeight: 1.4,
   },
 });
 
@@ -449,6 +430,13 @@ export function DevisPDF({
   const acomptePct = Number((devis as { acompte_pct?: number }).acompte_pct ?? 50);
   const acompte = Number(devis.acompte_ttc ?? (totalTtc * acomptePct) / 100);
   const solde = totalTtc - acompte;
+  // Preuve de signature (si le devis a été signé électroniquement).
+  const signed = devis as unknown as {
+    signed_at?: string | null;
+    signed_by_name?: string | null;
+    signed_by_phone?: string | null;
+  };
+  const isSigned = Boolean(signed.signed_at && signed.signed_by_name);
 
   const visibleLines = hideMeasurements
     ? lines.map((l) => ({ ...l, detail: stripMeasurements(l.detail) }))
@@ -464,28 +452,25 @@ export function DevisPDF({
       subject={`Devis pour ${client?.display_name ?? ""}`}
     >
       <Page size="A4" style={styles.page}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.brand}>
-            <Text style={styles.brandName}>Atmosphère.</Text>
-          </View>
-          <View style={styles.meta}>
-            <Text style={styles.metaLabel}>Devis</Text>
-            <Text style={styles.metaValue}>{devis.number}</Text>
-            <Text style={styles.metaDate}>
-              Version {devis.version} · {date(devis.created_at)}
-            </Text>
-          </View>
-        </View>
+        <PdfHeader
+          label="Devis"
+          number={devis.number}
+          subtitle={`Version ${devis.version} · ${date(devis.created_at)}`}
+        />
 
         {/* Émetteur + Client */}
         <View style={styles.twoCol}>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>Émetteur</Text>
-            <Text style={styles.blockBody}>Atmosphère Tissus</Text>
-            <Text style={styles.blockSub}>33 cours du Maréchal Foch</Text>
-            <Text style={styles.blockSub}>33000 Bordeaux</Text>
-            <Text style={styles.blockSub}>contact@atmospheretissus.fr</Text>
+            <Text style={styles.blockBody}>{COMPANY.brand}</Text>
+            <Text style={styles.blockSub}>{COMPANY.addressLine1}</Text>
+            {COMPANY.addressLine2 ? (
+              <Text style={styles.blockSub}>{COMPANY.addressLine2}</Text>
+            ) : null}
+            <Text style={styles.blockSub}>
+              {COMPANY.postalCode} {COMPANY.city}
+            </Text>
+            <Text style={styles.blockSub}>{COMPANY.email}</Text>
           </View>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>Client</Text>
@@ -596,6 +581,22 @@ export function DevisPDF({
           </View>
         </View>
 
+        {/* Modalités de règlement + coordonnées bancaires */}
+        <ModalitesReglementBlock
+          acomptePct={acomptePct}
+          acompteTtc={acompte}
+          eur={eur}
+        />
+
+        {/* Preuve de signature électronique (si signé) */}
+        {isSigned && signed.signed_at && signed.signed_by_name ? (
+          <SignatureEvidenceBlock
+            signedAt={signed.signed_at}
+            signedByName={signed.signed_by_name}
+            signedByPhone={signed.signed_by_phone ?? null}
+          />
+        ) : null}
+
         {/* Notes atelier — optionnel */}
         {devis.workshop_notes && (
           <View style={{ marginTop: 18 }}>
@@ -604,154 +605,11 @@ export function DevisPDF({
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.footer} fixed>
-          <Text>
-            Atmosphère Tissus · SAS · 33 cours du Maréchal Foch, 33000 Bordeaux
-          </Text>
-          <Text>
-            {devis.number} — Page <Text render={({ pageNumber, totalPages }) => `${pageNumber}/${totalPages}`} />
-          </Text>
-        </View>
+        <PdfLegalFooter docNumber={devis.number} />
       </Page>
 
-      {/* Conditions Générales de Vente */}
-      <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <View style={styles.brand}>
-            <Text style={styles.brandName}>Atmosphère.</Text>
-          </View>
-          <View style={styles.meta}>
-            <Text style={styles.metaLabel}>Annexe au devis</Text>
-            <Text style={styles.metaValue}>CGV</Text>
-            <Text style={styles.metaDate}>{devis.number}</Text>
-          </View>
-        </View>
-
-        <Text
-          style={{
-            fontSize: FONT_SIZE.h2,
-            fontFamily: "Helvetica-Bold",
-            color: COLORS.ink,
-            lineHeight: 1.15,
-            marginBottom: SPACING.md,
-          }}
-        >
-          Conditions Générales de Vente
-        </Text>
-
-        <CgvSection
-          number="1"
-          title="Objet et champ d'application"
-          body="Les présentes Conditions Générales de Vente (CGV) régissent les ventes de produits et prestations sur mesure (rideaux, stores, voilages, accessoires, pose et confection) réalisées par Atmosphère Tissus auprès de ses clients particuliers ou professionnels. Toute commande implique l'acceptation pleine et entière des présentes CGV."
-        />
-        <CgvSection
-          number="2"
-          title="Devis"
-          body={`Le devis remis au client est valable trente (30) jours à compter de sa date d'émission. Au-delà, les prix indiqués peuvent être révisés. Toute commande devient ferme à la signature du devis par le client et au versement de l'acompte indiqué (généralement 50 %). Les côtes mentionnées sont relevées par le client ou par Atmosphère Tissus à titre indicatif ; toute prise de mesure définitive engage la responsabilité de la partie qui l'a effectuée.`}
-        />
-        <CgvSection
-          number="3"
-          title="Acompte, solde et règlement"
-          body="La commande est validée à réception de l'acompte (ou de la totalité si paiement intégral indiqué). Le solde est exigible avant la pose ou à la livraison. Modes de règlement acceptés : carte bancaire, virement, chèque, espèces (dans la limite des plafonds légaux). Tout retard de paiement entraîne de plein droit, dès l'échéance, des pénalités au taux annuel de trois fois le taux d'intérêt légal, ainsi qu'une indemnité forfaitaire pour frais de recouvrement de 40 €."
-        />
-        <CgvSection
-          number="4"
-          title="Délais et exécution"
-          body="Les délais de fabrication et de pose sont communiqués à titre indicatif. Atmosphère Tissus met tout en œuvre pour les respecter mais ne peut être tenue responsable des retards causés par les fournisseurs, transporteurs, événements de force majeure ou retards de prise de mesure / réception de matériel. Les retards ne sauraient ouvrir droit à des pénalités ou à l'annulation de la commande."
-        />
-        <CgvSection
-          number="5"
-          title="Livraison et pose"
-          body="La pose à domicile est facturée selon le devis. Le client s'engage à rendre les locaux accessibles et libres de tout obstacle le jour convenu. En cas d'impossibilité de poser le jour prévu du fait du client, un nouveau rendez-vous sera planifié et un éventuel surcoût de déplacement pourra être facturé."
-        />
-        <CgvSection
-          number="6"
-          title="Réserves et réclamations"
-          body="Lors de la livraison / pose, le client est tenu de vérifier la conformité des produits. Toute réserve doit être formulée par écrit dans les huit (8) jours suivant la livraison. Au-delà, les produits sont considérés comme acceptés."
-        />
-        <CgvSection
-          number="7"
-          title="Garantie"
-          body="Les produits bénéficient de la garantie légale de conformité (articles L. 217-4 et s. du Code de la consommation) et de la garantie des vices cachés (articles 1641 et s. du Code civil). La garantie ne s'applique pas aux dommages résultant d'une utilisation non conforme, d'un entretien inadapté ou d'une modification effectuée par le client ou un tiers."
-        />
-        <CgvSection
-          number="8"
-          title="Réserve de propriété"
-          body="Les produits livrés demeurent la propriété d'Atmosphère Tissus jusqu'au paiement intégral du prix par le client. À ce titre, en cas de défaut de paiement, Atmosphère Tissus se réserve le droit d'en exiger la restitution."
-        />
-        <CgvSection
-          number="9"
-          title="Rétractation"
-          body="Conformément à l'article L. 221-28 du Code de la consommation, le droit de rétractation ne peut être exercé pour les produits confectionnés sur mesure ou nettement personnalisés. Le client renonce expressément à ce droit en validant la commande."
-        />
-        <CgvSection
-          number="10"
-          title="Données personnelles"
-          body="Les données collectées sont strictement nécessaires à la gestion de la commande et conservées pendant la durée légale. Conformément au RGPD, le client dispose d'un droit d'accès, de rectification et d'effacement de ses données. Pour exercer ce droit, écrire à contact@atmospheretissus.fr."
-        />
-        <CgvSection
-          number="11"
-          title="Litiges"
-          body="Les présentes CGV sont régies par le droit français. À défaut de règlement amiable, tout litige sera soumis au tribunal compétent du siège social d'Atmosphère Tissus."
-        />
-
-        <Text
-          style={{
-            marginTop: SPACING.xl,
-            fontSize: FONT_SIZE.small,
-            color: COLORS.textMuted,
-            lineHeight: 1.5,
-            fontStyle: "italic",
-          }}
-        >
-          La signature du devis vaut acceptation sans réserve des présentes CGV.
-        </Text>
-
-        <View style={styles.footer} fixed>
-          <Text>
-            Atmosphère Tissus · SAS · 33 cours du Maréchal Foch, 33000 Bordeaux
-          </Text>
-          <Text>
-            {devis.number} — CGV · Page <Text render={({ pageNumber, totalPages }) => `${pageNumber}/${totalPages}`} />
-          </Text>
-        </View>
-      </Page>
+      {/* Annexe : CGV — texte fourni par Atmosphère */}
+      <CgvPage docNumber={devis.number} />
     </Document>
-  );
-}
-
-function CgvSection({
-  number,
-  title,
-  body,
-}: {
-  number: string;
-  title: string;
-  body: string;
-}) {
-  return (
-    <View style={{ marginBottom: SPACING.md }} wrap={false}>
-      <Text
-        style={{
-          fontSize: FONT_SIZE.body,
-          fontFamily: "Helvetica-Bold",
-          color: COLORS.ink,
-          lineHeight: 1.35,
-          marginBottom: 3,
-        }}
-      >
-        {number}. {title}
-      </Text>
-      <Text
-        style={{
-          fontSize: FONT_SIZE.body,
-          color: COLORS.text,
-          lineHeight: 1.55,
-        }}
-      >
-        {body}
-      </Text>
-    </View>
   );
 }

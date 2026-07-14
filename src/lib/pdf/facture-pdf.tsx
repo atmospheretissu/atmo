@@ -7,7 +7,15 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { Database } from "@/lib/supabase/types";
-import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
+import {
+  COLORS,
+  PAGE,
+  TYPE,
+  SPACING,
+  FONT_SIZE,
+  COMPANY,
+} from "./pdf-design";
+import { PdfHeader, PdfLegalFooter, CgvPage } from "./pdf-shared";
 
 type Devis = Database["public"]["Tables"]["devis"]["Row"];
 type Client = Database["public"]["Tables"]["clients"]["Row"];
@@ -32,25 +40,6 @@ const date = (d: string | null | Date) =>
 
 const styles = StyleSheet.create({
   page: { ...PAGE },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: SPACING.xl,
-    paddingBottom: SPACING.md,
-    borderBottom: `0.5px solid ${COLORS.border}`,
-  },
-  brand: { flexDirection: "column" },
-  brandName: TYPE.wordmark,
-  meta: { textAlign: "right" },
-  metaLabel: TYPE.eyebrow,
-  metaValue: { ...TYPE.h3, marginTop: SPACING.xs },
-  metaDate: {
-    fontSize: FONT_SIZE.small,
-    color: COLORS.textMuted,
-    marginTop: 3,
-    lineHeight: 1.3,
-  },
   twoCol: { flexDirection: "row", gap: SPACING.xl, marginBottom: SPACING.xl },
   col: { flex: 1 },
   blockTitle: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
@@ -66,12 +55,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     border: `0.5px solid ${COLORS.border}`,
   },
-  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.sm },
-  heroValue: TYPE.heroNumber,
+  heroLabel: { ...TYPE.eyebrow, marginBottom: SPACING.md },
+  // NOTE: sur les gros nombres, on force paddingBottom pour éviter que la
+  // ligne "heroSub" chevauche la queue des chiffres (bug @react-pdf sur
+  // les baselines des Text de fontSize > 24).
+  heroValue: { ...TYPE.heroNumber, paddingBottom: 4 },
   heroSub: {
     fontSize: FONT_SIZE.body,
     color: COLORS.textMuted,
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     lineHeight: 1.4,
   },
   summary: {
@@ -160,19 +152,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
     lineHeight: 1.4,
   },
-  footer: {
-    position: "absolute",
-    bottom: 24,
-    left: PAGE.paddingHorizontal,
-    right: PAGE.paddingHorizontal,
-    paddingTop: SPACING.sm,
-    borderTop: `0.5px solid ${COLORS.border}`,
-    fontSize: FONT_SIZE.micro,
-    color: COLORS.textFaint,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    lineHeight: 1.4,
-  },
 });
 
 export function FacturePDF({
@@ -213,30 +192,25 @@ export function FacturePDF({
       subject={`${title} pour ${client?.display_name ?? ""}`}
     >
       <Page size="A4" style={styles.page}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.brand}>
-            <Text style={styles.brandName}>Atmosphère.</Text>
-          </View>
-          <View style={styles.meta}>
-            <Text style={styles.metaLabel}>
-              {isAcompte ? "Facture acompte" : "Facture de solde"}
-            </Text>
-            <Text style={styles.metaValue}>{invoiceNumber}</Text>
-            <Text style={styles.metaDate}>
-              {date(paidAt ?? new Date())}
-            </Text>
-          </View>
-        </View>
+        <PdfHeader
+          label={isAcompte ? "Facture acompte" : "Facture de solde"}
+          number={invoiceNumber}
+          subtitle={date(paidAt ?? new Date())}
+        />
 
         {/* Émetteur + Client */}
         <View style={styles.twoCol}>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>Émetteur</Text>
-            <Text style={styles.blockBody}>Atmosphère Tissus</Text>
-            <Text style={styles.blockSub}>33 cours du Maréchal Foch</Text>
-            <Text style={styles.blockSub}>33000 Bordeaux</Text>
-            <Text style={styles.blockSub}>contact@atmospheretissus.fr</Text>
+            <Text style={styles.blockBody}>{COMPANY.brand}</Text>
+            <Text style={styles.blockSub}>{COMPANY.addressLine1}</Text>
+            {COMPANY.addressLine2 ? (
+              <Text style={styles.blockSub}>{COMPANY.addressLine2}</Text>
+            ) : null}
+            <Text style={styles.blockSub}>
+              {COMPANY.postalCode} {COMPANY.city}
+            </Text>
+            <Text style={styles.blockSub}>{COMPANY.email}</Text>
           </View>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>Client</Text>
@@ -331,17 +305,11 @@ export function FacturePDF({
           </View>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer} fixed>
-          <Text>
-            Atmosphère Tissus · SAS · 33 cours du Maréchal Foch, 33000 Bordeaux
-          </Text>
-          <Text>
-            {invoiceNumber} — Page{" "}
-            <Text render={({ pageNumber, totalPages }) => `${pageNumber}/${totalPages}`} />
-          </Text>
-        </View>
+        <PdfLegalFooter docNumber={invoiceNumber} />
       </Page>
+
+      {/* Annexe : CGV — obligatoire sur facture d'acompte ET de solde */}
+      <CgvPage docNumber={invoiceNumber} />
     </Document>
   );
 }

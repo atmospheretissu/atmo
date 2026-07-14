@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
     publicRoutes.includes(pathname) ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/paiement/") ||
+    pathname.startsWith("/sign/") ||
     pathname.startsWith("/client/") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/stripe/webhook") ||

@@ -6,7 +6,15 @@ import {
   StyleSheet,
 } from "@react-pdf/renderer";
 import type { BCDetail } from "@/lib/db/bons-commande";
-import { COLORS, PAGE, TYPE, SPACING, FONT_SIZE } from "./pdf-design";
+import {
+  COLORS,
+  PAGE,
+  TYPE,
+  SPACING,
+  FONT_SIZE,
+  COMPANY,
+} from "./pdf-design";
+import { PdfHeader, PdfLegalFooter } from "./pdf-shared";
 
 const eur = (n: number) =>
   new Intl.NumberFormat("fr-FR", {
@@ -233,29 +241,30 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
       subject={`Bon de commande ${bc.number}`}
     >
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <View style={styles.brand}>
-            <Text style={styles.brandName}>Atmosphère.</Text>
-          </View>
-          <View style={styles.meta}>
-            <Text style={styles.metaLabel}>{t.poDocument}</Text>
-            <Text style={styles.metaValue}>{bc.number}</Text>
-            <Text style={styles.metaDate}>{date(bc.created_at)}</Text>
-            {dossier?.number && (
-              <Text style={styles.metaDate}>
-                {lang === "FR" ? "Confection" : "Ref."} {dossier.number}
-              </Text>
-            )}
-          </View>
-        </View>
+        <PdfHeader
+          label={t.poDocument}
+          number={bc.number}
+          subtitle={
+            dossier?.number
+              ? `${date(bc.created_at)} · ${
+                  lang === "FR" ? "Confection" : "Ref."
+                } ${dossier.number}`
+              : (date(bc.created_at) ?? undefined)
+          }
+        />
 
         <View style={styles.twoCol}>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>{t.buyer}</Text>
-            <Text style={styles.blockBody}>Atmosphère Tissus</Text>
-            <Text style={styles.blockSub}>33 cours du Maréchal Foch</Text>
-            <Text style={styles.blockSub}>33000 Bordeaux — France</Text>
-            <Text style={styles.blockSub}>contact@atmospheretissus.fr</Text>
+            <Text style={styles.blockBody}>{COMPANY.brand}</Text>
+            <Text style={styles.blockSub}>{COMPANY.addressLine1}</Text>
+            {COMPANY.addressLine2 ? (
+              <Text style={styles.blockSub}>{COMPANY.addressLine2}</Text>
+            ) : null}
+            <Text style={styles.blockSub}>
+              {COMPANY.postalCode} {COMPANY.city} — {COMPANY.country}
+            </Text>
+            <Text style={styles.blockSub}>{COMPANY.email}</Text>
           </View>
           <View style={styles.col}>
             <Text style={styles.blockTitle}>{t.supplier}</Text>
@@ -342,17 +351,7 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
           <Text style={{ fontSize: 9, color: "#374151" }}>{t.thanks}</Text>
         </View>
 
-        <View style={styles.footer} fixed>
-          <Text>
-            Atmosphère Tissus · SAS · 33 cours du Maréchal Foch, 33000 Bordeaux
-          </Text>
-          <Text>
-            {bc.number} —{" "}
-            <Text
-              render={({ pageNumber, totalPages }) => t.pageOf(pageNumber, totalPages)}
-            />
-          </Text>
-        </View>
+        <PdfLegalFooter docNumber={bc.number} />
       </Page>
     </Document>
   );

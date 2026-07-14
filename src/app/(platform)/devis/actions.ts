@@ -203,6 +203,37 @@ export async function markAcompteRecuAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, errors: {}, message: "Session expirée." };
 
+  // 0. Signature obligatoire : un devis n'est validé que si signé ET
+  //    l'acompte reçu (cf. spec Atmosphère du 14/07/2026).
+  const { data: sig } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        select: (s: string) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => {
+            maybeSingle: () => Promise<{
+              data: { signed_at: string | null } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
+    .from("devis")
+    .select("signed_at")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (!sig?.signed_at) {
+    return {
+      ok: false,
+      errors: {},
+      message:
+        "Le devis n'a pas encore été signé électroniquement par le client. Envoie-lui le lien de signature avant d'encaisser l'acompte.",
+    };
+  }
+
   // 1. Update status
   const { error: e1 } = await supabase
     .from("devis")

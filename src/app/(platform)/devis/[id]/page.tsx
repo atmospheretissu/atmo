@@ -25,6 +25,7 @@ import { NextStepDevisBanner } from "@/components/devis/next-step-devis";
 import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
 import { StripeCheckoutButton } from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
+import { SignatureCard } from "@/components/devis/signature-card";
 import { SourceBadgeSelector } from "@/components/devis/source-badge-selector";
 import { listSources, resolveSourceLabel } from "@/lib/db/sources";
 import { getDevisDetail } from "@/lib/db/devis";
@@ -188,8 +189,39 @@ export default async function DevisDetailPage({
             hasDossier={Boolean(dossier)}
             dossierId={dossier?.id ?? null}
             clientHasEmail={Boolean(client?.email)}
+            signed={Boolean(
+              (devis as unknown as { signed_at?: string | null }).signed_at,
+            )}
           />
         </section>
+
+        {/* Signature électronique */}
+        {(() => {
+          const d = devis as unknown as {
+            signature_token?: string | null;
+            signed_at?: string | null;
+            signed_by_name?: string | null;
+            signed_by_phone?: string | null;
+            signed_by_ip?: string | null;
+          };
+          const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL ??
+            (process.env.RAILWAY_PUBLIC_DOMAIN
+              ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+              : "https://atmospheretissus.fr");
+          return (
+            <section className="px-8 pb-6">
+              <SignatureCard
+                signatureToken={d.signature_token ?? null}
+                signedAt={d.signed_at ?? null}
+                signedByName={d.signed_by_name ?? null}
+                signedByPhone={d.signed_by_phone ?? null}
+                signedByIp={d.signed_by_ip ?? null}
+                publicBaseUrl={baseUrl}
+              />
+            </section>
+          );
+        })()}
 
         <div className="px-8 pb-10 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
           <div className="space-y-6 min-w-0">

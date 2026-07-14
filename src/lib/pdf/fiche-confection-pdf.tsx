@@ -587,8 +587,8 @@ export function FicheConfectionPDF({
         {/* Footer */}
         <View style={styles.footer} fixed>
           <Text>
-            Atmosphère Tissus · 33 cours du Maréchal Foch, 33000 Bordeaux · Vérifier les mesures
-            avant fabrication
+            Atmosphère Tissus · 1 rue de l&apos;Union, 59520 Marquette-lez-Lille ·
+            Vérifier les mesures avant fabrication
           </Text>
           <Text>
             {dossier.number} ·{" "}
