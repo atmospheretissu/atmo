@@ -138,7 +138,7 @@ export default async function SignDevisPage({
                 Merci, votre signature a bien été enregistrée
               </h2>
               <p className="text-[13.5px] text-muted">
-                Signé par{" "}
+                Attestation Atmosphère : signé par{" "}
                 <strong className="text-ink">{signed.signed_by_name}</strong>{" "}
                 le{" "}
                 {new Intl.DateTimeFormat("fr-FR", {

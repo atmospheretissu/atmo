@@ -9,9 +9,9 @@ export type SignatureResult =
   | { ok: false; message: string };
 
 /**
- * Enregistre la signature électronique du devis identifié par son token.
- * - Le nom saisi devient la preuve visuelle (affiché comme le bandeau
- *   Yousign).
+ * Enregistre l'attestation de signature électronique du devis identifié
+ * par son token — attestation interne à l'outil (pas de tiers externe).
+ * - Le nom + horodatage + IP constituent la preuve.
  * - L'IP est loggée pour l'audit RGPD.
  * - Une fois signé, on ne peut plus re-signer (idempotence).
  * - La transition vers "acompte_recu" reste conditionnée au marquage

@@ -5,9 +5,10 @@ import { Check, Copy, ExternalLink, PenLine } from "lucide-react";
 
 /**
  * Bloc « Signature électronique » affiché sur la fiche devis.
+ * Attestation interne à l'outil — aucun tiers externe.
  * - Non signé  : affiche le lien de signature à copier / ouvrir dans un
  *                nouvel onglet pour l'envoyer au client.
- * - Signé      : preuve visuelle (nom, date, téléphone, IP) type Yousign.
+ * - Signé      : attestation visuelle (nom, date, téléphone, IP).
  */
 export function SignatureCard({
   signatureToken,
@@ -53,7 +54,7 @@ export function SignatureCard({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-semibold text-emerald-strong">
-              Ce document a été signé en ligne
+              Attestation de signature électronique
             </p>
             <p className="text-[12.5px] text-ink-2 mt-0.5">
               Le <strong className="text-ink">{d}</strong>

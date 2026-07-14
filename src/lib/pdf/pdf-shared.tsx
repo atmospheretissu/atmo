@@ -263,8 +263,8 @@ export function CgvPage({ docNumber }: { docNumber: string }) {
 }
 
 /**
- * Bloc « preuve de signature » — style Yousign / Axonaut.
- * Affiché sur le devis quand une signature électronique a été capturée.
+ * Bloc « attestation de signature électronique » interne à Atmosphère.
+ * Affiché sur le devis quand une signature a été capturée (aucun tiers).
  */
 export function SignatureEvidenceBlock({
   signedAt,
@@ -314,7 +314,7 @@ export function SignatureEvidenceBlock({
             lineHeight: 1.4,
           }}
         >
-          Ce document a été signé électroniquement
+          Attestation de signature électronique
         </Text>
         <Text
           style={{
