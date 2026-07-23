@@ -174,7 +174,9 @@ export async function createBoutiqueDevisAction(
  * max 30 résultats actifs.
  */
 export async function searchCatalogProductsAction(
-  query: string
+  opts:
+    | string
+    | { q?: string; category?: string | null; supplier?: string | null },
 ): Promise<Array<{
   reference: string;
   nom: string;
@@ -182,11 +184,16 @@ export async function searchCatalogProductsAction(
   prix: number | null;
   fournisseur: string;
 }>> {
-  if (!query || query.length < 2) return [];
+  const params = typeof opts === "string" ? { q: opts } : opts ?? {};
+  const q = (params.q ?? "").trim();
+  const category = params.category ?? null;
+  const supplier = params.supplier ?? null;
+  const hasFilter = Boolean(category || supplier);
+  const hasQuery = q.length >= 2;
+  if (!hasFilter && !hasQuery) return [];
+
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const term = query.trim();
-  // Cast : supplier_name pas encore dans Database (typegen à refaire).
   type Row = {
     ref: string;
     name: string;
@@ -194,30 +201,28 @@ export async function searchCatalogProductsAction(
     unit_price_ht: number | string | null;
     supplier_name: string | null;
   };
-  const client = supabase as unknown as {
-    from: (t: string) => {
-      select: (s: string) => {
-        eq: (
-          c: string,
-          v: unknown,
-        ) => {
-          or: (
-            f: string,
-          ) => {
-            limit: (n: number) => Promise<{ data: Row[] | null }>;
-          };
-        };
-      };
-    };
+  type QueryChain = {
+    eq: (c: string, v: unknown) => QueryChain;
+    or: (f: string) => QueryChain;
+    order: (c: string, o: { ascending: boolean }) => QueryChain;
+    limit: (n: number) => Promise<{ data: Row[] | null }>;
   };
-  const { data } = await client
+  let qb = (
+    supabase as unknown as {
+      from: (t: string) => { select: (s: string) => QueryChain };
+    }
+  )
     .from("catalog_products")
     .select("ref, name, description, unit_price_ht, supplier_name")
-    .eq("active", true)
-    .or(
-      `ref.ilike.%${term}%,name.ilike.%${term}%,supplier_name.ilike.%${term}%`,
-    )
-    .limit(30);
+    .eq("active", true) as QueryChain;
+  if (category) qb = qb.eq("category", category);
+  if (supplier) qb = qb.eq("supplier_name", supplier);
+  if (hasQuery) {
+    qb = qb.or(
+      `ref.ilike.%${q}%,name.ilike.%${q}%,supplier_name.ilike.%${q}%`,
+    );
+  }
+  const { data } = await qb.order("name", { ascending: true }).limit(30);
   return (data ?? []).map((p) => ({
     reference: p.ref,
     nom: p.name,
@@ -225,4 +230,36 @@ export async function searchCatalogProductsAction(
     prix: p.unit_price_ht == null ? null : Number(p.unit_price_ht),
     fournisseur: p.supplier_name ?? "",
   }));
+}
+
+/** Liste distincte catégories + fournisseurs pour peupler les filtres UI. */
+export async function listBoutiqueCatalogFacetsAction(): Promise<{
+  categories: string[];
+  suppliers: string[];
+}> {
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const rpc = supabase as unknown as {
+    rpc: (
+      name: string,
+    ) => Promise<{ data: { supplier_name: string }[] | null }>;
+  };
+  const { data: sups } = await rpc.rpc("distinct_catalog_suppliers");
+  const suppliers = ((sups ?? []) as { supplier_name: string }[])
+    .map((r) => r.supplier_name)
+    .filter(Boolean);
+  const { data: cats } = await supabase
+    .from("catalog_products")
+    .select("category")
+    .eq("active", true)
+    .limit(5000);
+  const categories = Array.from(
+    new Set(
+      (cats ?? [])
+        .map((c) => c.category)
+        .filter((c): c is string => Boolean(c && c !== "Autre")),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "fr"));
+  if ((cats ?? []).some((c) => c.category === "Autre")) categories.push("Autre");
+  return { categories, suppliers };
 }

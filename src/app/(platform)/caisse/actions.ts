@@ -45,44 +45,70 @@ type CatalogSearchRow = {
   supplier_name: string | null;
 };
 
+export type CaisseSearchResult = {
+  reference: string;
+  nom: string;
+  designation: string;
+  prix: number | null;
+  fournisseur: string;
+  type: string;
+};
+
+/**
+ * Recherche catalogue caisse.
+ * - Sans filtre ni requête : renvoie [] (browse manuel).
+ * - Avec filtre (catégorie / fournisseur) : renvoie top 40 alphabétique.
+ * - Avec requête ≥ 2 char : recherche plein-texte.
+ * - Combine les filtres et la recherche.
+ */
 export async function searchCaisseCatalogAction(
-  query: string
-): Promise<Array<{ reference: string; nom: string; designation: string; prix: number | null; fournisseur: string; type: string }>> {
-  if (!query || query.length < 2) return [];
+  opts:
+    | string
+    | {
+        q?: string;
+        category?: string | null;
+        supplier?: string | null;
+      },
+): Promise<CaisseSearchResult[]> {
+  const params =
+    typeof opts === "string" ? { q: opts } : opts ?? {};
+  const q = (params.q ?? "").trim();
+  const category = params.category ?? null;
+  const supplier = params.supplier ?? null;
+  const hasFilter = Boolean(category || supplier);
+  const hasQuery = q.length >= 2;
+  // Rien à filtrer et rien tapé : ne rien remonter (l'UI propose des chips).
+  if (!hasFilter && !hasQuery) return [];
+
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const term = query.trim();
-  // Cast : supplier_name n'est pas encore dans Database (typegen à refaire).
-  const client = supabase as unknown as {
-    from: (t: string) => {
-      select: (s: string) => {
-        eq: (c: string, v: unknown) => {
-          not: (
-            c: string,
-            op: string,
-            v: unknown,
-          ) => {
-            or: (
-              f: string,
-            ) => {
-              limit: (
-                n: number,
-              ) => Promise<{ data: CatalogSearchRow[] | null }>;
-            };
-          };
-        };
-      };
-    };
+
+  type QueryChain = {
+    eq: (c: string, v: unknown) => QueryChain;
+    not: (c: string, op: string, v: unknown) => QueryChain;
+    or: (f: string) => QueryChain;
+    order: (c: string, o: { ascending: boolean }) => QueryChain;
+    limit: (n: number) => Promise<{ data: CatalogSearchRow[] | null }>;
   };
-  const { data } = await client
+  let qb = (
+    supabase as unknown as {
+      from: (t: string) => { select: (s: string) => QueryChain };
+    }
+  )
     .from("catalog_products")
     .select("ref, name, category, description, unit_price_ht, supplier_name")
     .eq("active", true)
-    .not("unit_price_ht", "is", null)
-    .or(
-      `ref.ilike.%${term}%,name.ilike.%${term}%,supplier_name.ilike.%${term}%`,
-    )
-    .limit(40);
+    .not("unit_price_ht", "is", null) as QueryChain;
+
+  if (category) qb = qb.eq("category", category);
+  if (supplier) qb = qb.eq("supplier_name", supplier);
+  if (hasQuery) {
+    qb = qb.or(
+      `ref.ilike.%${q}%,name.ilike.%${q}%,supplier_name.ilike.%${q}%`,
+    );
+  }
+  const { data } = await qb.order("name", { ascending: true }).limit(40);
+
   return (data ?? []).map((p) => ({
     reference: p.ref,
     nom: p.name,
@@ -91,6 +117,46 @@ export async function searchCaisseCatalogAction(
     fournisseur: p.supplier_name ?? "",
     type: p.category,
   }));
+}
+
+/**
+ * Renvoie les valeurs distinctes de catégories et fournisseurs pour peupler
+ * les filtres UI. Cache côté client — appelée une seule fois au montage.
+ */
+export async function listCaisseCatalogFacetsAction(): Promise<{
+  categories: string[];
+  suppliers: string[];
+}> {
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  // Suppliers via la RPC (efficace, DISTINCT côté DB).
+  const rpc = supabase as unknown as {
+    rpc: (
+      name: string,
+    ) => Promise<{ data: { supplier_name: string }[] | null }>;
+  };
+  const { data: sups } = await rpc.rpc("distinct_catalog_suppliers");
+  const suppliers = ((sups ?? []) as { supplier_name: string }[])
+    .map((r) => r.supplier_name)
+    .filter(Boolean);
+
+  // Catégories : distinct en JS (2k rows max).
+  const { data: cats } = await supabase
+    .from("catalog_products")
+    .select("category")
+    .eq("active", true)
+    .limit(5000);
+  const categories = Array.from(
+    new Set(
+      (cats ?? [])
+        .map((c) => c.category)
+        .filter((c): c is string => Boolean(c && c !== "Autre")),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "fr"));
+  // "Autre" en fin de liste si présent.
+  if ((cats ?? []).some((c) => c.category === "Autre")) categories.push("Autre");
+
+  return { categories, suppliers };
 }
 
 export async function closeCashRegisterAction(

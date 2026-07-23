@@ -27,6 +27,7 @@ import {
   searchCaisseCatalogAction,
   closeCashRegisterAction,
   searchClientsForCaisseAction,
+  listCaisseCatalogFacetsAction,
 } from "./actions";
 import type {
   TodayStats,
@@ -89,6 +90,10 @@ export default function CaisseClient({
 }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [discount, setDiscount] = useState(0);
@@ -116,22 +121,37 @@ export default function CaisseClient({
   const tva = totalHt * (TVA_RATE / 100);
   const totalTtc = totalHt + tva;
 
+  // Charge les facets au montage (catégories + fournisseurs).
   useEffect(() => {
-    if (!query || query.length < 2) {
+    listCaisseCatalogFacetsAction().then((f) => {
+      setCategories(f.categories);
+      setSuppliers(f.suppliers);
+    });
+  }, []);
+
+  const hasFilter = Boolean(catFilter || supplierFilter);
+  const hasQuery = query.length >= 2;
+
+  useEffect(() => {
+    if (!hasFilter && !hasQuery) {
       setResults([]);
       return;
     }
     setSearching(true);
     const t = setTimeout(async () => {
       try {
-        const r = await searchCaisseCatalogAction(query);
+        const r = await searchCaisseCatalogAction({
+          q: query,
+          category: catFilter,
+          supplier: supplierFilter,
+        });
         setResults(r);
       } finally {
         setSearching(false);
       }
     }, 220);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, catFilter, supplierFilter, hasFilter, hasQuery]);
 
   const addItem = (p: SearchResult) => {
     if (p.prix == null) return;
@@ -343,19 +363,44 @@ export default function CaisseClient({
 
         <section className="px-8 pb-10 grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6 items-start">
           <div className="space-y-4 min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[240px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2" strokeWidth={2.2} />
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Référence, nom produit, fournisseur…"
+                  placeholder="Chercher (référence, nom, fournisseur)…"
                   className="pl-9 rounded-lg bg-white h-10 text-[13.5px]"
                 />
                 {searching && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2 animate-spin" />
                 )}
               </div>
+              <select
+                value={catFilter ?? ""}
+                onChange={(e) => setCatFilter(e.target.value || null)}
+                className="h-10 rounded-lg border border-line bg-white px-3 text-[13px] text-ink"
+              >
+                <option value="">Toutes catégories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={supplierFilter ?? ""}
+                onChange={(e) => setSupplierFilter(e.target.value || null)}
+                className="h-10 rounded-lg border border-line bg-white px-3 text-[13px] text-ink max-w-[200px]"
+                disabled={suppliers.length === 0}
+              >
+                <option value="">Tous fournisseurs</option>
+                {suppliers.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={() => setFreeLineOpen(true)}
                 className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-line bg-white hover:border-line-strong text-[12.5px] font-semibold text-ink-2 whitespace-nowrap"
@@ -365,16 +410,110 @@ export default function CaisseClient({
               </button>
             </div>
 
-            {query.length < 2 ? (
-              <Card className="py-16 px-6 text-center">
-                <p className="text-[13px] text-muted">
-                  Tape une référence ou un nom de produit pour rechercher dans le catalogue (47 000+ produits).
+            {(catFilter || supplierFilter || hasQuery) && (
+              <div className="flex items-center gap-2 flex-wrap text-[12px]">
+                <span className="text-muted-2">Filtres actifs :</span>
+                {hasQuery && (
+                  <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md bg-canvas-2 border border-line text-ink-2">
+                    « {query} »
+                  </span>
+                )}
+                {catFilter && (
+                  <span className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-md bg-violet-soft text-violet-strong border border-violet/20">
+                    {catFilter}
+                    <button
+                      onClick={() => setCatFilter(null)}
+                      className="hover:text-ink"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                {supplierFilter && (
+                  <span className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-md bg-blue-soft text-blue border border-blue/20">
+                    {supplierFilter}
+                    <button
+                      onClick={() => setSupplierFilter(null)}
+                      className="hover:text-ink"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    setQuery("");
+                    setCatFilter(null);
+                    setSupplierFilter(null);
+                  }}
+                  className="text-muted hover:text-ink underline ml-1"
+                >
+                  Tout effacer
+                </button>
+              </div>
+            )}
+
+            {!hasFilter && !hasQuery ? (
+              <Card className="py-10 px-6">
+                <p className="text-[13.5px] text-ink font-medium mb-2 text-center">
+                  Parcourir le catalogue (~45 000 produits)
                 </p>
+                <p className="text-[12px] text-muted mb-5 text-center">
+                  Filtre par catégorie ou fournisseur, ou tape 2+ caractères
+                  pour rechercher.
+                </p>
+                {categories.length > 0 && (
+                  <>
+                    <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 mb-2">
+                      Catégories populaires
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {categories.slice(0, 12).map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setCatFilter(c)}
+                          className="h-7 px-2.5 rounded-md text-[12px] font-medium bg-white border border-line hover:border-violet hover:text-violet transition-colors"
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {suppliers.length > 0 && (
+                  <>
+                    <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 mb-2">
+                      Fournisseurs
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {suppliers.slice(0, 20).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setSupplierFilter(s)}
+                          className="h-7 px-2.5 rounded-md text-[12px] font-medium bg-white border border-line hover:border-blue hover:text-blue transition-colors"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      {suppliers.length > 20 && (
+                        <span className="text-[11px] text-muted-2 self-center">
+                          + {suppliers.length - 20} autres (voir liste)
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
               </Card>
             ) : results.length === 0 && !searching ? (
               <Card className="py-12 px-6 text-center">
                 <p className="text-[13px] text-muted">
-                  Aucun produit trouvé pour <strong className="text-ink">&quot;{query}&quot;</strong>.
+                  Aucun produit trouvé{hasQuery && (
+                    <>
+                      {" "}
+                      pour <strong className="text-ink">&quot;{query}&quot;</strong>
+                    </>
+                  )}
+                  {(catFilter || supplierFilter) && " avec ces filtres"}.
                 </p>
               </Card>
             ) : (

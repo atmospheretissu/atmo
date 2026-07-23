@@ -8,7 +8,10 @@ import { Input, Label } from "@/components/ui/input";
 import { ColorChip } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
-import { searchCatalogProductsAction } from "@/app/(platform)/boutique/actions";
+import {
+  searchCatalogProductsAction,
+  listBoutiqueCatalogFacetsAction,
+} from "@/app/(platform)/boutique/actions";
 import { RideauForm } from "@/components/boutique/article-rideau-form";
 import { StoreForm } from "@/components/boutique/article-store-form";
 import { StoreEnrouleurForm } from "@/components/boutique/article-store-enrouleur-form";
@@ -259,6 +262,10 @@ function ProduitCatalogueForm({
   onAdd: (a: BoutiquePieceArticle) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [catFilter, setCatFilter] = useState<string | null>(null);
+  const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
   const [results, setResults] = useState<
     Array<{
       reference: string;
@@ -275,11 +282,29 @@ function ProduitCatalogueForm({
   const [searching, startSearch] = useTransition();
 
   useEffect(() => {
-    if (!query || query.length < 2 || selectedProduct) return;
+    listBoutiqueCatalogFacetsAction().then((f) => {
+      setCategories(f.categories);
+      setSuppliers(f.suppliers);
+    });
+  }, []);
+
+  const hasFilter = Boolean(catFilter || supplierFilter);
+  const hasQuery = query.length >= 2;
+
+  useEffect(() => {
+    if (selectedProduct) return;
+    if (!hasFilter && !hasQuery) {
+      setResults([]);
+      return;
+    }
     const t = setTimeout(() => {
       startSearch(async () => {
         try {
-          const r = await searchCatalogProductsAction(query);
+          const r = await searchCatalogProductsAction({
+            q: query,
+            category: catFilter,
+            supplier: supplierFilter,
+          });
           setResults(r);
         } catch {
           setResults([]);
@@ -287,7 +312,7 @@ function ProduitCatalogueForm({
       });
     }, 250);
     return () => clearTimeout(t);
-  }, [query, selectedProduct]);
+  }, [query, catFilter, supplierFilter, selectedProduct, hasFilter, hasQuery]);
 
   const finalPrice = overridePrice === "" ? selectedProduct?.prix ?? 0 : Number(overridePrice);
 
@@ -313,37 +338,94 @@ function ProduitCatalogueForm({
     <div className="p-5 max-h-[70vh] overflow-y-auto">
       {!selectedProduct ? (
         <>
-          <Label>Chercher un produit (47 066 références)</Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2" strokeWidth={2.2} />
-            <Input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Nom, référence (ex: ARCR), fournisseur (CAD, Casamance)…"
-              className="pl-9"
-            />
+          <Label>Catalogue produits (~45 000 références)</Label>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2" strokeWidth={2.2} />
+              <Input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Chercher (référence, nom, fournisseur)…"
+                className="pl-9"
+              />
+            </div>
+            <select
+              value={catFilter ?? ""}
+              onChange={(e) => setCatFilter(e.target.value || null)}
+              className="h-9 rounded-md border border-line-strong bg-white px-3 text-[13px] text-ink"
+            >
+              <option value="">Toutes catégories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select
+              value={supplierFilter ?? ""}
+              onChange={(e) => setSupplierFilter(e.target.value || null)}
+              className="h-9 rounded-md border border-line-strong bg-white px-3 text-[13px] text-ink max-w-[180px]"
+              disabled={suppliers.length === 0}
+            >
+              <option value="">Tous fournisseurs</option>
+              {suppliers.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
           <p className="text-[11px] text-muted-2 mt-1.5">
-            Minimum 2 caractères · recherche live · max 30 résultats
+            Filtre par catégorie / fournisseur, ou tape pour chercher. Max 30 résultats.
           </p>
 
-          <div className="mt-3 max-h-[320px] overflow-y-auto border border-line rounded-md bg-white divide-y divide-line">
+          <div className="mt-3 max-h-[360px] overflow-y-auto border border-line rounded-md bg-white divide-y divide-line">
             {searching && (
               <div className="px-4 py-6 text-center text-[12.5px] text-muted-2 inline-flex items-center justify-center gap-2 w-full">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Recherche…
               </div>
             )}
-            {!searching && query.length < 2 && (
-              <div className="px-4 py-6 text-center text-[12.5px] text-muted-2">
-                Tape au moins 2 caractères pour chercher.
+            {!searching && !hasFilter && !hasQuery && (
+              <div className="px-4 py-6">
+                <p className="text-center text-[12.5px] text-muted-2 mb-3">
+                  Choisis une catégorie ou un fournisseur, ou tape 2+ caractères.
+                </p>
+                {categories.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 justify-center mb-3">
+                    {categories.slice(0, 10).map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setCatFilter(c)}
+                        className="h-7 px-2.5 rounded-md text-[11.5px] font-medium bg-canvas-2 border border-line hover:border-violet hover:text-violet transition-colors"
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {suppliers.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 justify-center">
+                    {suppliers.slice(0, 12).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setSupplierFilter(s)}
+                        className="h-6 px-2 rounded-md text-[11px] font-medium bg-white border border-line hover:border-blue hover:text-blue transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-            {!searching && query.length >= 2 && results.length === 0 && (
-              <div className="px-4 py-6 text-center text-[12.5px] text-muted-2">
-                Aucun produit trouvé pour "{query}".
-              </div>
-            )}
+            {!searching &&
+              (hasFilter || hasQuery) &&
+              results.length === 0 && (
+                <div className="px-4 py-6 text-center text-[12.5px] text-muted-2">
+                  Aucun produit trouvé avec ces filtres.
+                </div>
+              )}
             {!searching &&
               results.map((p) => (
                 <button
