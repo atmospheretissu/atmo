@@ -169,8 +169,9 @@ export async function createBoutiqueDevisAction(
 }
 
 /**
- * Recherche dans le catalogue produits (47k SKUs) — server-side pour ne pas
- * envoyer 6 MB au client. Retourne max 30 résultats.
+ * Recherche dans le catalogue produits (~45k SKUs) — sur la table
+ * public.catalog_products, éditable dans Paramètres > Data. Retourne
+ * max 30 résultats actifs.
  */
 export async function searchCatalogProductsAction(
   query: string
@@ -182,26 +183,46 @@ export async function searchCatalogProductsAction(
   fournisseur: string;
 }>> {
   if (!query || query.length < 2) return [];
-
-  // Import dynamique pour ne pas inclure les 6MB dans le bundle client
-  const { CATALOG_PRODUCTS } = await import("@/lib/boutique/products-catalog");
-  const q = query.toLowerCase();
-  const results: typeof CATALOG_PRODUCTS = [];
-  for (const p of CATALOG_PRODUCTS) {
-    if (
-      p.nom.toLowerCase().includes(q) ||
-      p.reference.toLowerCase().includes(q) ||
-      p.fournisseur.toLowerCase().includes(q)
-    ) {
-      results.push(p);
-      if (results.length >= 30) break;
-    }
-  }
-  return results.map((p) => ({
-    reference: p.reference,
-    nom: p.nom,
-    designation: p.designation,
-    prix: p.prix,
-    fournisseur: p.fournisseur,
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const term = query.trim();
+  // Cast : supplier_name pas encore dans Database (typegen à refaire).
+  type Row = {
+    ref: string;
+    name: string;
+    description: string | null;
+    unit_price_ht: number | string | null;
+    supplier_name: string | null;
+  };
+  const client = supabase as unknown as {
+    from: (t: string) => {
+      select: (s: string) => {
+        eq: (
+          c: string,
+          v: unknown,
+        ) => {
+          or: (
+            f: string,
+          ) => {
+            limit: (n: number) => Promise<{ data: Row[] | null }>;
+          };
+        };
+      };
+    };
+  };
+  const { data } = await client
+    .from("catalog_products")
+    .select("ref, name, description, unit_price_ht, supplier_name")
+    .eq("active", true)
+    .or(
+      `ref.ilike.%${term}%,name.ilike.%${term}%,supplier_name.ilike.%${term}%`,
+    )
+    .limit(30);
+  return (data ?? []).map((p) => ({
+    reference: p.ref,
+    nom: p.name,
+    designation: p.description ?? p.name,
+    prix: p.unit_price_ht == null ? null : Number(p.unit_price_ht),
+    fournisseur: p.supplier_name ?? "",
   }));
 }

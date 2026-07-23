@@ -36,31 +36,60 @@ export async function createTicketAction(
   }
 }
 
+type CatalogSearchRow = {
+  ref: string;
+  name: string;
+  category: string;
+  description: string | null;
+  unit_price_ht: number | string | null;
+  supplier_name: string | null;
+};
+
 export async function searchCaisseCatalogAction(
   query: string
 ): Promise<Array<{ reference: string; nom: string; designation: string; prix: number | null; fournisseur: string; type: string }>> {
   if (!query || query.length < 2) return [];
-  const { CATALOG_PRODUCTS } = await import("@/lib/boutique/products-catalog");
-  const q = query.toLowerCase();
-  const results: typeof CATALOG_PRODUCTS = [];
-  for (const p of CATALOG_PRODUCTS) {
-    if (p.prix == null) continue;
-    if (
-      p.nom.toLowerCase().includes(q) ||
-      p.reference.toLowerCase().includes(q) ||
-      p.fournisseur.toLowerCase().includes(q)
-    ) {
-      results.push(p);
-      if (results.length >= 40) break;
-    }
-  }
-  return results.map((p) => ({
-    reference: p.reference,
-    nom: p.nom,
-    designation: p.designation,
-    prix: p.prix,
-    fournisseur: p.fournisseur,
-    type: p.type,
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const term = query.trim();
+  // Cast : supplier_name n'est pas encore dans Database (typegen à refaire).
+  const client = supabase as unknown as {
+    from: (t: string) => {
+      select: (s: string) => {
+        eq: (c: string, v: unknown) => {
+          not: (
+            c: string,
+            op: string,
+            v: unknown,
+          ) => {
+            or: (
+              f: string,
+            ) => {
+              limit: (
+                n: number,
+              ) => Promise<{ data: CatalogSearchRow[] | null }>;
+            };
+          };
+        };
+      };
+    };
+  };
+  const { data } = await client
+    .from("catalog_products")
+    .select("ref, name, category, description, unit_price_ht, supplier_name")
+    .eq("active", true)
+    .not("unit_price_ht", "is", null)
+    .or(
+      `ref.ilike.%${term}%,name.ilike.%${term}%,supplier_name.ilike.%${term}%`,
+    )
+    .limit(40);
+  return (data ?? []).map((p) => ({
+    reference: p.ref,
+    nom: p.name,
+    designation: p.description ?? p.name,
+    prix: p.unit_price_ht == null ? null : Number(p.unit_price_ht),
+    fournisseur: p.supplier_name ?? "",
+    type: p.category,
   }));
 }
 

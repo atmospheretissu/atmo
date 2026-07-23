@@ -8,11 +8,17 @@ import type { CatalogProduct } from "@/components/parametres/catalog-tab";
 export async function searchCatalogPageAction(opts: {
   q?: string;
   category?: string | null;
+  supplier?: string | null;
+  source?: "atmo" | "external" | null;
   page?: number;
   pageSize?: number;
-}): Promise<{ products: CatalogProduct[]; total: number }> {
+}): Promise<{
+  products: CatalogProduct[];
+  total: number;
+  suppliers: string[];
+}> {
   const r = await listCatalogProductsPage(opts);
-  return { products: r.products, total: r.total };
+  return { products: r.products, total: r.total, suppliers: r.suppliers };
 }
 
 export type CatalogProductInput = {
@@ -20,7 +26,7 @@ export type CatalogProductInput = {
   name: string;
   category: string;
   description?: string | null;
-  unit_price_ht: number;
+  unit_price_ht: number | null;
   unit_label?: string;
   width_cm?: number | null;
   raccord_cm?: number | null;
@@ -28,6 +34,7 @@ export type CatalogProductInput = {
   stock_poland?: number;
   stock_ukraine?: number;
   active?: boolean;
+  supplier_name?: string | null;
 };
 
 function sanitize(input: CatalogProductInput): CatalogProductInput {
@@ -37,9 +44,11 @@ function sanitize(input: CatalogProductInput): CatalogProductInput {
     category: input.category.trim() || "Autre",
     description: input.description?.trim() || null,
     unit_price_ht:
-      Number.isFinite(input.unit_price_ht) && input.unit_price_ht >= 0
-        ? Math.round(input.unit_price_ht * 100) / 100
-        : 0,
+      input.unit_price_ht == null || !Number.isFinite(input.unit_price_ht)
+        ? null
+        : input.unit_price_ht < 0
+          ? 0
+          : Math.round(Number(input.unit_price_ht) * 100) / 100,
     unit_label: input.unit_label?.trim() || "u",
     width_cm: input.width_cm != null && Number.isFinite(input.width_cm) ? input.width_cm : null,
     raccord_cm:
@@ -50,6 +59,7 @@ function sanitize(input: CatalogProductInput): CatalogProductInput {
     stock_ukraine:
       Number.isFinite(input.stock_ukraine ?? 0) ? Math.max(0, Math.floor(input.stock_ukraine ?? 0)) : 0,
     active: input.active ?? true,
+    supplier_name: input.supplier_name?.trim() || null,
   };
 }
 
@@ -57,7 +67,8 @@ function validate(input: CatalogProductInput): string | null {
   if (!input.ref) return "Référence requise.";
   if (input.ref.length > 60) return "Référence trop longue.";
   if (!input.name) return "Nom requis.";
-  if (input.unit_price_ht < 0) return "Prix HT invalide.";
+  if (input.unit_price_ht != null && input.unit_price_ht < 0)
+    return "Prix HT invalide.";
   return null;
 }
 
@@ -69,7 +80,21 @@ export async function createCatalogProductAction(
   if (err) return { ok: false, message: err };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  // Cast : supplier_name / unit_price_ht nullable pas encore dans Database.
+  const { data, error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            maybeSingle: () => Promise<{
+              data: { id: string } | null;
+              error: { message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("catalog_products")
     .insert(clean)
     .select("id")
@@ -96,14 +121,28 @@ export async function updateCatalogProductAction(
   if (err) return { ok: false, message: err };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("catalog_products").update(clean).eq("id", id);
+  const { error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: unknown) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => Promise<{ error: { message?: string } | null }>;
+        };
+      };
+    }
+  )
+    .from("catalog_products")
+    .update(clean)
+    .eq("id", id);
   if (error) {
     return {
       ok: false,
       message:
-        error.message?.includes("duplicate")
+        (error.message ?? "").includes("duplicate")
           ? `Référence "${clean.ref}" déjà utilisée.`
-          : error.message,
+          : error.message ?? "Échec mise à jour",
     };
   }
   revalidatePath("/parametres");
@@ -281,14 +320,30 @@ export async function commitCsvImportAction(
       .eq("ref", clean.ref)
       .maybeSingle();
     if (existing) {
-      const { error } = await supabase
+      const { error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            update: (v: unknown) => {
+              eq: (c: string, v: string) => Promise<{ error: unknown }>;
+            };
+          };
+        }
+      )
         .from("catalog_products")
         .update(clean)
         .eq("id", existing.id);
       if (error) errors++;
       else updated++;
     } else {
-      const { error } = await supabase.from("catalog_products").insert(clean);
+      const { error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (v: unknown) => Promise<{ error: unknown }>;
+          };
+        }
+      )
+        .from("catalog_products")
+        .insert(clean);
       if (error) errors++;
       else created++;
     }

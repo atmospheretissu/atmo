@@ -38,7 +38,7 @@ export type CatalogProduct = {
   name: string;
   category: string;
   description: string | null;
-  unit_price_ht: number;
+  unit_price_ht: number | null;
   unit_label: string;
   width_cm: number | null;
   raccord_cm: number | null;
@@ -46,6 +46,8 @@ export type CatalogProduct = {
   stock_poland: number;
   stock_ukraine: number;
   active: boolean;
+  supplier_name: string | null;
+  catalog_source: "atmo" | "external";
 };
 
 const EMPTY: CatalogProductInput = {
@@ -61,6 +63,7 @@ const EMPTY: CatalogProductInput = {
   stock_poland: 0,
   stock_ukraine: 0,
   active: true,
+  supplier_name: "",
 };
 
 const CATEGORIES = [
@@ -104,6 +107,11 @@ export function CatalogTab({
   );
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState<string | "all">("all");
+  const [supplierFilter, setSupplierFilter] = useState<string | "all">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "atmo" | "external">(
+    "all",
+  );
+  const [suppliersList, setSuppliersList] = useState<string[]>([]);
   const [editing, setEditing] = useState<CatalogProduct | "new" | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -122,21 +130,24 @@ export function CatalogTab({
         const r = await searchCatalogPageAction({
           q: query,
           category: catFilter === "all" ? null : catFilter,
+          supplier: supplierFilter === "all" ? null : supplierFilter,
+          source: sourceFilter === "all" ? null : sourceFilter,
           page,
           pageSize: PAGE_SIZE,
         });
         setProducts(r.products);
         setTotal(r.total);
+        if (r.suppliers) setSuppliersList(r.suppliers);
       });
     }, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, catFilter, page]);
+  }, [query, catFilter, supplierFilter, sourceFilter, page]);
 
   // Reset page sur changement de filtre
   useEffect(() => {
     setPage(0);
-  }, [query, catFilter]);
+  }, [query, catFilter, supplierFilter, sourceFilter]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -183,7 +194,9 @@ export function CatalogTab({
               stock_ukraine: input.stock_ukraine ?? 0,
               active: input.active ?? true,
               unit_label: input.unit_label ?? "u",
-            },
+              supplier_name: input.supplier_name ?? null,
+              catalog_source: input.is_collection ? "atmo" : "external",
+            } satisfies CatalogProduct,
             ...prev,
           ]);
           setEditing(null);
@@ -323,6 +336,30 @@ export function CatalogTab({
             </option>
           ))}
         </select>
+        <select
+          value={sourceFilter}
+          onChange={(e) =>
+            setSourceFilter(e.target.value as "all" | "atmo" | "external")
+          }
+          className="h-9 rounded-md border border-line bg-white px-3 text-[12.5px] text-ink"
+        >
+          <option value="all">Toutes sources</option>
+          <option value="atmo">Collection Atmosphère</option>
+          <option value="external">Fournisseurs externes</option>
+        </select>
+        <select
+          value={supplierFilter}
+          onChange={(e) => setSupplierFilter(e.target.value)}
+          className="h-9 rounded-md border border-line bg-white px-3 text-[12.5px] text-ink max-w-[220px]"
+          disabled={suppliersList.length === 0}
+        >
+          <option value="all">Tous fournisseurs</option>
+          {suppliersList.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
         <span className="text-[11.5px] text-muted-2">
           {filtered.length} sur {total.toLocaleString("fr-FR")}
         </span>
@@ -404,6 +441,7 @@ export function CatalogTab({
                 </th>
                 <Th>Réf.</Th>
                 <Th>Nom</Th>
+                <Th>Fournisseur</Th>
                 <Th>Catégorie</Th>
                 <Th align="right">P.U. HT</Th>
                 <Th>Unité</Th>
@@ -416,7 +454,7 @@ export function CatalogTab({
               {filtered.map((p) =>
                 editing && typeof editing !== "string" && editing.id === p.id ? (
                   <tr key={p.id} className="bg-canvas-2/30 border-b border-line">
-                    <td colSpan={9} className="p-3">
+                    <td colSpan={10} className="p-3">
                       <ProductForm
                         initial={{
                           ref: p.ref,
@@ -431,6 +469,7 @@ export function CatalogTab({
                           stock_poland: p.stock_poland,
                           stock_ukraine: p.stock_ukraine,
                           active: p.active,
+                          supplier_name: p.supplier_name,
                         }}
                         onCancel={() => setEditing(null)}
                         onSave={(input) => handleSave(p.id, input)}
@@ -477,14 +516,25 @@ export function CatalogTab({
                         </p>
                       )}
                       {p.is_collection && (
-                        <span className="inline-flex mt-1 items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-soft text-violet-strong">
+                        <span className="inline-flex mt-1 mr-1 items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-soft text-violet-strong">
                           Collection Atmosphère
                         </span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-[12px] text-ink-2">
+                      {p.supplier_name ?? (
+                        <span className="text-muted-2 italic">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-ink-2">{p.category}</td>
                     <td className="px-4 py-3 text-right font-semibold text-ink tabular-nums">
-                      {eur(Number(p.unit_price_ht))}
+                      {p.unit_price_ht == null ? (
+                        <span className="text-muted-2 italic font-normal">
+                          non défini
+                        </span>
+                      ) : (
+                        eur(Number(p.unit_price_ht))
+                      )}
                     </td>
                     <td className="px-4 py-3 text-ink-2">{p.unit_label}</td>
                     <td className="px-4 py-3 text-right text-[11.5px] text-muted-2 tabular-nums">
@@ -1119,13 +1169,28 @@ function ProductForm({
           </select>
         </FieldGroup>
 
-        <FieldGroup label="P.U. HT (€) *" col={3}>
+        <FieldGroup label="P.U. HT (€)" col={3}>
           <input
             type="number"
             step="0.01"
             min={0}
-            value={v.unit_price_ht || ""}
-            onChange={(e) => update({ unit_price_ht: Number(e.target.value) || 0 })}
+            value={v.unit_price_ht ?? ""}
+            onChange={(e) =>
+              update({
+                unit_price_ht:
+                  e.target.value === "" ? null : Number(e.target.value),
+              })
+            }
+            placeholder="non défini"
+            className="form-input"
+          />
+        </FieldGroup>
+        <FieldGroup label="Fournisseur" col={5}>
+          <input
+            list="supplier-suggestions"
+            value={v.supplier_name ?? ""}
+            onChange={(e) => update({ supplier_name: e.target.value })}
+            placeholder="ex: Casamance, CAD, Nobilis…"
             className="form-input"
           />
         </FieldGroup>
