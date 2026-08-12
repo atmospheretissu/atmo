@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { PlanPoseButton } from "@/components/confections/plan-pose-button";
 import { ItemReceptionMenu } from "@/components/confections/item-reception-menu";
+import { WorkshopNotesEditor } from "@/components/confections/workshop-notes-editor";
+import { ItemInlineEditor } from "@/components/confections/item-inline-editor";
 import { AtelierAssignCard } from "@/components/confections/atelier-assign";
 import { DossierNotesCard } from "@/components/confections/dossier-notes";
 import { listDossierNotes } from "@/lib/db/dossier-notes";
@@ -240,40 +242,55 @@ export default async function DossierDetailPage({
                 {items.map((item) => {
                   const chip = itemTypeChips[item.type];
                   return (
-                    <div key={item.id} className="px-5 py-4 flex items-center gap-4 hover:bg-canvas-2/30 transition-colors">
-                      {item.status === "recu" ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald shrink-0" strokeWidth={2} />
-                      ) : item.status === "confection" ? (
-                        <div className="h-5 w-5 rounded-full bg-violet-soft border-2 border-violet inline-flex items-center justify-center shrink-0">
-                          <Scissors className="h-2.5 w-2.5 text-violet" strokeWidth={2.5} />
+                    <div key={item.id} className="px-5 py-4 hover:bg-canvas-2/30 transition-colors group">
+                      <div className="flex items-center gap-4">
+                        {item.status === "recu" ? (
+                          <CheckCircle2 className="h-5 w-5 text-emerald shrink-0" strokeWidth={2} />
+                        ) : item.status === "confection" ? (
+                          <div className="h-5 w-5 rounded-full bg-violet-soft border-2 border-violet inline-flex items-center justify-center shrink-0">
+                            <Scissors className="h-2.5 w-2.5 text-violet" strokeWidth={2.5} />
+                          </div>
+                        ) : (
+                          <Circle className="h-5 w-5 text-muted-2 shrink-0" strokeWidth={1.8} />
+                        )}
+
+                        <ColorChip tone={chip.tone} size="md">
+                          <Package className="h-3.5 w-3.5" strokeWidth={2.2} />
+                        </ColorChip>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13.5px] font-semibold text-ink leading-tight truncate">{item.label}</p>
+                          <p className="text-[11.5px] text-muted mt-0.5 truncate">
+                            {item.ref && <span className="font-mono">{item.ref}</span>}
+                            {item.notes && <span className="text-muted-2 ml-1">{item.notes}</span>}
+                          </p>
                         </div>
-                      ) : (
-                        <Circle className="h-5 w-5 text-muted-2 shrink-0" strokeWidth={1.8} />
-                      )}
 
-                      <ColorChip tone={chip.tone} size="md">
-                        <Package className="h-3.5 w-3.5" strokeWidth={2.2} />
-                      </ColorChip>
+                        <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ItemInlineEditor
+                            itemId={item.id}
+                            initial={{
+                              label: item.label,
+                              ref: item.ref,
+                              qty: Number(item.qty),
+                              unit_label: item.unit_label,
+                              notes: item.notes,
+                            }}
+                          />
+                        </div>
 
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13.5px] font-semibold text-ink leading-tight truncate">{item.label}</p>
-                        <p className="text-[11.5px] text-muted mt-0.5 truncate">
-                          {item.ref && <span className="font-mono">{item.ref}</span>}
-                          {item.notes && <span className="text-muted-2 ml-1">{item.notes}</span>}
-                        </p>
+                        <div className="shrink-0">
+                          <ItemReceptionMenu
+                            itemId={item.id}
+                            initialStatus={item.status}
+                            qrCode={item.qr_code}
+                          />
+                        </div>
+
+                        <StatusPill tone={itemStatusTones[item.status]}>
+                          {itemStatusLabels[item.status]}
+                        </StatusPill>
                       </div>
-
-                      <div className="shrink-0">
-                        <ItemReceptionMenu
-                          itemId={item.id}
-                          initialStatus={item.status}
-                          qrCode={item.qr_code}
-                        />
-                      </div>
-
-                      <StatusPill tone={itemStatusTones[item.status]}>
-                        {itemStatusLabels[item.status]}
-                      </StatusPill>
                     </div>
                   );
                 })}
@@ -301,6 +318,16 @@ export default async function DossierDetailPage({
             />
 
             <DossierNotesCard dossierId={dossier.id} notes={notes} />
+
+            <Card className="p-5">
+              <WorkshopNotesEditor
+                dossierId={dossier.id}
+                initialNotes={
+                  (dossier as { workshop_notes?: string | null }).workshop_notes ??
+                  null
+                }
+              />
+            </Card>
 
             <Card className="p-5">
               <p className="eyebrow mb-3">Paiement</p>

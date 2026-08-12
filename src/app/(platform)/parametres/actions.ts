@@ -71,19 +71,49 @@ export async function toggleSupplierActiveAction(
 
 export async function updateProfileAction(
   id: string,
-  patch: { full_name?: string; phone?: string | null; role?: UserRole }
+  patch: {
+    full_name?: string;
+    phone?: string | null;
+    role?: UserRole;
+    secondary_roles?: string[];
+  },
 ): Promise<Result> {
   const supabase = await createClient();
   const sanitized: ProfileUpdate = {};
   if (patch.full_name !== undefined) {
     if (!patch.full_name.trim()) return { ok: false, message: "Nom requis" };
     sanitized.full_name = patch.full_name.trim();
-    // avatar_initial est une colonne GENERATED ALWAYS — Postgres la calcule
-    // depuis full_name, on ne la set pas manuellement.
   }
   if (patch.phone !== undefined) sanitized.phone = patch.phone?.trim() || null;
   if (patch.role !== undefined) sanitized.role = patch.role;
-  const { error } = await supabase.from("profiles").update(sanitized).eq("id", id);
+  // secondary_roles : cast car la colonne text[] n'est pas encore dans
+  // Database typegen. Dédup + trim + max 8 tags.
+  const withSecondary: Record<string, unknown> = { ...sanitized };
+  if (patch.secondary_roles !== undefined) {
+    const cleaned = Array.from(
+      new Set(
+        patch.secondary_roles
+          .map((r) => r.trim())
+          .filter((r) => r.length > 0 && r.length <= 40),
+      ),
+    ).slice(0, 8);
+    withSecondary.secondary_roles = cleaned;
+  }
+  const { error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+    }
+  )
+    .from("profiles")
+    .update(withSecondary)
+    .eq("id", id);
   if (error) return { ok: false, message: error.message };
   revalidatePath("/parametres");
   return { ok: true };

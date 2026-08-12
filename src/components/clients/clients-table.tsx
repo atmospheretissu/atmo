@@ -19,6 +19,7 @@ import type { Client } from "@/lib/db/clients";
 const channelTones: Record<Channel, "violet" | "orange" | "blue" | "pink" | "emerald"> = {
   magasin: "violet",
   leroy_merlin: "orange",
+  saint_maclou: "orange",
   ecommerce: "blue",
   decoratrice: "pink",
   visio: "emerald",

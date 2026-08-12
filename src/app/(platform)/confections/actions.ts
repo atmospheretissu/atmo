@@ -312,3 +312,104 @@ export async function toggleItemReceptionAction(
 
   return { ok: true, newStatus, dossierComplete };
 }
+
+/**
+ * Édite les champs modifiables d'un dossier — utilisable AVANT et APRÈS
+ * l'acompte (spec Atmosphère du 23/07/2026 : ne pas verrouiller la fiche
+ * après paiement de l'acompte, l'atelier peut avoir besoin d'ajuster les
+ * notes ou de reprogrammer la pose suite à un appel client).
+ */
+export async function updateDossierAction(
+  dossierId: string,
+  patch: {
+    workshop_notes?: string | null;
+    scheduled_pose_at?: string | null;
+    poseur_id?: string | null;
+  },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = await createClient();
+  const update: Record<string, unknown> = {};
+  if (patch.workshop_notes !== undefined)
+    update.workshop_notes = patch.workshop_notes?.trim() || null;
+  if (patch.scheduled_pose_at !== undefined)
+    update.scheduled_pose_at = patch.scheduled_pose_at;
+  if (patch.poseur_id !== undefined) update.poseur_id = patch.poseur_id || null;
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const { error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+    }
+  )
+    .from("dossiers")
+    .update(update)
+    .eq("id", dossierId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(`/confections/${dossierId}`);
+  revalidatePath("/confections");
+  return { ok: true };
+}
+
+/**
+ * Édite un item du dossier (libellé, ref, quantité, notes, échéance).
+ * Reste accessible même après l'acompte reçu.
+ */
+export async function updateDossierItemAction(
+  itemId: string,
+  patch: {
+    label?: string;
+    ref?: string | null;
+    qty?: number;
+    unit_label?: string;
+    notes?: string | null;
+    expected_at?: string | null;
+  },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const supabase = await createClient();
+  const update: Record<string, unknown> = {};
+  if (patch.label !== undefined) {
+    const l = patch.label.trim();
+    if (!l) return { ok: false, message: "Libellé requis." };
+    update.label = l;
+  }
+  if (patch.ref !== undefined) update.ref = patch.ref?.trim() || null;
+  if (patch.qty !== undefined) {
+    if (patch.qty <= 0) return { ok: false, message: "Quantité doit être > 0." };
+    update.qty = patch.qty;
+  }
+  if (patch.unit_label !== undefined) update.unit_label = patch.unit_label;
+  if (patch.notes !== undefined) update.notes = patch.notes?.trim() || null;
+  if (patch.expected_at !== undefined) update.expected_at = patch.expected_at;
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const { data: item } = await supabase
+    .from("dossier_items")
+    .select("dossier_id")
+    .eq("id", itemId)
+    .maybeSingle();
+  const { error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: Record<string, unknown>) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+    }
+  )
+    .from("dossier_items")
+    .update(update)
+    .eq("id", itemId);
+  if (error) return { ok: false, message: error.message };
+  if (item?.dossier_id) revalidatePath(`/confections/${item.dossier_id}`);
+  return { ok: true };
+}

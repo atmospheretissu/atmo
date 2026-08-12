@@ -38,7 +38,21 @@ export async function createClientAction(
     store_id: storeId,
   };
 
-  const { data: inserted, error } = await supabase
+  // Cast : enum channel étendu (saint_maclou) pas encore dans Database typegen.
+  const { data: inserted, error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string } | null;
+              error: { code?: string; message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("clients")
     .insert(payload)
     .select("id")
@@ -54,6 +68,9 @@ export async function createClientAction(
     };
   }
 
+  if (!inserted) {
+    return { ok: false, errors: {}, message: "Insertion sans retour." };
+  }
   revalidatePath("/clients");
   redirect(`/clients/${inserted.id}`);
 }
@@ -72,7 +89,18 @@ export async function updateClientAction(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: unknown) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => Promise<{ error: { message: string } | null }>;
+        };
+      };
+    }
+  )
     .from("clients")
     .update(clientToDbRow(data))
     .eq("id", id);

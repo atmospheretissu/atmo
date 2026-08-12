@@ -9,6 +9,7 @@ import { z } from "zod";
 export const channelEnum = z.enum([
   "magasin",
   "leroy_merlin",
+  "saint_maclou",
   "ecommerce",
   "decoratrice",
   "visio",
@@ -18,6 +19,7 @@ export type Channel = z.infer<typeof channelEnum>;
 export const channelLabels: Record<Channel, string> = {
   magasin: "Magasin",
   leroy_merlin: "Leroy Merlin",
+  saint_maclou: "Saint Maclou",
   ecommerce: "E-commerce",
   decoratrice: "Décoratrice",
   visio: "Visio",

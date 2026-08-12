@@ -36,7 +36,13 @@ export type BoutiquePiece = {
 
 export type BoutiqueDevisInput = {
   clientId: string;
-  channel: "magasin" | "leroy_merlin" | "ecommerce" | "decoratrice" | "visio";
+  channel:
+    | "magasin"
+    | "leroy_merlin"
+    | "saint_maclou"
+    | "ecommerce"
+    | "decoratrice"
+    | "visio";
   tvaRate: number;
   workshopNotes?: string;
   pieces: BoutiquePiece[];
@@ -111,7 +117,20 @@ export async function createBoutiqueDevisAction(
   const validUntil = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
   const storeId = await getCreationStoreId();
 
-  const { data: devis, error: e1 } = await supabase
+  const { data: devis, error: e1 } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string; number: string } | null;
+              error: { message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("devis")
     .insert({
       number,
@@ -139,7 +158,7 @@ export async function createBoutiqueDevisAction(
     return {
       ok: false,
       message:
-        e1?.code === "23505"
+        (e1 as { code?: string } | undefined)?.code === "23505"
           ? `Le numéro ${number} existe déjà (réessaye).`
           : e1?.message ?? "Échec de création",
     };

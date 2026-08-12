@@ -77,10 +77,17 @@ type Inputs = {
   rail: TypeRail;
   poseRail: TypePose;
   couleurRail: string;
+  couleurRailAutre: string; // rempli si couleurRail === "autre"
   nombreCoudes: number;
+  // Rail coudé — description + éventuel lien vers schéma externe
+  raidCoudeDescription: string;
+  raidCoudeSchemaUrl: string;
   avecPose: boolean;
   sensConfectionPref: SensConfectionPref;
   couleurOeillets: string;
+  // Embouts (uniquement quand rail = Tringle)
+  emboutType: "" | "bouchon" | "boule" | "pomme_pin" | "olive" | "autre";
+  emboutCouleur: string;
   // Spécifique Panneau
   finitionHautePanneau: FinitionHautePanneau;
   finitionBassePanneau: FinitionBassePanneau;
@@ -105,16 +112,43 @@ const initial: Inputs = {
   finitionBasseCm: 0,
   rail: "DS",
   poseRail: "plafond",
-  couleurRail: "",
+  couleurRail: "blanc",
+  couleurRailAutre: "",
   nombreCoudes: 0,
+  raidCoudeDescription: "",
+  raidCoudeSchemaUrl: "",
   avecPose: true,
   sensConfectionPref: "auto",
   couleurOeillets: "",
+  emboutType: "",
+  emboutCouleur: "",
   finitionHautePanneau: "glissiere",
   finitionBassePanneau: "barre_lestage",
   ongletCote: 5,
   supportMural: "face_simple_6",
 };
+
+const COULEURS_RAIL = ["blanc", "noir", "autre"] as const;
+const COULEURS_TRINGLE = [
+  "blanc",
+  "noir mat",
+  "noir brillant",
+  "laiton mat",
+  "laiton brillant",
+  "canon de fusil",
+  "vieux nickel",
+  "chrome",
+  "bronze",
+  "autre",
+] as const;
+const EMBOUT_TYPES: { value: Inputs["emboutType"]; label: string }[] = [
+  { value: "", label: "— Aucun —" },
+  { value: "bouchon", label: "Bouchon plat" },
+  { value: "boule", label: "Boule" },
+  { value: "pomme_pin", label: "Pomme de pin" },
+  { value: "olive", label: "Olive" },
+  { value: "autre", label: "Autre (préciser)" },
+];
 
 const DOUBLURE_OPTIONS: { value: Doublure; label: string }[] = [
   { value: "aucune", label: "Aucune" },
@@ -295,15 +329,22 @@ export function RideauForm({
       },
     });
 
+    const couleurRailFinale =
+      v.couleurRail === "autre" ? v.couleurRailAutre.trim() || "autre" : v.couleurRail;
     if (v.rail !== "Tringle") {
       const prixArticle2 = calc.prixRail + calc.prixCoudes;
       articles.push({
         type: "rideau",
-        designation: `Rail ${v.rail} — pose ${v.poseRail}${v.couleurRail ? ` · ${v.couleurRail}` : ""}`,
+        designation: `Rail ${v.rail} — pose ${v.poseRail} · ${couleurRailFinale}`,
         ref: `RAIL-${v.rail}`,
         detail:
           `${v.largeurFinie} cm linéaire` +
-          (v.nombreCoudes > 0 ? ` · ${v.nombreCoudes} coude${v.nombreCoudes > 1 ? "s" : ""}` : ""),
+          (v.nombreCoudes > 0
+            ? ` · ${v.nombreCoudes} coude${v.nombreCoudes > 1 ? "s" : ""}`
+            : "") +
+          (v.raidCoudeDescription
+            ? ` · ${v.raidCoudeDescription.slice(0, 80)}${v.raidCoudeDescription.length > 80 ? "…" : ""}`
+            : ""),
         qty: 1,
         unitLabel: "u",
         unitPriceHt: Math.round(prixArticle2 * 100) / 100,
@@ -311,12 +352,38 @@ export function RideauForm({
           typeArticle: "rail",
           rail: v.rail,
           poseRail: v.poseRail,
-          couleurRail: v.couleurRail,
+          couleurRail: couleurRailFinale,
           nombreCoudes: v.nombreCoudes,
+          raidCoudeDescription: v.raidCoudeDescription || null,
+          raidCoudeSchemaUrl: v.raidCoudeSchemaUrl || null,
           prixRail: calc.prixRail,
           prixCoudes: calc.prixCoudes,
         },
       });
+    } else {
+      // Tringle → une "ligne accessoire" pour tracer les embouts / couleur
+      // même si le prix reste 0 (les tringles sont vendues via le catalogue).
+      if (couleurRailFinale || v.emboutType) {
+        articles.push({
+          type: "rideau",
+          designation: `Tringle — ${couleurRailFinale || "coloris à préciser"}${
+            v.emboutType
+              ? ` · embouts ${v.emboutType}${v.emboutCouleur ? ` ${v.emboutCouleur}` : ""}`
+              : ""
+          }`,
+          ref: "TRINGLE-SPEC",
+          detail: `${v.largeurFinie} cm linéaire`,
+          qty: 1,
+          unitLabel: "u",
+          unitPriceHt: 0,
+          meta: {
+            typeArticle: "tringle_spec",
+            couleurTringle: couleurRailFinale,
+            emboutType: v.emboutType || null,
+            emboutCouleur: v.emboutCouleur || null,
+          },
+        });
+      }
     }
 
     if (v.avecPose && calc.prixPose > 0) {
@@ -663,12 +730,25 @@ export function RideauForm({
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Couleur rail</Label>
-                  <Input
+                  <Label>Couleur {v.rail === "Tringle" ? "tringle" : "rail"}</Label>
+                  <Select
                     value={v.couleurRail}
                     onChange={(e) => update({ couleurRail: e.target.value })}
-                    placeholder="blanc, alu, noir mat…"
-                  />
+                  >
+                    {(v.rail === "Tringle" ? COULEURS_TRINGLE : COULEURS_RAIL).map((c) => (
+                      <option key={c} value={c}>
+                        {c === "autre" ? "Autre (préciser)" : c.charAt(0).toUpperCase() + c.slice(1)}
+                      </option>
+                    ))}
+                  </Select>
+                  {v.couleurRail === "autre" && (
+                    <Input
+                      value={v.couleurRailAutre}
+                      onChange={(e) => update({ couleurRailAutre: e.target.value })}
+                      placeholder="Précise la couleur exacte"
+                      className="mt-1.5"
+                    />
+                  )}
                 </div>
                 <div>
                   <Label>Coudes</Label>
@@ -681,6 +761,73 @@ export function RideauForm({
                   <Hint>{CONFIG.coutCoude} € par coude</Hint>
                 </div>
               </div>
+
+              {/* Embouts — uniquement si Tringle */}
+              {v.rail === "Tringle" && (
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-line">
+                  <div>
+                    <Label>Type d&apos;embout</Label>
+                    <Select
+                      value={v.emboutType}
+                      onChange={(e) =>
+                        update({ emboutType: e.target.value as Inputs["emboutType"] })
+                      }
+                    >
+                      {EMBOUT_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  {v.emboutType && (
+                    <div>
+                      <Label>Couleur / finition embout</Label>
+                      <Input
+                        value={v.emboutCouleur}
+                        onChange={(e) => update({ emboutCouleur: e.target.value })}
+                        placeholder="ex : laiton mat, chrome, bois foncé…"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Rail coudé — description + lien schéma */}
+              {v.nombreCoudes > 0 && (
+                <div className="pt-2 border-t border-line space-y-2">
+                  <div>
+                    <Label>
+                      Description du rail coudé ({v.nombreCoudes} coude
+                      {v.nombreCoudes > 1 ? "s" : ""})
+                    </Label>
+                    <textarea
+                      value={v.raidCoudeDescription}
+                      onChange={(e) =>
+                        update({ raidCoudeDescription: e.target.value })
+                      }
+                      placeholder="Précise les côtes de chaque segment, l'angle et le sens des coudes (ex : 120 cm droit → 90° gauche → 40 cm)"
+                      rows={3}
+                      className="w-full rounded-md border border-line-strong bg-white px-3 py-2 text-[13px] text-ink placeholder:text-muted-2 resize-y focus:border-violet focus:outline-none focus:ring-2 focus:ring-violet/15"
+                    />
+                  </div>
+                  <div>
+                    <Label>Lien vers le schéma (optionnel)</Label>
+                    <Input
+                      type="url"
+                      value={v.raidCoudeSchemaUrl}
+                      onChange={(e) =>
+                        update({ raidCoudeSchemaUrl: e.target.value })
+                      }
+                      placeholder="https://drive.google.com/… ou https://wetransfer.com/…"
+                    />
+                    <Hint>
+                      Colle ici le lien Google Drive / WeTransfer du croquis. Le
+                      schéma apparaîtra sur la fiche confection.
+                    </Hint>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

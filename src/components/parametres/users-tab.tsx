@@ -50,10 +50,11 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
     phone: "",
     role: "consultation_lm",
   });
-  const [draft, setDraft] = useState<{ full_name: string; phone: string; role: UserRole }>({
+  const [draft, setDraft] = useState<{ full_name: string; phone: string; role: UserRole; secondary_roles: string }>({
     full_name: "",
     phone: "",
     role: "commercial",
+    secondary_roles: "",
   });
 
   const submitInvite = () => {
@@ -83,10 +84,14 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
   };
 
   const openEdit = (p: Profile) => {
+    const sr =
+      (p as unknown as { secondary_roles?: string[] | null }).secondary_roles ??
+      [];
     setDraft({
       full_name: p.full_name,
       phone: p.phone ?? "",
       role: p.role,
+      secondary_roles: sr.join(", "),
     });
     setEditing(p.id);
   };
@@ -98,10 +103,15 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
   const submit = () => {
     if (!editing) return;
     startTransition(async () => {
+      const secondaryRoles = draft.secondary_roles
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       const r = await updateProfileAction(editing, {
         full_name: draft.full_name,
         phone: draft.phone,
         role: draft.role,
+        secondary_roles: secondaryRoles,
       });
       if (!r.ok) {
         alert(`Erreur : ${r.message}`);
@@ -219,7 +229,7 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
                     <input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} className={INPUT_CLASS} placeholder="+33…" />
                   </label>
                   <label className="block">
-                    <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">Rôle</span>
+                    <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">Rôle principal</span>
                     <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value as UserRole })} className={INPUT_CLASS}>
                       {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
                         <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -227,6 +237,23 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
                     </select>
                   </label>
                 </div>
+                <label className="block">
+                  <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                    Rôles additionnels (facultatif)
+                  </span>
+                  <input
+                    value={draft.secondary_roles}
+                    onChange={(e) =>
+                      setDraft({ ...draft, secondary_roles: e.target.value })
+                    }
+                    className={INPUT_CLASS}
+                    placeholder="décoratrice, leroy_merlin, saint_maclou…"
+                  />
+                  <span className="block text-[10.5px] text-muted-2 mt-1">
+                    Séparés par des virgules. Le rôle principal reste maître (navigation
+                    et permissions). Les rôles additionnels apparaissent en badges.
+                  </span>
+                </label>
                 <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={cancel} disabled={pending}>Annuler</Button>
                   <Button variant="primary" size="sm" onClick={submit} disabled={pending}>
@@ -245,7 +272,29 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
               </div>
               <div className="hidden md:block w-56">
                 <p className="text-[12.5px] text-ink-2">{ROLE_LABELS[u.role]}</p>
-                {u.phone && <p className="text-[11px] text-muted-2 font-mono">{u.phone}</p>}
+                {(() => {
+                  const sr =
+                    (u as unknown as { secondary_roles?: string[] | null })
+                      .secondary_roles ?? [];
+                  if (sr.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {sr.map((r) => (
+                        <span
+                          key={r}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-soft text-violet-strong"
+                        >
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
+                {u.phone && (
+                  <p className="text-[11px] text-muted-2 font-mono mt-0.5">
+                    {u.phone}
+                  </p>
+                )}
               </div>
               <div className="hidden md:block w-28 text-right">
                 <p className="text-[11.5px] text-muted-2">{timeAgo(u.last_seen_at)}</p>

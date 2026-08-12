@@ -222,13 +222,27 @@ export async function testCreateClient(input: {
     preferences: "",
   });
 
-  const { data, error } = await supabase
+  const { data, error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string } | null;
+              error: { message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("clients")
     .insert(row)
     .select("id")
     .single();
 
-  if (error) return { ok: false, message: error.message };
+  if (error) return { ok: false, message: error.message ?? "Insertion échouée" };
+  if (!data) return { ok: false, message: "Insertion sans retour" };
   revalidatePath("/clients");
   return { ok: true, id: data.id };
 }
@@ -252,7 +266,24 @@ export async function testCreateDevis(input: {
     .toISOString()
     .split("T")[0];
 
-  const { data: devis, error: e1 } = await supabase
+  const { data: devis, error: e1 } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: {
+                id: string;
+                number: string;
+                total_ttc: number | string;
+              } | null;
+              error: { message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
     .from("devis")
     .insert({
       number,

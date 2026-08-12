@@ -15,16 +15,26 @@ const eurFmt = new Intl.NumberFormat("fr-FR", {
 });
 
 type ChainetteCote = "gauche" | "droite";
+// Convention métier : "arriere" = enroulement Standard (le tissu passe
+// derrière le tube, ressort par l'arrière — pose sans casquette la plus
+// classique). "avant" = enroulement Contra (le tissu passe devant, sort
+// par l'avant, plus adapté aux poses en applique).
 type Enroulement = "avant" | "arriere";
+type Fixation = "mural" | "plafond";
+type Coloris = "" | string;
 
 type Inputs = {
   referenceTissu: string;
+  coloris: Coloris; // champ libre coloris du tissu
   largeurFinie: number;
   hauteurFinie: number;
   prixTissu: number; // €/m² du tissu enrouleur
   chainetteCouleur: string;
   chainetteCote: ChainetteCote;
   enroulement: Enroulement;
+  fixation: Fixation;
+  avecCasquette: boolean;
+  casquetteHauteur: number; // cm, 0 si pas de casquette
   prixMecanisme: number; // forfait, paramétrable
   avecPose: boolean;
   prixPose: number;
@@ -32,12 +42,16 @@ type Inputs = {
 
 const initial: Inputs = {
   referenceTissu: "",
+  coloris: "",
   largeurFinie: 120,
   hauteurFinie: 180,
   prixTissu: 80,
   chainetteCouleur: "blanc",
   chainetteCote: "droite",
   enroulement: "arriere",
+  fixation: "mural",
+  avecCasquette: false,
+  casquetteHauteur: 8,
   prixMecanisme: 90,
   avecPose: true,
   prixPose: 70,
@@ -84,7 +98,12 @@ export function StoreEnrouleurForm({
     const articles: BoutiquePieceArticle[] = [];
     const coteLabel = v.chainetteCote === "gauche" ? "à gauche" : "à droite";
     const enroulementLabel =
-      v.enroulement === "avant" ? "enroulement avant" : "enroulement arrière";
+      v.enroulement === "avant" ? "enroulement Contra" : "enroulement Standard";
+    const fixationLabel = v.fixation === "plafond" ? "plafond" : "mural";
+    const casquetteLabel = v.avecCasquette
+      ? ` · casquette ${v.casquetteHauteur} cm`
+      : "";
+    const colorisLabel = v.coloris ? ` · coloris ${v.coloris}` : "";
 
     // 1. Tissu + mécanisme groupés (1 article tissu, 1 article mécanisme)
     articles.push({
@@ -93,13 +112,15 @@ export function StoreEnrouleurForm({
       ref: v.referenceTissu || undefined,
       detail:
         `${v.largeurFinie}×${v.hauteurFinie}cm · surface ${calc.surface.toFixed(2)}m² · ${enroulementLabel}` +
-        (v.referenceTissu ? ` · ${v.referenceTissu}` : ""),
+        (v.referenceTissu ? ` · ${v.referenceTissu}` : "") +
+        colorisLabel,
       qty: 1,
       unitLabel: "u",
       unitPriceHt: calc.prixTissu,
       meta: {
         typeArticle: "store_enrouleur_tissu",
         referenceTissu: v.referenceTissu,
+        coloris: v.coloris || null,
         largeurFinie: v.largeurFinie,
         hauteurFinie: v.hauteurFinie,
         surface: calc.surface,
@@ -112,7 +133,10 @@ export function StoreEnrouleurForm({
       type: "store",
       designation: "Mécanisme store enrouleur",
       ref: "MECA-ENROUL",
-      detail: `largeur ${v.largeurFinie}cm · chaînette ${v.chainetteCouleur} ${coteLabel}`,
+      detail:
+        `largeur ${v.largeurFinie}cm · chaînette ${v.chainetteCouleur} ${coteLabel}` +
+        ` · fixation ${fixationLabel}` +
+        casquetteLabel,
       qty: 1,
       unitLabel: "u",
       unitPriceHt: calc.prixMecanisme,
@@ -121,6 +145,9 @@ export function StoreEnrouleurForm({
         chainetteCouleur: v.chainetteCouleur,
         chainetteCote: v.chainetteCote,
         enroulement: v.enroulement,
+        fixation: v.fixation,
+        avecCasquette: v.avecCasquette,
+        casquetteHauteur: v.avecCasquette ? v.casquetteHauteur : null,
         prixMecanisme: calc.prixMecanisme,
       },
     });
@@ -183,14 +210,61 @@ export function StoreEnrouleurForm({
                         : "text-muted hover:text-ink")
                     }
                   >
-                    {e === "arriere" ? "Arrière" : "Avant"}
+                    {e === "arriere" ? "Standard" : "Contra"}
                   </button>
                 ))}
               </div>
               <Hint>
-                Arrière (standard) : le tissu passe derrière le tube · Avant : le
-                tissu passe devant.
+                Standard : le tissu passe derrière le tube (usage courant) · Contra : le tissu passe devant (pose en applique).
               </Hint>
+            </div>
+            <div>
+              <Label>Fixation</Label>
+              <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                {(["mural", "plafond"] as Fixation[]).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => update({ fixation: f })}
+                    className={
+                      "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
+                      (v.fixation === f
+                        ? "bg-ink text-white"
+                        : "text-muted hover:text-ink")
+                    }
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-2 grid grid-cols-2 gap-3 pt-2 border-t border-line">
+              <div>
+                <Label>Casquette (facultatif)</Label>
+                <label className="inline-flex items-center gap-2 text-[13px] cursor-pointer h-9">
+                  <input
+                    type="checkbox"
+                    checked={v.avecCasquette}
+                    onChange={(e) => update({ avecCasquette: e.target.checked })}
+                    className="h-4 w-4 rounded border-line-strong"
+                  />
+                  <span className="text-ink-2">Ajouter une casquette</span>
+                </label>
+              </div>
+              {v.avecCasquette && (
+                <div>
+                  <Label>Hauteur casquette (cm)</Label>
+                  <Input
+                    type="number"
+                    min={4}
+                    max={20}
+                    value={v.casquetteHauteur || ""}
+                    onChange={(e) =>
+                      update({ casquetteHauteur: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -206,6 +280,15 @@ export function StoreEnrouleurForm({
                 onChange={(e) => update({ referenceTissu: e.target.value })}
                 placeholder="ex: Vedelux Noir tamisant"
               />
+            </div>
+            <div>
+              <Label>Coloris (champ libre)</Label>
+              <Input
+                value={v.coloris}
+                onChange={(e) => update({ coloris: e.target.value })}
+                placeholder="ex : gris anthracite, écru, sable…"
+              />
+              <Hint>Précise le coloris exact commandé au fournisseur.</Hint>
             </div>
             <div>
               <Label>Prix tissu (€/m²) *</Label>
