@@ -21,14 +21,19 @@ type ChainetteCote = "gauche" | "droite";
 // par l'avant, plus adapté aux poses en applique).
 type Enroulement = "avant" | "arriere";
 type Fixation = "mural" | "plafond";
+// Type de toile : enrouleur classique (opaque / occultant / tamisant) OU
+// screen (voir à travers, tamise la chaleur). Même mécanisme, tarification
+// tissu au m² identique — c'est juste le choix produit.
+type TypeToile = "enrouleur" | "screen";
 type Coloris = "" | string;
 
 type Inputs = {
+  typeToile: TypeToile;
   referenceTissu: string;
   coloris: Coloris; // champ libre coloris du tissu
   largeurFinie: number;
   hauteurFinie: number;
-  prixTissu: number; // €/m² du tissu enrouleur
+  prixTissu: number; // €/m² du tissu enrouleur/screen
   chainetteCouleur: string;
   chainetteCote: ChainetteCote;
   enroulement: Enroulement;
@@ -41,6 +46,7 @@ type Inputs = {
 };
 
 const initial: Inputs = {
+  typeToile: "enrouleur",
   referenceTissu: "",
   coloris: "",
   largeurFinie: 120,
@@ -105,10 +111,11 @@ export function StoreEnrouleurForm({
       : "";
     const colorisLabel = v.coloris ? ` · coloris ${v.coloris}` : "";
 
+    const toileLabel = v.typeToile === "screen" ? "Store screen" : "Store enrouleur";
     // 1. Tissu + mécanisme groupés (1 article tissu, 1 article mécanisme)
     articles.push({
       type: "store",
-      designation: "Store enrouleur — Tissu",
+      designation: `${toileLabel} — Tissu`,
       ref: v.referenceTissu || undefined,
       detail:
         `${v.largeurFinie}×${v.hauteurFinie}cm · surface ${calc.surface.toFixed(2)}m² · ${enroulementLabel}` +
@@ -118,7 +125,11 @@ export function StoreEnrouleurForm({
       unitLabel: "u",
       unitPriceHt: calc.prixTissu,
       meta: {
-        typeArticle: "store_enrouleur_tissu",
+        typeArticle:
+          v.typeToile === "screen"
+            ? "store_screen_tissu"
+            : "store_enrouleur_tissu",
+        typeToile: v.typeToile,
         referenceTissu: v.referenceTissu,
         coloris: v.coloris || null,
         largeurFinie: v.largeurFinie,
@@ -131,8 +142,8 @@ export function StoreEnrouleurForm({
 
     articles.push({
       type: "store",
-      designation: "Mécanisme store enrouleur",
-      ref: "MECA-ENROUL",
+      designation: `Mécanisme ${toileLabel.toLowerCase()}`,
+      ref: v.typeToile === "screen" ? "MECA-SCREEN" : "MECA-ENROUL",
       detail:
         `largeur ${v.largeurFinie}cm · chaînette ${v.chainetteCouleur} ${coteLabel}` +
         ` · fixation ${fixationLabel}` +
@@ -173,6 +184,33 @@ export function StoreEnrouleurForm({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 p-5 max-h-[75vh] overflow-y-auto">
       <div className="space-y-5">
+        {/* Type de toile */}
+        <section>
+          <p className="eyebrow mb-2">Type de store</p>
+          <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+            {(
+              [
+                { v: "enrouleur", label: "Enrouleur (opaque / tamisant)" },
+                { v: "screen", label: "Screen (voir à travers)" },
+              ] as { v: TypeToile; label: string }[]
+            ).map((t) => (
+              <button
+                key={t.v}
+                type="button"
+                onClick={() => update({ typeToile: t.v })}
+                className={
+                  "text-[12px] font-semibold rounded-[5px] transition-colors " +
+                  (v.typeToile === t.v
+                    ? "bg-ink text-white"
+                    : "text-muted hover:text-ink")
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Dimensions */}
         <section>
           <p className="eyebrow mb-2">Dimensions</p>

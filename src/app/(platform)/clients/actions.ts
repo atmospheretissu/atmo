@@ -133,3 +133,37 @@ export async function deleteClientAction(id: string): Promise<ClientFormState> {
   revalidatePath("/clients");
   redirect("/clients");
 }
+
+/**
+ * Recherche server-side dans la table clients — utilisée par ClientsTable
+ * pour chercher parmi les 45K+ clients sans être limité aux 1000 chargés
+ * au premier render.
+ */
+export async function searchClientsPageAction(opts: {
+  q?: string;
+  channel?: string | null;
+  limit?: number;
+}): Promise<Array<import("@/lib/db/clients").Client>> {
+  const supabase = await createClient();
+  const limit = Math.min(500, Math.max(10, opts.limit ?? 200));
+  let qb = supabase
+    .from("clients")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  if (opts.channel && opts.channel !== "all") {
+    qb = (qb as unknown as { eq: (c: string, v: string) => typeof qb }).eq(
+      "channel",
+      opts.channel,
+    );
+  }
+  const term = (opts.q ?? "").trim();
+  if (term.length >= 2) {
+    const safe = term.replace(/[%,]/g, "");
+    qb = qb.or(
+      `display_name.ilike.%${safe}%,city.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,postal_code.ilike.%${safe}%`,
+    );
+  }
+  const { data } = await qb;
+  return (data ?? []) as import("@/lib/db/clients").Client[];
+}

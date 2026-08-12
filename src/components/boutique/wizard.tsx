@@ -338,7 +338,9 @@ export function BoutiqueWizard({
                       type="button"
                       onClick={() => {
                         setSelectedClient(c);
-                        setChannel(c.channel as Channel);
+                        // Ne PAS auto-copier c.channel dans le canal du devis
+                        // (bug review 23/07/2026). Le canal du devis reste
+                        // piloté par l'utilisateur.
                       }}
                       className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-canvas-2/40 text-left transition-colors"
                     >

@@ -22,6 +22,7 @@ import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { ContactButtons, HeaderSendButton } from "@/components/clients/contact-modal";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { getClientWithDevis } from "@/lib/db/clients";
+import { NextStepClientBanner } from "@/components/clients/next-step-client";
 import { channelLabels, type Channel } from "@/lib/validation/client";
 import { eur, shortDate, time } from "@/lib/formatters";
 
@@ -153,6 +154,21 @@ export default async function ClientDetailPage({
               />
             </div>
           </div>
+        </section>
+
+        {/* Prochaine étape — contextuel selon le dernier devis */}
+        <section className="px-8 pb-6">
+          <NextStepClientBanner
+            clientId={client.id}
+            clientHasEmail={Boolean(client.email)}
+            devis={devis.map((d) => ({
+              id: d.id,
+              number: d.number,
+              status: d.status,
+              total_ttc: d.total_ttc,
+              product_summary: d.product_summary,
+            }))}
+          />
         </section>
 
         {/* Stats row */}

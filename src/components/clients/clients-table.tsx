@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search,
   Mail,
   Phone,
   ArrowUpDown,
   MoreHorizontal,
+  Loader2,
 } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { eur } from "@/lib/formatters";
 import { channelLabels, type Channel } from "@/lib/validation/client";
 import type { Client } from "@/lib/db/clients";
+import { searchClientsPageAction } from "@/app/(platform)/clients/actions";
 
 const channelTones: Record<Channel, "violet" | "orange" | "blue" | "pink" | "emerald"> = {
   magasin: "violet",
@@ -38,24 +40,35 @@ function initialFor(name: string) {
 export function ClientsTable({ initialClients }: { initialClients: Client[] }) {
   const [query, setQuery] = useState("");
   const [channel, setChannel] = useState<"all" | Channel>("all");
+  const [rows, setRows] = useState<Client[]>(initialClients);
+  const [searching, setSearching] = useState(false);
 
-  const filtered = useMemo(() => {
-    return initialClients.filter((c) => {
-      if (channel !== "all" && c.channel !== channel) return false;
-      if (query) {
-        const q = query.toLowerCase().trim();
-        if (!q) return true;
-        const norm = (s: string) => s.replace(/[\s.+\-/()]/g, "").toLowerCase();
-        return (
-          c.display_name.toLowerCase().includes(q) ||
-          (c.city?.toLowerCase().includes(q) ?? false) ||
-          (c.email?.toLowerCase().includes(q) ?? false) ||
-          (c.phone ? norm(c.phone).includes(norm(query)) : false)
-        );
+  // Debounce recherche server-side dès que query ≥ 2 caractères OU qu'un
+  // filtre canal est actif. Retour aux `initialClients` sinon.
+  useEffect(() => {
+    const q = query.trim();
+    const hasFilter = channel !== "all";
+    if (!hasFilter && q.length < 2) {
+      setRows(initialClients);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchClientsPageAction({
+          q: q.length >= 2 ? q : undefined,
+          channel,
+          limit: 300,
+        });
+        setRows(r);
+      } finally {
+        setSearching(false);
       }
-      return true;
-    });
-  }, [initialClients, channel, query]);
+    }, 220);
+    return () => clearTimeout(t);
+  }, [query, channel, initialClients]);
+
+  const filtered = rows;
 
   return (
     <>
@@ -94,9 +107,12 @@ export function ClientsTable({ initialClients }: { initialClients: Client[] }) {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nom, email, téléphone, ville…"
-            className="pl-9 w-72 text-[12.5px] rounded-full bg-white"
+            placeholder="Nom, email, téléphone, ville, code postal…"
+            className="pl-9 pr-9 w-80 text-[12.5px] rounded-full bg-white"
           />
+          {searching && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-2 animate-spin" />
+          )}
         </div>
       </section>
 

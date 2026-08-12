@@ -298,7 +298,11 @@ export function DevisBuilder({
                         type="button"
                         onClick={() => {
                           setSelectedClient(c);
-                          setChannel(c.channel as Channel);
+                          // Ne PAS écraser le canal du devis avec celui de la
+                          // source d'origine du client (bug review 23/07/2026 :
+                          // un devis fait en magasin pour un client LM
+                          // s'affichait « Leroy Merlin »). Le canal du devis
+                          // reste piloté par l'utilisateur via le Select ci-dessous.
                         }}
                         className="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-canvas-2/40 text-left transition-colors"
                       >

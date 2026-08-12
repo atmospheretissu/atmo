@@ -64,8 +64,9 @@ const TYPES: {
   },
   {
     key: "store_enrouleur",
-    label: "Store enrouleur",
-    description: "Tissu enrouleur (Vedelux, Copa…) — enroulement avant / arrière",
+    label: "Store enrouleur / screen",
+    description:
+      "Enrouleur classique (opaque, tamisant) OU screen (voir à travers) — même mécanisme, toile différente",
     tone: "blue",
     icon: Disc,
     available: true,
@@ -154,7 +155,7 @@ export function AddArticleModal({
                 : selectedType === "store"
                 ? "Store sur mesure"
                 : selectedType === "store_enrouleur"
-                ? "Store enrouleur"
+                ? "Store enrouleur / screen"
                 : selectedType === "libre"
                 ? "Autre produit (champ libre)"
                 : selectedType === "new_collection"
