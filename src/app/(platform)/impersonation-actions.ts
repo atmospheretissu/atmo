@@ -106,6 +106,17 @@ export async function stopImpersonationAction(): Promise<void> {
 }
 
 /**
+ * Version "cookie only" — efface simplement le cookie sans redirect.
+ * Utilisée par le client qui gère lui-même la redirection avec un
+ * window.location.href (évite les cas où le cookie effacé ne se
+ * propage pas correctement avec les redirects Next).
+ */
+export async function clearImpersonationCookieAction(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(IMPERSONATION_COOKIE_NAME);
+}
+
+/**
  * Active la simulation d'un rôle sans passer par un profil précis. Le
  * cookie contient `role:<role>` — la navigation, les permissions
  * client-side et l'affichage utilisent ce rôle, mais l'user id reste

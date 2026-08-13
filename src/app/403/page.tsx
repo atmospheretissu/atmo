@@ -80,12 +80,19 @@ export default async function ForbiddenPage({
             </>
           )}
         </p>
-        <Link
-          href={homeRoute}
-          className="inline-flex items-center justify-center h-10 px-5 rounded-lg bg-ink text-white text-[13px] font-semibold hover:bg-ink/90 transition-colors"
-        >
-          {homeLabel}
-        </Link>
+        {isImpersonating ? (
+          // En simulation : le seul CTA sûr est de sortir. Un simple lien
+          // vers homeRoute redirigerait à nouveau vers /403 puisque le
+          // cookie de simulation est encore là.
+          <StopImpersonationButton target="/dashboard" variant="primary" />
+        ) : (
+          <Link
+            href={homeRoute}
+            className="inline-flex items-center justify-center h-10 px-5 rounded-lg bg-ink text-white text-[13px] font-semibold hover:bg-ink/90 transition-colors"
+          >
+            {homeLabel}
+          </Link>
+        )}
         {user && (
           <p className="mt-4 text-[11.5px] text-muted-2">
             Connecté en tant que <span className="text-ink-2 font-mono">{user.email}</span>
