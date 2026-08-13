@@ -50,11 +50,16 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
     phone: "",
     role: "consultation_lm",
   });
-  const [draft, setDraft] = useState<{ full_name: string; phone: string; role: UserRole; secondary_roles: string }>({
+  const [draft, setDraft] = useState<{
+    full_name: string;
+    phone: string;
+    role: UserRole;
+    secondary_roles: UserRole[];
+  }>({
     full_name: "",
     phone: "",
     role: "commercial",
-    secondary_roles: "",
+    secondary_roles: [],
   });
 
   const submitInvite = () => {
@@ -91,7 +96,9 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
       full_name: p.full_name,
       phone: p.phone ?? "",
       role: p.role,
-      secondary_roles: sr.join(", "),
+      secondary_roles: sr.filter((r): r is UserRole =>
+        (Object.keys(ROLE_LABELS) as string[]).includes(r),
+      ) as UserRole[],
     });
     setEditing(p.id);
   };
@@ -103,15 +110,13 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
   const submit = () => {
     if (!editing) return;
     startTransition(async () => {
-      const secondaryRoles = draft.secondary_roles
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
       const r = await updateProfileAction(editing, {
         full_name: draft.full_name,
         phone: draft.phone,
         role: draft.role,
-        secondary_roles: secondaryRoles,
+        // On retire le rôle principal des secondaires (redondant) et on
+        // envoie la liste dédupée directement.
+        secondary_roles: draft.secondary_roles.filter((r) => r !== draft.role),
       });
       if (!r.ok) {
         alert(`Erreur : ${r.message}`);
@@ -120,6 +125,15 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
       cancel();
       router.refresh();
     });
+  };
+
+  const toggleSecondaryRole = (r: UserRole) => {
+    setDraft((d) => ({
+      ...d,
+      secondary_roles: d.secondary_roles.includes(r)
+        ? d.secondary_roles.filter((x) => x !== r)
+        : [...d.secondary_roles, r],
+    }));
   };
 
   const toggle = (p: Profile) => {
@@ -237,23 +251,37 @@ export function UsersTab({ profiles }: { profiles: Profile[] }) {
                     </select>
                   </label>
                 </div>
-                <label className="block">
-                  <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+                <div>
+                  <span className="block text-[11px] text-muted-2 font-semibold uppercase tracking-wider mb-1.5">
                     Rôles additionnels (facultatif)
                   </span>
-                  <input
-                    value={draft.secondary_roles}
-                    onChange={(e) =>
-                      setDraft({ ...draft, secondary_roles: e.target.value })
-                    }
-                    className={INPUT_CLASS}
-                    placeholder="décoratrice, leroy_merlin, saint_maclou…"
-                  />
-                  <span className="block text-[10.5px] text-muted-2 mt-1">
-                    Séparés par des virgules. Le rôle principal reste maître (navigation
-                    et permissions). Les rôles additionnels apparaissent en badges.
+                  <div className="flex flex-wrap gap-1.5">
+                    {(Object.keys(ROLE_LABELS) as UserRole[])
+                      .filter((r) => r !== draft.role)
+                      .map((r) => {
+                        const active = draft.secondary_roles.includes(r);
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => toggleSecondaryRole(r)}
+                            className={
+                              "h-7 px-2.5 rounded-full text-[11.5px] font-medium border transition-colors " +
+                              (active
+                                ? "bg-violet text-white border-violet"
+                                : "bg-white text-muted-2 border-line hover:border-violet hover:text-violet")
+                            }
+                          >
+                            {ROLE_LABELS[r]}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <span className="block text-[10.5px] text-muted-2 mt-2">
+                    Cliquez pour ajouter un rôle. Le rôle principal (au-dessus)
+                    reste maître pour la navigation et les permissions.
                   </span>
-                </label>
+                </div>
                 <div className="flex items-center justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={cancel} disabled={pending}>Annuler</Button>
                   <Button variant="primary" size="sm" onClick={submit} disabled={pending}>

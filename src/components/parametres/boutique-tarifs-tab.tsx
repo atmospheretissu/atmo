@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronRight, Loader2, Save, ArrowLeft, Sparkles, Search } from "lucide-react";
+import {
+  ChevronRight,
+  Loader2,
+  Save,
+  ArrowLeft,
+  Sparkles,
+  Search,
+  Download,
+  Upload,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +19,7 @@ import {
   listAllTarifTissusAction,
   updateGridAction,
   updateTissuMetaAction,
+  importGridCsvAction,
 } from "@/app/(platform)/parametres/boutique-tarifs-actions";
 import type { Tissu, TarifGrid } from "@/lib/db/boutique-tarifs";
 import { ChainettePricesEditor } from "@/components/parametres/chainette-prices-editor";
@@ -282,7 +292,22 @@ function GridEditor({
     initial.grid.map((row) => [...row]),
   );
   const [pending, startTransition] = useTransition();
+  const [importing, startImport] = useTransition();
   const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  const handleImport = (csvText: string) => {
+    startImport(async () => {
+      const r = await importGridCsvAction(tissuId, confection, csvText);
+      if (!r.ok) {
+        alert(`Import échoué : ${r.message}`);
+        return;
+      }
+      alert(
+        `Grille importée : ${r.rows} hauteurs × ${r.cols} largeurs. Recharge la page pour voir les nouveaux prix.`,
+      );
+      onSaved();
+    });
+  };
 
   const dirty = useMemo(() => {
     if (grid.length !== initial.grid.length) return true;
@@ -332,6 +357,33 @@ function GridEditor({
               <Sparkles className="h-3.5 w-3.5" /> Enregistré
             </span>
           )}
+          <a
+            href={`/api/boutique/tarif-grid?tissuId=${tissuId}&confection=${confection}`}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12.5px] font-semibold border border-line bg-white hover:border-line-strong text-ink-2"
+          >
+            <Download className="h-3.5 w-3.5" strokeWidth={2.4} /> Exporter CSV
+          </a>
+          <label className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12.5px] font-semibold border border-line bg-white hover:border-line-strong text-ink-2 cursor-pointer">
+            <Upload className="h-3.5 w-3.5" strokeWidth={2.4} />
+            {importing ? "Import…" : "Importer CSV"}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              disabled={importing}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const text = String(reader.result ?? "");
+                  handleImport(text);
+                };
+                reader.readAsText(f, "utf-8");
+                e.target.value = "";
+              }}
+            />
+          </label>
           <Button
             variant="accent"
             size="sm"
