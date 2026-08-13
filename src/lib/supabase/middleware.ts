@@ -110,15 +110,23 @@ async function getUserRole(
   if (!data || data.active === false) return null;
   const actualRole = data.role as UserRole;
 
-  // Impersonation : si un admin a activé un cookie, on renvoie le rôle du profil ciblé
-  const impersonatedId = request?.cookies.get("atmo_impersonated_profile")?.value;
-  if (actualRole === "admin" && impersonatedId && impersonatedId !== userId) {
-    const { data: target } = await supabase
-      .from("profiles")
-      .select("role, active")
-      .eq("id", impersonatedId)
-      .maybeSingle();
-    if (target && target.active !== false) return target.role as UserRole;
+  // Impersonation admin. Le cookie peut valoir :
+  //   - un UUID (impersonation d'un profil précis)
+  //   - `role:<name>` (simulation d'un rôle sans profil ciblé)
+  const cookieValue = request?.cookies.get("atmo_impersonated_profile")?.value;
+  if (actualRole === "admin" && cookieValue) {
+    if (cookieValue.startsWith("role:")) {
+      const r = cookieValue.slice(5) as UserRole;
+      return r;
+    }
+    if (cookieValue !== userId) {
+      const { data: target } = await supabase
+        .from("profiles")
+        .select("role, active")
+        .eq("id", cookieValue)
+        .maybeSingle();
+      if (target && target.active !== false) return target.role as UserRole;
+    }
   }
   return actualRole;
 }

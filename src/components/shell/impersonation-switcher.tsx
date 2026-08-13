@@ -17,7 +17,7 @@ import {
   setImpersonatedRoleAction,
   type SwitchableProfile,
 } from "@/app/(platform)/impersonation-actions";
-import type { UserRole } from "@/lib/db/profiles-shared";
+import { ROLE_ROUTES, type UserRole } from "@/lib/db/profiles-shared";
 
 const ROLES: {
   key: UserRole;
@@ -55,14 +55,18 @@ export function ImpersonationSwitcher() {
   const impersonateRole = (role: UserRole) => {
     startTransition(async () => {
       await setImpersonatedRoleAction(role);
-      window.location.href = "/dashboard";
+      // Redirect vers la home du rôle simulé (poseur → /poses, etc.)
+      const home = ROLE_ROUTES[role]?.homeRoute ?? "/dashboard";
+      window.location.href = home;
     });
   };
 
   const impersonateUser = (id: string) => {
     startTransition(async () => {
       await setImpersonatedProfileAction(id);
-      window.location.href = "/dashboard";
+      // On ne connaît pas le rôle cible ici — retour à la racine, le
+      // middleware redirige automatiquement vers la home du rôle.
+      window.location.href = "/";
     });
   };
 
