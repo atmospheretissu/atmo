@@ -26,6 +26,7 @@ import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
 import { StripeCheckoutButton } from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
 import { SignatureCard } from "@/components/devis/signature-card";
+import { PennylaneVerifyButton } from "@/components/devis/pennylane-verify-button";
 import { SourceBadgeSelector } from "@/components/devis/source-badge-selector";
 import { listSources, resolveSourceLabel } from "@/lib/db/sources";
 import { getDevisDetail } from "@/lib/db/devis";
@@ -151,6 +152,7 @@ export default async function DevisDetailPage({
                 <MarkSoldeButton devisId={devis.id} />
               )}
               <SendEmailButton devisId={devis.id} />
+              <PennylaneVerifyButton devisId={devis.id} />
               <OpenSavTicketButton
                 context={{
                   clientId: devis.client_id,

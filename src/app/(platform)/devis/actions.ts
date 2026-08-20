@@ -249,15 +249,52 @@ export async function markAcompteRecuAction(
     .maybeSingle();
 
   if (devis) {
-    await supabase.from("payments").insert({
-      devis_id: devisId,
-      client_id: devis.client_id,
-      kind: "acompte",
-      method,
-      amount_ttc: Number(devis.acompte_ttc ?? 0),
-      notes: notes?.trim() || `Encaissement manuel · ${method}`,
-      recorded_by: user.id,
-    });
+    const { data: inserted } = await (
+      supabase as unknown as {
+        from: (t: string) => {
+          insert: (v: unknown) => {
+            select: (s: string) => {
+              single: () => Promise<{
+                data: { id: string } | null;
+                error: unknown;
+              }>;
+            };
+          };
+        };
+      }
+    )
+      .from("payments")
+      .insert({
+        devis_id: devisId,
+        client_id: devis.client_id,
+        kind: "acompte",
+        method,
+        amount_ttc: Number(devis.acompte_ttc ?? 0),
+        notes: notes?.trim() || `Encaissement manuel · ${method}`,
+        recorded_by: user.id,
+      })
+      .select("id")
+      .single();
+
+    // Push Pennylane en arrière-plan si le toggle est actif. On ne
+    // bloque JAMAIS le flow métier — le devis passe à acompte_recu quoi
+    // qu'il arrive côté Pennylane, l'échec est loggé dans
+    // pennylane_settings.last_error.
+    if (inserted) {
+      const { pushInvoiceForDevisPayment } = await import(
+        "@/lib/pennylane/push"
+      );
+      pushInvoiceForDevisPayment({
+        devisId,
+        paymentId: inserted.id,
+        kind: "acompte",
+        amountTtc: Number(devis.acompte_ttc ?? 0),
+        paidAt: new Date().toISOString(),
+        paymentMethod: method,
+      }).catch((e) => {
+        console.warn("[pennylane push acompte]", e);
+      });
+    }
   }
 
   // Trigger event "acompte_recu"
@@ -350,16 +387,47 @@ export async function markSoldeRecuAction(
     return { ok: false, errors: {}, message: "Aucun solde à encaisser" };
   }
 
-  const { error: e1 } = await supabase.from("payments").insert({
-    devis_id: devisId,
-    client_id: devis.client_id,
-    kind: "solde",
-    method,
-    amount_ttc: solde,
-    notes: notes?.trim() || `Encaissement solde manuel · ${method}`,
-    recorded_by: user.id,
-  });
-  if (e1) return { ok: false, errors: {}, message: e1.message };
+  const { data: solInserted, error: e1 } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: { id: string } | null;
+              error: { message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
+    .from("payments")
+    .insert({
+      devis_id: devisId,
+      client_id: devis.client_id,
+      kind: "solde",
+      method,
+      amount_ttc: solde,
+      notes: notes?.trim() || `Encaissement solde manuel · ${method}`,
+      recorded_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (e1) return { ok: false, errors: {}, message: e1.message ?? "Échec" };
+
+  if (solInserted) {
+    const { pushInvoiceForDevisPayment } = await import(
+      "@/lib/pennylane/push"
+    );
+    pushInvoiceForDevisPayment({
+      devisId,
+      paymentId: solInserted.id,
+      kind: "solde",
+      amountTtc: solde,
+      paidAt: new Date().toISOString(),
+      paymentMethod: method,
+    }).catch((e) => console.warn("[pennylane push solde]", e));
+  }
 
   // Update dossier.solde_paid
   const { data: dossier } = await supabase

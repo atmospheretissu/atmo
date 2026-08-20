@@ -2,6 +2,7 @@ import { CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
+import { PennylaneCard } from "@/components/parametres/pennylane-card";
 
 type IntegrationStatus = "connecte" | "a_configurer" | "manuel" | "a_venir";
 
@@ -92,7 +93,11 @@ export function IntegrationsTab({
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Bloc riche Pennylane (toggles, pull manuel, statut) */}
+      <PennylaneCard />
+
+      {/* Liste des autres intégrations en cartes simples */}
       {integrations.map((i) => (
         <Card key={i.name} className="p-4 flex items-start gap-4">
           <div

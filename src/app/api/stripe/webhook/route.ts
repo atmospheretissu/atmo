@@ -72,15 +72,46 @@ export async function POST(request: NextRequest) {
       const amount = Number(session.amount_total ?? 0) / 100 || soldeTtc;
 
       // 1. Insert payment kind=solde
-      await supabase.from("payments").insert({
-        devis_id: devisId,
-        client_id: devis.client_id,
-        kind: "solde",
-        method: "stripe",
-        amount_ttc: amount,
-        stripe_payment_intent_id: piId,
-        notes: `Solde Stripe — ${session.id}`,
-      });
+      const { data: solPay } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (v: unknown) => {
+              select: (s: string) => {
+                single: () => Promise<{
+                  data: { id: string } | null;
+                  error: unknown;
+                }>;
+              };
+            };
+          };
+        }
+      )
+        .from("payments")
+        .insert({
+          devis_id: devisId,
+          client_id: devis.client_id,
+          kind: "solde",
+          method: "stripe",
+          amount_ttc: amount,
+          stripe_payment_intent_id: piId,
+          notes: `Solde Stripe — ${session.id}`,
+        })
+        .select("id")
+        .single();
+
+      if (solPay) {
+        const { pushInvoiceForDevisPayment } = await import(
+          "@/lib/pennylane/push"
+        );
+        pushInvoiceForDevisPayment({
+          devisId,
+          paymentId: solPay.id,
+          kind: "solde",
+          amountTtc: amount,
+          paidAt: new Date().toISOString(),
+          paymentMethod: "stripe",
+        }).catch((e) => console.warn("[pennylane push stripe solde]", e));
+      }
 
       // 2. Update dossier.solde_paid
       const { data: dossier } = await supabase
@@ -137,15 +168,46 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Insert payment record
-    await supabase.from("payments").insert({
-      devis_id: devisId,
-      client_id: devis.client_id,
-      kind: "acompte",
-      method: "stripe",
-      amount_ttc: acompteTtc,
-      stripe_payment_intent_id: piId,
-      notes: `Acompte Stripe — ${session.id}`,
-    });
+    const { data: acoPay } = await (
+      supabase as unknown as {
+        from: (t: string) => {
+          insert: (v: unknown) => {
+            select: (s: string) => {
+              single: () => Promise<{
+                data: { id: string } | null;
+                error: unknown;
+              }>;
+            };
+          };
+        };
+      }
+    )
+      .from("payments")
+      .insert({
+        devis_id: devisId,
+        client_id: devis.client_id,
+        kind: "acompte",
+        method: "stripe",
+        amount_ttc: acompteTtc,
+        stripe_payment_intent_id: piId,
+        notes: `Acompte Stripe — ${session.id}`,
+      })
+      .select("id")
+      .single();
+
+    if (acoPay) {
+      const { pushInvoiceForDevisPayment } = await import(
+        "@/lib/pennylane/push"
+      );
+      pushInvoiceForDevisPayment({
+        devisId,
+        paymentId: acoPay.id,
+        kind: "acompte",
+        amountTtc: acompteTtc,
+        paidAt: new Date().toISOString(),
+        paymentMethod: "stripe",
+      }).catch((e) => console.warn("[pennylane push stripe acompte]", e));
+    }
 
     // 2b. Trigger event "acompte_recu" (SMS et/ou email selon règle)
     try {
