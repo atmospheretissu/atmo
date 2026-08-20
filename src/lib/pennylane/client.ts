@@ -18,23 +18,27 @@ export type PennylaneResult<T> =
   | { ok: false; disabled: true; reason: string }
   | { ok: false; disabled: false; status: number; message: string };
 
-type Scope = "customers" | "invoices";
+type Scope = "customers" | "invoices" | "transactions";
 
 function tokenFor(scope: Scope): string | null {
   const t =
     scope === "customers"
       ? process.env.PENNYLANE_TOKEN_CUSTOMERS
-      : process.env.PENNYLANE_TOKEN_INVOICES;
+      : scope === "invoices"
+        ? process.env.PENNYLANE_TOKEN_INVOICES
+        : process.env.PENNYLANE_TOKEN_TRANSACTIONS;
   return t?.trim() || null;
 }
 
 export function isPennylaneConfigured(): {
   customers: boolean;
   invoices: boolean;
+  transactions: boolean;
 } {
   return {
     customers: Boolean(tokenFor("customers")),
     invoices: Boolean(tokenFor("invoices")),
+    transactions: Boolean(tokenFor("transactions")),
   };
 }
 

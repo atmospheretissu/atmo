@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pullPennylaneInvoices } from "@/lib/pennylane/pull";
+import { pullWireTransfersAndReconcile } from "@/lib/pennylane/wire-match";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +40,17 @@ export async function POST(request: Request) {
     const since = new Date(Date.now() - days * 86400_000)
       .toISOString()
       .slice(0, 10);
-    const result = await pullPennylaneInvoices({ sinceISODate: since });
-    return NextResponse.json(result);
+    // 2 flux pull sont exécutés en parallèle (chacun respecte son
+    // propre toggle, disabled=true si off).
+    const [invoicesResult, wiresResult] = await Promise.all([
+      pullPennylaneInvoices({ sinceISODate: since }),
+      pullWireTransfersAndReconcile({ sinceISODate: since }),
+    ]);
+    return NextResponse.json({
+      ok: true,
+      invoices: invoicesResult,
+      wires: wiresResult,
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, message: e instanceof Error ? e.message : String(e) },

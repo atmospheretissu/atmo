@@ -16,19 +16,24 @@ import {
   getPennylaneStatusAction,
   togglePennylaneFeatureAction,
   triggerPennylanePullNowAction,
+  triggerWireScanNowAction,
   type PennylaneStatus,
 } from "@/app/(platform)/parametres/pennylane-actions";
+import { FileText } from "lucide-react";
 
 type Feature =
   | "push_customer_enabled"
   | "push_invoice_enabled"
-  | "pull_reconciliation_enabled";
+  | "pull_reconciliation_enabled"
+  | "auto_reconcile_by_wire_label";
 
 export function PennylaneCard() {
   const [status, setStatus] = useState<PennylaneStatus | null>(null);
   const [pending, startTransition] = useTransition();
   const [pulling, startPull] = useTransition();
   const [pullMsg, setPullMsg] = useState<string | null>(null);
+  const [scanning, startScan] = useTransition();
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
 
   const refresh = () =>
     getPennylaneStatusAction().then(setStatus).catch(() => {});
@@ -56,6 +61,21 @@ export function PennylaneCard() {
       } else {
         setPullMsg(
           `✓ Pull terminé — ${r.scanned ?? 0} factures scannées, ${r.matched ?? 0} rapprochées.`,
+        );
+      }
+      await refresh();
+    });
+  };
+
+  const runWireScanNow = () => {
+    setScanMsg(null);
+    startScan(async () => {
+      const r = await triggerWireScanNowAction();
+      if (!r.ok) {
+        setScanMsg(`❌ ${r.message ?? "Échec"}`);
+      } else {
+        setScanMsg(
+          `✓ Scan virements — ${r.scanned ?? 0} scannés, ${r.acomptes ?? 0} acomptes / ${r.soldes ?? 0} soldes marqués, ${r.skipped ?? 0} ignorés.`,
         );
       }
       await refresh();
@@ -92,25 +112,44 @@ export function PennylaneCard() {
             </p>
           </div>
         </div>
-        {tokensOK ? (
-          <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-emerald-soft text-emerald-strong text-[11px] font-semibold">
-            <CheckCircle2 className="h-3 w-3" /> Tokens API OK
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-amber-soft text-amber text-[11px] font-semibold">
-            <AlertTriangle className="h-3 w-3" /> Tokens absents (env)
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1">
+          {tokensOK ? (
+            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-emerald-soft text-emerald-strong text-[11px] font-semibold">
+              <CheckCircle2 className="h-3 w-3" /> Customers + Invoices OK
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-amber-soft text-amber text-[11px] font-semibold">
+              <AlertTriangle className="h-3 w-3" /> Customers/Invoices absents
+            </span>
+          )}
+          {status.env.transactionsTokenReady ? (
+            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-emerald-soft text-emerald-strong text-[11px] font-semibold">
+              <CheckCircle2 className="h-3 w-3" /> Transactions OK
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-canvas-2 text-muted-2 text-[11px] font-semibold border border-line">
+              Transactions absent
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Bandeau dev / prod */}
       {!tokensOK && (
         <div className="px-5 py-3 bg-amber-soft/40 border-b border-line text-[12.5px] text-ink-2">
-          Pennylane est inactive dans cet environnement — les variables
+          Pennylane est inactive dans cet environnement — variables
           d&apos;env <code className="font-mono">PENNYLANE_TOKEN_CUSTOMERS</code>{" "}
-          et <code className="font-mono">PENNYLANE_TOKEN_INVOICES</code> sont
-          absentes. En dev c&apos;est normal ; en prod, ajoute-les dans les
-          variables Railway.
+          et <code className="font-mono">PENNYLANE_TOKEN_INVOICES</code> absentes.
+          En dev c&apos;est normal ; en prod, ajoute-les dans Railway.
+        </div>
+      )}
+      {tokensOK && !status.env.transactionsTokenReady && (
+        <div className="px-5 py-3 bg-canvas-2/40 border-b border-line text-[12.5px] text-ink-2">
+          <strong>Auto-marquage acompte via motif</strong> :{" "}
+          <code className="font-mono">PENNYLANE_TOKEN_TRANSACTIONS</code>{" "}
+          absent. Génère un 3ème token Pennylane avec le scope{" "}
+          <code className="font-mono">transactions:readonly</code> et ajoute-le
+          en env pour activer ce flux.
         </div>
       )}
 
@@ -134,11 +173,21 @@ export function PennylaneCard() {
         />
         <ToggleRow
           icon={ArrowDownToLine}
-          title="Réconciliation horaire (pull)"
+          title="Réconciliation horaire (pull factures)"
           desc="Cron horaire côté worker Atmolead qui vérifie les factures Pennylane, extrait les payments et met à jour notre base."
           value={s.pull_reconciliation_enabled}
           onToggle={(v) => toggle("pull_reconciliation_enabled", v)}
           disabled={!tokensOK || pending}
+        />
+        <ToggleRow
+          icon={FileText}
+          title="Auto-marquage acompte via motif virement"
+          desc={
+            'Scanne les virements bancaires Pennylane. Si le motif contient un n° de devis (ex : "DEV-2026-0011") et que le montant correspond à l\'acompte (±2%), marque l\'acompte reçu automatiquement. Requiert un 3ème token Pennylane avec scope transactions:readonly.'
+          }
+          value={s.auto_reconcile_by_wire_label}
+          onToggle={(v) => toggle("auto_reconcile_by_wire_label", v)}
+          disabled={!status.env.transactionsTokenReady || pending}
         />
       </div>
 
@@ -150,10 +199,18 @@ export function PennylaneCard() {
             value={s.last_push_at ? formatDate(s.last_push_at) : "—"}
           />
           <InfoLine
-            label="Dernier pull"
+            label="Dernier pull factures"
             value={
               s.last_pull_at
                 ? `${formatDate(s.last_pull_at)}${s.last_pull_stats ? ` · ${formatStats(s.last_pull_stats)}` : ""}`
+                : "—"
+            }
+          />
+          <InfoLine
+            label="Dernier scan virements"
+            value={
+              s.last_wire_scan_at
+                ? `${formatDate(s.last_wire_scan_at)}${s.last_wire_scan_stats ? ` · ${formatWireStats(s.last_wire_scan_stats)}` : ""}`
                 : "—"
             }
           />
@@ -176,7 +233,7 @@ export function PennylaneCard() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2 pt-2 flex-wrap">
           <button
             onClick={runPullNow}
             disabled={
@@ -191,7 +248,23 @@ export function PennylaneCard() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            Lancer un pull maintenant
+            Pull factures maintenant
+          </button>
+          <button
+            onClick={runWireScanNow}
+            disabled={
+              !status.env.transactionsTokenReady ||
+              !s.auto_reconcile_by_wire_label ||
+              scanning
+            }
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-[12.5px] font-semibold border border-line bg-white hover:border-line-strong text-ink-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {scanning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5" />
+            )}
+            Scanner les virements
           </button>
           {pullMsg && (
             <span
@@ -201,6 +274,16 @@ export function PennylaneCard() {
               }
             >
               {pullMsg}
+            </span>
+          )}
+          {scanMsg && (
+            <span
+              className={
+                "text-[11.5px] " +
+                (scanMsg.startsWith("✓") ? "text-emerald" : "text-pink")
+              }
+            >
+              {scanMsg}
             </span>
           )}
         </div>
@@ -310,4 +393,12 @@ function formatStats(stats: Record<string, unknown>): string {
   const m = stats.matched as number | undefined;
   if (s == null && m == null) return "";
   return `${s ?? 0} scannées · ${m ?? 0} rapprochées`;
+}
+
+function formatWireStats(stats: Record<string, unknown>): string {
+  const s = stats.scanned as number | undefined;
+  const a = stats.acomptes_marked as number | undefined;
+  const so = stats.soldes_marked as number | undefined;
+  if (s == null) return "";
+  return `${s} scannés · ${a ?? 0} acomptes / ${so ?? 0} soldes marqués`;
 }

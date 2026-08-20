@@ -4,9 +4,12 @@ export type PennylaneSettings = {
   push_customer_enabled: boolean;
   push_invoice_enabled: boolean;
   pull_reconciliation_enabled: boolean;
+  auto_reconcile_by_wire_label: boolean;
   last_push_at: string | null;
   last_pull_at: string | null;
   last_pull_stats: Record<string, unknown> | null;
+  last_wire_scan_at: string | null;
+  last_wire_scan_stats: Record<string, unknown> | null;
   last_error: string | null;
 };
 
@@ -32,7 +35,7 @@ export async function getPennylaneSettings(): Promise<PennylaneSettings> {
   )
     .from("pennylane_settings")
     .select(
-      "push_customer_enabled, push_invoice_enabled, pull_reconciliation_enabled, last_push_at, last_pull_at, last_pull_stats, last_error",
+      "push_customer_enabled, push_invoice_enabled, pull_reconciliation_enabled, auto_reconcile_by_wire_label, last_push_at, last_pull_at, last_pull_stats, last_wire_scan_at, last_wire_scan_stats, last_error",
     )
     .eq("id", true)
     .maybeSingle();
@@ -41,9 +44,12 @@ export async function getPennylaneSettings(): Promise<PennylaneSettings> {
       push_customer_enabled: false,
       push_invoice_enabled: false,
       pull_reconciliation_enabled: false,
+      auto_reconcile_by_wire_label: false,
       last_push_at: null,
       last_pull_at: null,
       last_pull_stats: null,
+      last_wire_scan_at: null,
+      last_wire_scan_stats: null,
       last_error: null,
     }
   );
@@ -56,6 +62,7 @@ export async function updatePennylaneSettings(
       | "push_customer_enabled"
       | "push_invoice_enabled"
       | "pull_reconciliation_enabled"
+      | "auto_reconcile_by_wire_label"
     >
   >,
 ): Promise<{ ok: boolean; message?: string }> {
