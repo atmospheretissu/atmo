@@ -95,6 +95,11 @@ export function ArticleNewCollectionForm({
   const [hauteur, setHauteur] = useState<number>(157);
   const [avecPose, setAvecPose] = useState(true);
   const [prixPoseOverride, setPrixPoseOverride] = useState<number | null>(null);
+  // Champs spécifiques stores (bateau / enrouleur / screen)
+  const [chainetteCote, setChainetteCote] = useState<"gauche" | "droite">(
+    "droite",
+  );
+  const [chainetteCouleur, setChainetteCouleur] = useState<string>("blanc");
 
   // Prix pose auto depuis la grille selon dimensions + catégorie
   const prixPoseAuto = useMemo(
@@ -273,6 +278,13 @@ export function ArticleNewCollectionForm({
     const doublureLabel = doublure === "aucune" ? "" : ` · doublure ${doublure}`;
     const montageLabel = category === "rideau" ? ` · ${montage === "paire" ? "Paire" : "Panneau"}` : "";
     const label = `Collection Atmosphère — ${CATEGORY_LABELS[category]} ${tissuBase}`;
+    const isStore =
+      category === "store_bateau" ||
+      category === "store_enrouleur" ||
+      category === "store_screen";
+    const chainetteLabel = isStore
+      ? ` · chaînette ${chainetteCouleur} à ${chainetteCote}`
+      : "";
 
     const colorisLabel = coloris.trim() ? ` · coloris ${coloris.trim()}` : "";
     articles.push({
@@ -284,6 +296,7 @@ export function ArticleNewCollectionForm({
         montageLabel +
         doublureLabel +
         colorisLabel +
+        chainetteLabel +
         (activeTissu.laize ? ` · laize ${activeTissu.laize}cm` : "") +
         ` · seuil grille ${lookupMain.largeurSeuil}×${lookupMain.hauteurSeuil}cm`,
       qty: 1,
@@ -307,6 +320,9 @@ export function ArticleNewCollectionForm({
         prixBase,
         prixSupplementThermique: prixThermique,
         prixAllIn: prixArticle,
+        // Store : côté + couleur chaînette (bateau, enrouleur, screen)
+        chainetteCote: isStore ? chainetteCote : null,
+        chainetteCouleur: isStore ? chainetteCouleur : null,
         // Marqueur pour l'auto-supplier "Collection Atmosphere" dans BC
         supplierPreferHint: "collection_atmosphere",
       },
@@ -507,6 +523,49 @@ export function ArticleNewCollectionForm({
             </div>
           </div>
         </section>
+
+        {/* Mécanisme store — chaînette (bateau + enrouleur + screen uniquement) */}
+        {(category === "store_bateau" ||
+          category === "store_enrouleur" ||
+          category === "store_screen") && (
+          <section>
+            <p className="eyebrow mb-2">Mécanisme</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Côté chaînette</Label>
+                <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                  {(["gauche", "droite"] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setChainetteCote(c)}
+                      className={
+                        "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
+                        (chainetteCote === c
+                          ? "bg-ink text-white"
+                          : "text-muted hover:text-ink")
+                      }
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Couleur chaînette</Label>
+                <Select
+                  value={chainetteCouleur}
+                  onChange={(e) => setChainetteCouleur(e.target.value)}
+                >
+                  <option value="blanc">Blanc (standard)</option>
+                  <option value="alu">Aluminium</option>
+                  <option value="noir">Noir</option>
+                  <option value="laiton">Laiton</option>
+                </Select>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Pose */}
         <section>

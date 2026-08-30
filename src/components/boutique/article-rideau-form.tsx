@@ -128,7 +128,17 @@ const initial: Inputs = {
   supportMural: "face_simple_6",
 };
 
-const COULEURS_RAIL = ["blanc", "noir", "autre"] as const;
+const COULEURS_RAIL = [
+  "blanc",
+  "noir",
+  "gris",
+  "noir mat",
+  "alu",
+  "chrome",
+  "rouille",
+  "doré",
+  "autre",
+] as const;
 const COULEURS_TRINGLE = [
   "blanc",
   "noir mat",

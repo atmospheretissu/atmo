@@ -44,6 +44,8 @@ type CartItem = {
   qty: number;
   unitLabel: string;
   isFree?: boolean;
+  /** Commentaire libre par ligne (ex : coloris peinture SL10). */
+  notes?: string;
 };
 
 type ClientPick = {
@@ -281,7 +283,9 @@ export default function CaisseClient({
         client_id: client?.id ?? null,
         lines: cart.map((c) => ({
           ref: c.ref,
-          label: c.label,
+          // Le commentaire libre saisi par le caissier est concaténé au label
+          // sur une seconde ligne (rendu sur le ticket PDF via split '\n').
+          label: c.notes?.trim() ? `${c.label}\n${c.notes.trim()}` : c.label,
           qty: c.qty,
           unit_label: c.unitLabel,
           unit_price_ht: c.unit,
@@ -587,6 +591,21 @@ export default function CaisseClient({
                       <div className="flex-1 min-w-0">
                         <p className="text-[12.5px] font-semibold text-ink leading-tight truncate">{c.label}</p>
                         <p className="ref mt-0.5 truncate">{c.ref} · {c.detail}</p>
+                        {/* Champ commentaire libre — ex : coloris peinture SL10 */}
+                        <input
+                          type="text"
+                          value={c.notes ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCart((prev) =>
+                              prev.map((x) =>
+                                x.ref === c.ref ? { ...x, notes: val } : x,
+                              ),
+                            );
+                          }}
+                          placeholder="Commentaire (coloris, référence…)"
+                          className="mt-1 w-full text-[11px] px-1.5 h-6 rounded border border-line/60 bg-white text-ink-2 placeholder:text-muted-2 focus:border-violet focus:outline-none focus:ring-1 focus:ring-violet/20"
+                        />
                         <div className="flex items-center justify-between mt-1.5">
                           <div className="inline-flex items-center gap-1 rounded-md border border-line bg-white p-0.5">
                             <button onClick={() => adjustQty(c.ref, -0.5)} className="h-5 w-5 rounded inline-flex items-center justify-center text-muted hover:bg-canvas-2 hover:text-ink">

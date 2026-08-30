@@ -280,6 +280,7 @@ function ProduitCatalogueForm({
   const [qty, setQty] = useState(1);
   const [unitLabel, setUnitLabel] = useState("u");
   const [overridePrice, setOverridePrice] = useState<number | "">("");
+  const [refComplementaire, setRefComplementaire] = useState("");
   const [searching, startSearch] = useTransition();
 
   useEffect(() => {
@@ -319,11 +320,16 @@ function ProduitCatalogueForm({
 
   const handleAdd = () => {
     if (!selectedProduct) return;
+    const refExt = refComplementaire.trim();
     onAdd({
       type: "produit",
       designation: selectedProduct.nom,
       ref: selectedProduct.reference,
-      detail: `${selectedProduct.fournisseur} · ${selectedProduct.designation}`,
+      // Le détail intègre la référence complémentaire quand renseignée
+      // (ex : coloris peinture SL10) — affichée sur le devis PDF.
+      detail:
+        `${selectedProduct.fournisseur} · ${selectedProduct.designation}` +
+        (refExt ? ` · ${refExt}` : ""),
       qty,
       unitLabel,
       unitPriceHt: finalPrice,
@@ -331,6 +337,7 @@ function ProduitCatalogueForm({
         catalogReference: selectedProduct.reference,
         fournisseur: selectedProduct.fournisseur,
         prixOriginal: selectedProduct.prix,
+        referenceComplementaire: refExt || null,
       },
     });
   };
@@ -524,6 +531,19 @@ function ProduitCatalogueForm({
                 Prix catalogue : {selectedProduct.prix?.toFixed(2) ?? "—"} €
               </p>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <Label>Référence complémentaire (facultatif)</Label>
+            <Input
+              value={refComplementaire}
+              onChange={(e) => setRefComplementaire(e.target.value)}
+              placeholder="ex : coloris SL10, teinte, finition…"
+            />
+            <p className="text-[10.5px] text-muted-2 mt-1">
+              Ajoutée au libellé sur le devis. Utile pour préciser un coloris de
+              peinture, une teinte spécifique, etc.
+            </p>
           </div>
 
           <div className="mt-4 p-3 rounded-lg bg-canvas-2/40 border border-line flex items-center justify-between">

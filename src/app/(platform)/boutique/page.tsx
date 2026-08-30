@@ -3,7 +3,7 @@ import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/status-pill";
-import { Plus, ShoppingBag, Layers, Scissors, Package, Disc, Sparkles, Sofa, Plus as PlusIcon } from "lucide-react";
+import { Plus, Layers, Scissors, Package, Disc, Sparkles, Sofa, ShoppingBag, Plus as PlusIcon } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,28 +18,27 @@ export default async function BoutiquePage() {
       />
 
       <div className="flex-1 overflow-auto">
-        <section className="px-8 pt-10 pb-6">
-          <p className="eyebrow mb-3">Boutique · simulateur complet</p>
-          <div className="flex items-end justify-between gap-8 flex-wrap mb-2">
-            <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1]">
-              Devis boutique
-            </h1>
-            <Link href="/boutique/nouveau">
-              <Button variant="primary" size="sm">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-                Devis boutique
-              </Button>
-            </Link>
-          </div>
-          <p className="text-[13.5px] text-muted max-w-2xl">
-            Wizard 3 étapes — client, pièces & articles, récapitulatif. Calculs de prix
-            automatiques selon les bases tarifaires Atmosphère (rideaux, stores, rails, pose,
-            catalogue produits, rideaux en série).
+        {/* CTA principal en grand — l'action à faire */}
+        <section className="px-8 pt-10 pb-8">
+          <p className="eyebrow mb-3">Nouveau document</p>
+          <h1 className="text-[36px] font-semibold tracking-tight text-ink leading-[1.1] mb-3">
+            Créer un devis
+          </h1>
+          <p className="text-[13.5px] text-muted max-w-2xl mb-6">
+            Client, pièces & articles, récap 3 étapes. Prix calculés automatiquement selon les
+            grilles Atmosphère (rideaux, stores, rails, pose, catalogue, Collection).
           </p>
+          <Link href="/boutique/nouveau">
+            <Button variant="primary" size="lg">
+              <Plus className="h-4 w-4" strokeWidth={2.4} />
+              Créer un devis
+            </Button>
+          </Link>
         </section>
 
-        <section className="px-8 pb-8">
-          <p className="eyebrow mb-3">Types d'articles disponibles</p>
+        {/* Familles disponibles en dessous, à titre indicatif */}
+        <section className="px-8 pb-10">
+          <p className="eyebrow mb-3">Types d&apos;articles disponibles dans le simulateur</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <ArticleCard
               tone="violet"
@@ -75,7 +74,7 @@ export default async function BoutiquePage() {
               tone="violet"
               icon={Sparkles}
               title="Collection Atmosphère"
-              sub="LIN / Polyester · routing Pologne·Ukraine"
+              sub="LIN / Polyester · confection interne"
             />
             <ArticleCard
               tone="blue"
@@ -92,26 +91,6 @@ export default async function BoutiquePage() {
           </div>
         </section>
 
-        <section className="px-8 pb-10">
-          <Card className="py-10 px-6 text-center">
-            <div className="h-14 w-14 mx-auto rounded-2xl bg-gradient-to-br from-violet to-pink text-white inline-flex items-center justify-center mb-4">
-              <ShoppingBag className="h-6 w-6" strokeWidth={2} />
-            </div>
-            <h2 className="text-[18px] font-semibold text-ink mb-1">
-              Démarre un devis boutique
-            </h2>
-            <p className="text-[13.5px] text-muted max-w-md mx-auto mb-6 leading-relaxed">
-              Choisis un client, ajoute les pièces (ex : Salon, Chambre), puis remplis-les avec
-              des articles. Total + acompte 50 % calculés en direct.
-            </p>
-            <Link href="/boutique/nouveau">
-              <Button variant="primary" size="md">
-                <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-                Devis boutique
-              </Button>
-            </Link>
-          </Card>
-        </section>
       </div>
     </>
   );

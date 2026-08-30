@@ -34,6 +34,10 @@ type Inputs = {
   largeurFinie: number;
   hauteurFinie: number;
   prixTissu: number; // €/m² du tissu enrouleur/screen
+  // Toggle saisie : soit prix au m² (prixTissu), soit prix total HT (prixTotalTissu).
+  // Le champ non-sélectionné est ignoré au calcul.
+  prixMode: "m2" | "total";
+  prixTotalTissu: number;
   chainetteCouleur: string;
   chainetteCote: ChainetteCote;
   enroulement: Enroulement;
@@ -52,6 +56,8 @@ const initial: Inputs = {
   largeurFinie: 120,
   hauteurFinie: 180,
   prixTissu: 80,
+  prixMode: "m2",
+  prixTotalTissu: 0,
   chainetteCouleur: "blanc",
   chainetteCote: "droite",
   enroulement: "arriere",
@@ -92,11 +98,21 @@ export function StoreEnrouleurForm({
   const calc = useMemo(() => {
     if (validationError) return null;
     const surface = (v.largeurFinie * v.hauteurFinie) / 10_000;
-    const prixTissu = Math.round(surface * v.prixTissu * 100) / 100;
+    // Prix tissu : soit saisi au m² (multiplier par surface), soit saisi
+    // en total HT (utilisé tel quel). On expose aussi le prix au m²
+    // équivalent pour affichage / meta.
+    const prixTissu =
+      v.prixMode === "total"
+        ? Math.round(v.prixTotalTissu * 100) / 100
+        : Math.round(surface * v.prixTissu * 100) / 100;
+    const prixTissuMetreCarre =
+      v.prixMode === "total" && surface > 0
+        ? Math.round((v.prixTotalTissu / surface) * 100) / 100
+        : v.prixTissu;
     const prixMecanisme = v.prixMecanisme;
     const prixPose = v.avecPose ? v.prixPose : 0;
     const total = prixTissu + prixMecanisme + prixPose;
-    return { surface, prixTissu, prixMecanisme, prixPose, total };
+    return { surface, prixTissu, prixTissuMetreCarre, prixMecanisme, prixPose, total };
   }, [v, validationError]);
 
   const handleAdd = () => {
@@ -136,7 +152,8 @@ export function StoreEnrouleurForm({
         hauteurFinie: v.hauteurFinie,
         surface: calc.surface,
         enroulement: v.enroulement,
-        prixTissuMetreCarre: v.prixTissu,
+        prixTissuMetreCarre: calc.prixTissuMetreCarre,
+        prixMode: v.prixMode,
       },
     });
 
@@ -329,16 +346,44 @@ export function StoreEnrouleurForm({
               <Hint>Précise le coloris exact commandé au fournisseur.</Hint>
             </div>
             <div>
-              <Label>Prix tissu (€/m²) *</Label>
-              <Input
-                type="number"
-                step="0.5"
-                min={0}
-                value={v.prixTissu || ""}
-                onChange={(e) => update({ prixTissu: Number(e.target.value) || 0 })}
-              />
+              <Label>
+                Prix tissu (
+                {v.prixMode === "total" ? "total HT" : "€/m²"}) *
+              </Label>
+              <div className="flex items-stretch gap-1.5">
+                <Input
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  value={
+                    v.prixMode === "total"
+                      ? v.prixTotalTissu || ""
+                      : v.prixTissu || ""
+                  }
+                  onChange={(e) => {
+                    const n = Number(e.target.value) || 0;
+                    if (v.prixMode === "total") update({ prixTotalTissu: n });
+                    else update({ prixTissu: n });
+                  }}
+                  className="flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    update({
+                      prixMode: v.prixMode === "total" ? "m2" : "total",
+                    })
+                  }
+                  className="h-9 px-2.5 rounded-md border border-line-strong bg-white text-[11.5px] font-semibold text-ink-2 hover:border-violet hover:text-violet transition-colors"
+                  title="Basculer entre prix au m² et prix total"
+                >
+                  ↔ {v.prixMode === "total" ? "€ / m²" : "Total HT"}
+                </button>
+              </div>
               <Hint>
-                Tissu spécifique au store enrouleur (Vedelux / Copahome…) — prix au m².
+                {v.prixMode === "total"
+                  ? "Prix total HT du tissu (calculé automatiquement en €/m² selon la surface)."
+                  : "Prix au m² du tissu enrouleur (Vedelux, Copahome…). Bascule pour saisir un total."}
               </Hint>
             </div>
           </div>

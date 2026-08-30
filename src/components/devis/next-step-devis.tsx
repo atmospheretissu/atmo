@@ -120,9 +120,9 @@ function pickNextStep(p: Props): Step | null {
         eyebrow: "Tout est réglé",
         title: "Acompte et solde encaissés",
         description: "Reste à finaliser la pose si elle est prévue dans le devis.",
-        ctaLabel: p.dossierId ? "Ouvrir la fiche confection" : "Voir l'historique",
+        ctaLabel: p.dossierId ? "Planifier la pose" : "Voir l'historique",
         ctaHref: p.dossierId ? `/confections/${p.dossierId}` : `/devis/${p.devisId}`,
-        variant: "secondary",
+        variant: "accent",
       };
 
     case "refuse":

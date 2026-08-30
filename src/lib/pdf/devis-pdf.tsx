@@ -363,7 +363,8 @@ function buildSpecsFromMeta(
     const sf = metaGet(meta, "sousFamille");
     const matiere = metaGet(meta, "matiere");
     const ref = metaGet(meta, "reference");
-    const routing = metaGet(meta, "routingLabel");
+    // routing / Ukraine (XML) : info interne fournisseur — masquée sur le PDF client
+    // (visible dans la fiche confection interne, jamais côté client final).
     if (sf) {
       const map: Record<string, string> = {
         rideau: "Rideau",
@@ -374,7 +375,6 @@ function buildSpecsFromMeta(
     }
     if (matiere) rows.push({ label: "Matière", value: matiere.toUpperCase() });
     if (ref) rows.push({ label: "Référence", value: ref });
-    if (routing) rows.push({ label: "Routing fournisseur", value: routing });
     const largeur = metaNum(meta, "largeurFinie");
     const hauteur = metaNum(meta, "hauteurFinie");
     if (!hideMeasurements && largeur) rows.push({ label: "Largeur finie", value: `${largeur} cm` });
@@ -499,22 +499,35 @@ export function DevisPDF({
           </Text>
         </View>
 
-        {/* Table de lignes */}
-        <View style={styles.table}>
-          <View style={styles.tHead}>
-            <Text style={[styles.tHeadText, styles.cRef]}>Réf.</Text>
-            <Text style={[styles.tHeadText, styles.cLabel]}>Désignation</Text>
-            <Text style={[styles.tHeadText, styles.cQty]}>Qté</Text>
-            <Text style={[styles.tHeadText, styles.cUnit]}>P.U. HT</Text>
-            <Text style={[styles.tHeadText, styles.cTotal]}>Total HT</Text>
-          </View>
-          {visibleLines.map((l) => {
-            const meta = (l.meta ?? null) as MetaRecord | null;
-            const specs = buildSpecsFromMeta(meta, hideMeasurements);
-            const useSpecs = specs.length > 0;
-            return (
-              <View style={styles.tRow} key={l.id}>
-                <Text style={[styles.cRef, styles.lineRefMuted]}>{l.ref ?? "—"}</Text>
+        {/* Table de lignes — colonne Réf masquée si TOUTES les lignes ont ref=null
+            (typiquement quand le devis ne contient que des rideaux / stores /
+            collection sans référence catalogue). */}
+        {(() => {
+          const showRefCol = visibleLines.some(
+            (l) => l.ref != null && String(l.ref).trim().length > 0,
+          );
+          return (
+            <View style={styles.table}>
+              <View style={styles.tHead}>
+                {showRefCol && (
+                  <Text style={[styles.tHeadText, styles.cRef]}>Réf.</Text>
+                )}
+                <Text style={[styles.tHeadText, styles.cLabel]}>Désignation</Text>
+                <Text style={[styles.tHeadText, styles.cQty]}>Qté</Text>
+                <Text style={[styles.tHeadText, styles.cUnit]}>P.U. HT</Text>
+                <Text style={[styles.tHeadText, styles.cTotal]}>Total HT</Text>
+              </View>
+              {visibleLines.map((l) => {
+                const meta = (l.meta ?? null) as MetaRecord | null;
+                const specs = buildSpecsFromMeta(meta, hideMeasurements);
+                const useSpecs = specs.length > 0;
+                return (
+                  <View style={styles.tRow} key={l.id}>
+                    {showRefCol && (
+                      <Text style={[styles.cRef, styles.lineRefMuted]}>
+                        {l.ref ?? "—"}
+                      </Text>
+                    )}
                 <View style={styles.cLabel}>
                   <Text style={styles.lineLabel}>{l.label}</Text>
                   {useSpecs ? (
@@ -535,10 +548,12 @@ export function DevisPDF({
                 </Text>
                 <Text style={[styles.cUnit, styles.cellNum]}>{eur(Number(l.unit_price_ht))}</Text>
                 <Text style={[styles.cTotal, styles.cellNumBold]}>{eur(Number(l.total_ht ?? 0))}</Text>
-              </View>
-            );
-          })}
-        </View>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         {/* Totaux */}
         <View style={styles.totals}>

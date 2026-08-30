@@ -116,10 +116,10 @@ function pickNextStep(p: Props): Step | null {
           tone: "pink",
           icon: Banknote,
           eyebrow: "Prochaine étape",
-          title: "Demander le solde au client",
+          title: "Solde à encaisser",
           description:
-            "Toutes les pièces sont prêtes. Envoie le client sur son portail pour régler le solde et débloquer la planification de pose.",
-          ctaLabel: "Envoyer la demande de solde",
+            "Toutes les pièces sont prêtes. Encaisse le solde (Stripe, virement, CB, chèque, espèces) pour débloquer la planification de pose.",
+          ctaLabel: "Solde à encaisser",
           ctaHref: `/devis/${p.devisId}`,
           variant: "accent",
         };

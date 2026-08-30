@@ -44,6 +44,10 @@ type Inputs = {
   hauteur: number;
   profondeur: number;
   prixHt: number;
+  // Champ de saisie brut — soit HT (prixHt = prixSaisi), soit TTC
+  // (prixHt = prixSaisi / 1.20). TVA fixe 20% pour ce type d'article.
+  prixSaisi: number;
+  prixMode: "ht" | "ttc";
   qty: number;
   detail: string;
 };
@@ -55,6 +59,8 @@ const initial: Inputs = {
   hauteur: 45,
   profondeur: 60,
   prixHt: 0,
+  prixSaisi: 0,
+  prixMode: "ht",
   qty: 1,
   detail: "",
 };
@@ -252,15 +258,47 @@ export function ArticleMobilierForm({
               />
             </div>
             <div>
-              <Label>Prix unitaire HT (€) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min={0}
-                value={v.prixHt || ""}
-                onChange={(e) => update({ prixHt: Number(e.target.value) || 0 })}
-              />
-              <Hint>Issu du simulateur externe ou paramétré manuellement.</Hint>
+              <Label>
+                Prix unitaire {v.prixMode === "ttc" ? "TTC" : "HT"} (€) *
+              </Label>
+              <div className="flex items-stretch gap-1.5">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={v.prixSaisi || ""}
+                  onChange={(e) => {
+                    const n = Number(e.target.value) || 0;
+                    update({
+                      prixSaisi: n,
+                      prixHt:
+                        v.prixMode === "ttc" ? Math.round((n / 1.2) * 100) / 100 : n,
+                    });
+                  }}
+                  className="flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextMode = v.prixMode === "ttc" ? "ht" : "ttc";
+                    // Bascule le champ saisi vers l'autre mode sans changer prixHt
+                    const nextSaisi =
+                      nextMode === "ttc"
+                        ? Math.round(v.prixHt * 1.2 * 100) / 100
+                        : v.prixHt;
+                    update({ prixMode: nextMode, prixSaisi: nextSaisi });
+                  }}
+                  className="h-9 px-2.5 rounded-md border border-line-strong bg-white text-[11.5px] font-semibold text-ink-2 hover:border-violet hover:text-violet transition-colors"
+                  title="Basculer HT / TTC"
+                >
+                  ↔ {v.prixMode === "ttc" ? "HT" : "TTC"}
+                </button>
+              </div>
+              <Hint>
+                {v.prixMode === "ttc"
+                  ? `Équivalent HT : ${v.prixHt.toFixed(2)} € (TVA 20% déduite auto).`
+                  : "Prix saisi HT. Bascule pour saisir en TTC (calcul HT auto)."}
+              </Hint>
             </div>
           </div>
         </section>

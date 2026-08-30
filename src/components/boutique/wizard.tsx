@@ -638,7 +638,7 @@ export function BoutiqueWizard({
               <div className="m-3 rounded-xl overflow-hidden bg-ink text-white p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <p className="text-[10.5px] font-semibold tracking-wider uppercase opacity-70">
-                    Règle {acomptePct}% · Stripe
+                    Acompte {acomptePct}%
                   </p>
                   <div className="text-[24px] font-bold leading-none">{acomptePct}%</div>
                 </div>
