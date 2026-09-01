@@ -245,6 +245,7 @@ export type CsvRow = {
   stock_poland?: number;
   stock_ukraine?: number;
   active?: boolean;
+  supplier_name?: string | null;
 };
 
 export type ImportPreview = {
@@ -308,6 +309,7 @@ export async function commitCsvImportAction(
       stock_poland: row.stock_poland ?? 0,
       stock_ukraine: row.stock_ukraine ?? 0,
       active: row.active ?? true,
+      supplier_name: row.supplier_name ?? null,
     });
     const err = validate(clean);
     if (err) {
@@ -427,19 +429,22 @@ function parseCsvClient(text: string): {
     const active =
       record.active === "" ||
       ["1", "true", "vrai", "oui"].includes(String(record.active).toLowerCase());
+    const supplier =
+      record.supplier_name || record.fournisseur || record.supplier || "";
     rows.push({
       ref,
       name: record.name,
       category: record.category || undefined,
       description: record.description || undefined,
       unit_price_ht: Number.isFinite(Number(priceStr)) ? Number(priceStr) : 0,
-      unit_label: record.unit_label || undefined,
+      unit_label: record.unit_label || record.unite || record.unit || undefined,
       width_cm: width != null && Number.isFinite(width) ? width : null,
       raccord_cm: raccord != null && Number.isFinite(raccord) ? raccord : null,
       is_collection: isCol,
       stock_poland: record.stock_poland ? Number(record.stock_poland) : 0,
       stock_ukraine: record.stock_ukraine ? Number(record.stock_ukraine) : 0,
       active,
+      supplier_name: supplier || null,
     });
   }
   return { rows, errors };

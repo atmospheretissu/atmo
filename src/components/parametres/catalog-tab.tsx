@@ -698,9 +698,16 @@ function ImportCsvModal({
           <div>
             <p className="text-[15px] font-semibold text-ink">Importer un CSV</p>
             <p className="text-[12px] text-muted mt-0.5">
-              Colonnes : ref, name, category, description, unit_price_ht, unit_label,
-              width_cm, raccord_cm, is_collection, stock_poland, stock_ukraine, active.
-              Match par <strong>ref</strong>.
+              Colonnes : <strong>ref</strong>, <strong>name</strong>, category,
+              supplier_name, description, unit_price_ht, unit_label, width_cm,
+              raccord_cm, is_collection, stock_poland, stock_ukraine, active.
+              Seules <strong>ref</strong> et <strong>name</strong> sont obligatoires.
+              Match par <strong>ref</strong> (créé si nouveau, mis à jour sinon).
+            </p>
+            <p className="text-[12px] text-muted mt-1.5">
+              <strong>unit_label</strong> = texte libre (ex&nbsp;: <code>mètre</code>,{" "}
+              <code>m²</code>, <code>pièce</code>, <code>rouleau</code>). Par
+              défaut&nbsp;: <code>u</code>.
             </p>
           </div>
           <button
