@@ -421,7 +421,14 @@ function parseCsvClient(text: string): {
       errors.push({ line: i + 1, ref, message: "Nom vide" });
       continue;
     }
-    const priceStr = (record.unit_price_ht ?? "0").replace(",", ".");
+    const priceHtStr = (record.unit_price_ht ?? "").replace(",", ".");
+    const priceTtcStr = (record.unit_price_ttc ?? record.prix_ttc ?? "").replace(",", ".");
+    let unitPriceHt = 0;
+    if (priceHtStr && Number.isFinite(Number(priceHtStr))) {
+      unitPriceHt = Number(priceHtStr);
+    } else if (priceTtcStr && Number.isFinite(Number(priceTtcStr))) {
+      unitPriceHt = Math.round((Number(priceTtcStr) / 1.2) * 100) / 100;
+    }
     const width = record.width_cm ? Number(record.width_cm) : null;
     const raccord = record.raccord_cm ? Number(record.raccord_cm) : null;
     const isCol =
@@ -436,7 +443,7 @@ function parseCsvClient(text: string): {
       name: record.name,
       category: record.category || undefined,
       description: record.description || undefined,
-      unit_price_ht: Number.isFinite(Number(priceStr)) ? Number(priceStr) : 0,
+      unit_price_ht: unitPriceHt,
       unit_label: record.unit_label || record.unite || record.unit || undefined,
       width_cm: width != null && Number.isFinite(width) ? width : null,
       raccord_cm: raccord != null && Number.isFinite(raccord) ? raccord : null,

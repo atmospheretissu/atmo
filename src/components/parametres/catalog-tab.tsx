@@ -699,10 +699,16 @@ function ImportCsvModal({
             <p className="text-[15px] font-semibold text-ink">Importer un CSV</p>
             <p className="text-[12px] text-muted mt-0.5">
               Colonnes : <strong>ref</strong>, <strong>name</strong>, category,
-              supplier_name, description, unit_price_ht, unit_label, width_cm,
-              raccord_cm, is_collection, stock_poland, stock_ukraine, active.
-              Seules <strong>ref</strong> et <strong>name</strong> sont obligatoires.
-              Match par <strong>ref</strong> (créé si nouveau, mis à jour sinon).
+              supplier_name, description, unit_price_ht <em>ou</em> unit_price_ttc,
+              unit_label, width_cm, raccord_cm, is_collection, stock_poland,
+              stock_ukraine, active. Seules <strong>ref</strong> et{" "}
+              <strong>name</strong> sont obligatoires. Match par{" "}
+              <strong>ref</strong> (créé si nouveau, mis à jour sinon).
+            </p>
+            <p className="text-[12px] text-muted mt-1.5">
+              <strong>Prix</strong> : renseignez <code>unit_price_ht</code>{" "}
+              <em>ou</em> <code>unit_price_ttc</code> (TTC divisé par 1,20 — TVA
+              20 %). Si les 2 sont présents, HT prime.
             </p>
             <p className="text-[12px] text-muted mt-1.5">
               <strong>unit_label</strong> = texte libre (ex&nbsp;: <code>mètre</code>,{" "}
