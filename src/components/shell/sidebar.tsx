@@ -24,6 +24,7 @@ import {
   Lock,
   FlaskConical,
   AlertTriangle,
+  Landmark,
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { EnvBadge } from "@/components/shell/env-indicator";
@@ -57,6 +58,7 @@ const navMain: Item[] = [
 
 const navSecondary: Item[] = [
   { label: "Caisse", href: "/caisse", icon: Receipt, tone: "lime" },
+  { label: "Virements", href: "/virements", icon: Landmark, tone: "emerald" },
   { label: "Collection Atmosphère", href: "/collection", icon: Library, tone: "amber" },
   { label: "Clients", href: "/clients", icon: Users, tone: "ink" },
   { label: "SAV", href: "/sav", icon: AlertTriangle, tone: "pink" },

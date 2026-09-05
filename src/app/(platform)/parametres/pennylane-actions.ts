@@ -76,7 +76,7 @@ export async function triggerWireScanNowAction(): Promise<{
   soldes?: number;
   skipped?: number;
 }> {
-  const r = await pullWireTransfersAndReconcile({ maxPages: 3 });
+  const r = await pullWireTransfersAndReconcile({ maxPages: 3, source: "manual_scan" });
   if (r.disabled) {
     return { ok: false, message: r.message ?? "Auto-rapprochement désactivé" };
   }

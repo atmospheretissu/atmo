@@ -78,6 +78,7 @@ export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
       "/agenda",
       "/reception",
       "/collection",
+      "/virements",
     ],
     homeRoute: "/dashboard",
   },

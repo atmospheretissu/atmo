@@ -55,7 +55,10 @@ type PennylaneTransaction = {
 export async function pullWireTransfersAndReconcile(opts: {
   sinceISODate?: string;
   maxPages?: number;
+  source?: "cron" | "manual_scan";
 } = {}): Promise<WireMatchResult> {
+  const runId = crypto.randomUUID();
+  const identifiedBy = opts.source ?? "cron";
   const cfg = isPennylaneConfigured();
   const settings = await getPennylaneSettings();
   const stats0: WireMatchResult = {
@@ -110,8 +113,6 @@ export async function pullWireTransfersAndReconcile(opts: {
       if (!Number.isFinite(amount) || amount <= 0) continue; // sortie/débit
       const label = tx.label ?? "";
       const match = label.match(DEVIS_REGEX);
-      if (!match) continue;
-      const devisNumber = match[0].toUpperCase();
 
       // Déjà traité ? (idempotence)
       const { data: existing } = (await sb
@@ -120,6 +121,21 @@ export async function pullWireTransfersAndReconcile(opts: {
         .eq("pennylane_transaction_id", String(tx.id))
         .maybeSingle()) as { data: { id: string } | null; error: unknown };
       if (existing) continue;
+
+      // Aucun motif DEV-YYYY-NNNN : on trace quand même pour la page de suivi.
+      if (!match) {
+        await sb.from("pennylane_wire_matches").insert({
+          pennylane_transaction_id: String(tx.id),
+          transaction_date: tx.date,
+          amount,
+          label,
+          action: "skipped_no_pattern",
+          identified_by: identifiedBy,
+          cron_run_id: runId,
+        });
+        continue;
+      }
+      const devisNumber = match[0].toUpperCase();
 
       // Lookup devis
       const { data: devis } = (await sb
@@ -143,10 +159,13 @@ export async function pullWireTransfersAndReconcile(opts: {
       if (!devis) {
         await sb.from("pennylane_wire_matches").insert({
           pennylane_transaction_id: String(tx.id),
+          transaction_date: tx.date,
           devis_number: devisNumber,
           amount,
           label,
           action: "skipped_no_devis",
+          identified_by: identifiedBy,
+          cron_run_id: runId,
         });
         stats0.skipped_no_devis++;
         continue;
@@ -175,12 +194,15 @@ export async function pullWireTransfersAndReconcile(opts: {
       if (!isAcompte && !isSolde && !isFullPayment) {
         await sb.from("pennylane_wire_matches").insert({
           pennylane_transaction_id: String(tx.id),
+          transaction_date: tx.date,
           devis_id: devis.id,
           devis_number: devisNumber,
           amount,
           label,
           action: "skipped_amount_mismatch",
           notes: `Attendu acompte=${acompteTtc}€ ou solde=${soldeTtc}€ ou total=${totalTtc}€ · reçu ${amount}€`,
+          identified_by: identifiedBy,
+          cron_run_id: runId,
         });
         stats0.skipped_amount++;
         continue;
@@ -249,12 +271,15 @@ export async function pullWireTransfersAndReconcile(opts: {
       // 3. Log dans pennylane_wire_matches
       await sb.from("pennylane_wire_matches").insert({
         pennylane_transaction_id: String(tx.id),
+        transaction_date: tx.date,
         devis_id: devis.id,
         devis_number: devisNumber,
         amount,
         label,
         action: kind === "solde" ? "solde_marked" : "acompte_marked",
         notes: `Payment inséré ${payInserted?.id ?? "(échec)"}`,
+        identified_by: identifiedBy,
+        cron_run_id: runId,
       });
 
       if (kind === "acompte") stats0.acomptes_marked++;
