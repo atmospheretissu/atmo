@@ -3,6 +3,7 @@ import { Landmark, RefreshCw } from "lucide-react";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { ColorChip, type ChipTone } from "@/components/ui/status-pill";
+import { Topbar } from "@/components/shell/topbar";
 import { ScanWirementsButton } from "@/app/(platform)/virements/scan-button";
 
 export const dynamic = "force-dynamic";
@@ -125,7 +126,14 @@ export default async function VirementsPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <>
+      <Topbar
+        breadcrumb={[
+          { label: "Atmosphère" },
+          { label: "Virements" },
+        ]}
+      />
+      <section className="px-8 pb-16 space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <ColorChip tone="emerald" size="lg">
@@ -268,7 +276,8 @@ export default async function VirementsPage() {
           Affichage limité aux 500 dernières lignes.
         </p>
       )}
-    </div>
+      </section>
+    </>
   );
 }
 
