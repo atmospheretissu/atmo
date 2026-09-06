@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Receipt, Wallet, Calculator } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { Topbar } from "@/components/shell/topbar";
 import CaisseClient from "./caisse-client";
 import { PaymentsTab } from "./payments-tab";
 import { ComptabiliteTab } from "./comptabilite-tab";
@@ -31,6 +32,12 @@ export default function CaissePageClient({
 
   return (
     <div className="flex-1 flex flex-col">
+      <Topbar
+        breadcrumb={[
+          { label: "Atmosphère" },
+          { label: "Caisse" },
+        ]}
+      />
       {/* Bandeau d'onglets sticky sous la topbar */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as "vente" | "paiements" | "comptabilite")}>
         <div className={cn("sticky top-14 z-20 bg-canvas border-b border-line px-8 pt-3")}>
