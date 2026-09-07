@@ -104,7 +104,7 @@ export async function createCatalogProductAction(
       ok: false,
       message:
         error?.message?.includes("duplicate")
-          ? `Référence "${clean.ref}" déjà utilisée.`
+          ? `Référence "${clean.ref}"${clean.supplier_name ? ` chez "${clean.supplier_name}"` : ""} déjà utilisée.`
           : error?.message ?? "Échec création",
     };
   }
@@ -141,7 +141,7 @@ export async function updateCatalogProductAction(
       ok: false,
       message:
         (error.message ?? "").includes("duplicate")
-          ? `Référence "${clean.ref}" déjà utilisée.`
+          ? `Référence "${clean.ref}"${clean.supplier_name ? ` chez "${clean.supplier_name}"` : ""} déjà utilisée.`
           : error.message ?? "Échec mise à jour",
     };
   }
@@ -254,6 +254,11 @@ export type ImportPreview = {
   errors: { line: number; ref: string; message: string }[];
 };
 
+/** Clé naturelle composite : ref + fournisseur (vide si non renseigné). */
+function catalogKey(ref: string, supplier: string | null | undefined): string {
+  return `${ref}||${(supplier ?? "").trim()}`;
+}
+
 /** Parse un fichier CSV (déjà chargé côté client comme texte) et prévisualise. */
 export async function previewCsvImportAction(
   csvText: string,
@@ -261,26 +266,48 @@ export async function previewCsvImportAction(
   const supabase = await createClient();
   const parsed = parseCsvClient(csvText);
 
-  // Récupère toutes les refs existantes pour distinguer create/update
+  // Récupère toutes les paires (ref, supplier_name) existantes pour distinguer
+  // create/update. Match par couple : un même ref chez 2 fournisseurs différents
+  // = 2 lignes distinctes.
   const refs = parsed.rows.map((r) => r.ref).filter((r) => r.length > 0);
-  const existingRefs = new Set<string>();
+  const existingKeys = new Set<string>();
   if (refs.length > 0) {
     const chunkSize = 500;
     for (let i = 0; i < refs.length; i += chunkSize) {
       const chunk = refs.slice(i, i + chunkSize);
-      const { data } = await supabase
+      const { data } = (await (
+        supabase as unknown as {
+          from: (t: string) => {
+            select: (s: string) => {
+              in: (
+                c: string,
+                v: string[],
+              ) => Promise<{
+                data: { ref: string; supplier_name: string | null }[] | null;
+              }>;
+            };
+          };
+        }
+      )
         .from("catalog_products")
-        .select("ref")
-        .in("ref", chunk);
-      for (const r of data ?? []) existingRefs.add(r.ref);
+        .select("ref, supplier_name")
+        .in("ref", chunk)) as {
+        data: { ref: string; supplier_name: string | null }[] | null;
+      };
+      for (const r of data ?? []) {
+        existingKeys.add(catalogKey(r.ref, r.supplier_name));
+      }
     }
   }
 
   const toCreate: CsvRow[] = [];
   const toUpdate: { row: CsvRow; existingRef: string }[] = [];
   for (const r of parsed.rows) {
-    if (existingRefs.has(r.ref)) toUpdate.push({ row: r, existingRef: r.ref });
-    else toCreate.push(r);
+    if (existingKeys.has(catalogKey(r.ref, r.supplier_name))) {
+      toUpdate.push({ row: r, existingRef: r.ref });
+    } else {
+      toCreate.push(r);
+    }
   }
 
   return { toCreate, toUpdate, errors: parsed.errors };
@@ -316,11 +343,38 @@ export async function commitCsvImportAction(
       errors++;
       continue;
     }
-    const { data: existing } = await supabase
+    const sbCast = supabase as unknown as {
+      from: (t: string) => {
+        select: (s: string) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => {
+            eq?: (c: string, v: string) => {
+              maybeSingle: () => Promise<{
+                data: { id: string } | null;
+              }>;
+            };
+            is?: (c: string, v: null) => {
+              maybeSingle: () => Promise<{
+                data: { id: string } | null;
+              }>;
+            };
+            maybeSingle: () => Promise<{
+              data: { id: string } | null;
+            }>;
+          };
+        };
+      };
+    };
+    const q1 = sbCast
       .from("catalog_products")
       .select("id")
-      .eq("ref", clean.ref)
-      .maybeSingle();
+      .eq("ref", clean.ref);
+    const chainQ = clean.supplier_name
+      ? q1.eq!("supplier_name", clean.supplier_name)
+      : q1.is!("supplier_name", null);
+    const { data: existing } = await chainQ.maybeSingle();
     if (existing) {
       const { error } = await (
         supabase as unknown as {

@@ -702,8 +702,9 @@ function ImportCsvModal({
               supplier_name, description, unit_price_ht <em>ou</em> unit_price_ttc,
               unit_label, width_cm, raccord_cm, is_collection, stock_poland,
               stock_ukraine, active. Seules <strong>ref</strong> et{" "}
-              <strong>name</strong> sont obligatoires. Match par{" "}
-              <strong>ref</strong> (créé si nouveau, mis à jour sinon).
+              <strong>name</strong> sont obligatoires. Match par le couple{" "}
+              <strong>(ref + supplier_name)</strong> — deux fournisseurs
+              peuvent utiliser la même référence sans conflit.
             </p>
             <p className="text-[12px] text-muted mt-1.5">
               <strong>Prix</strong> : renseignez <code>unit_price_ht</code>{" "}
