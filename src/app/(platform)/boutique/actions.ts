@@ -26,6 +26,10 @@ export type BoutiquePieceArticle = {
   qty: number;
   unitLabel: string;
   unitPriceHt: number;
+  /** Note visible sur le devis PDF envoyé au client. */
+  noteClient?: string;
+  /** Note visible UNIQUEMENT sur la fiche confection (poseur/atelier). Jamais dans le PDF client. */
+  notePoseur?: string;
   meta?: Record<string, unknown>;
 };
 
@@ -97,6 +101,8 @@ export async function createBoutiqueDevisAction(
         meta: {
           piece: piece.name,
           type: a.type,
+          noteClient: a.noteClient || null,
+          notePoseur: a.notePoseur || null,
           ...(a.meta ?? {}),
         } as Database["public"]["Tables"]["devis_lines"]["Row"]["meta"],
       });

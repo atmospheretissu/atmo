@@ -20,7 +20,7 @@ export async function createClientAction(
   _prev: ClientFormState,
   formData: FormData
 ): Promise<ClientFormState> {
-  const { data, errors } = parseClientForm(formData);
+  const { data, errors } = parseClientForm(formData, { strict: true });
   if (!data || errors) {
     return { ok: false, errors: errors ?? {}, message: "Vérifie les champs en rouge." };
   }

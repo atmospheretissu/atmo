@@ -7,6 +7,7 @@ import { Input, Label, Hint, Select } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import type { BoutiquePieceArticle } from "@/app/(platform)/boutique/actions";
+import { lookupPosePrice } from "@/lib/boutique/pose-lookup";
 
 const eurFmt = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -20,7 +21,14 @@ type ChainetteCote = "gauche" | "droite";
 // classique). "avant" = enroulement Contra (le tissu passe devant, sort
 // par l'avant, plus adapté aux poses en applique).
 type Enroulement = "avant" | "arriere";
-type Fixation = "mural" | "plafond";
+type Fixation = "mural" | "plafond" | "sur_ouvrant";
+type LargeurMode = "mecanisme" | "toile";
+
+const FIXATION_LABELS: Record<Fixation, string> = {
+  mural: "Mural",
+  plafond: "Plafond",
+  sur_ouvrant: "Sur ouvrant",
+};
 // Type de toile : enrouleur classique (opaque / occultant / tamisant) OU
 // screen (voir à travers, tamise la chaleur). Même mécanisme, tarification
 // tissu au m² identique — c'est juste le choix produit.
@@ -32,6 +40,10 @@ type Inputs = {
   referenceTissu: string;
   coloris: Coloris; // champ libre coloris du tissu
   largeurFinie: number;
+  // Précision demandée par Pauline (07/09) : la largeur saisie correspond
+  // soit au mécanisme (tout inclus), soit à la toile uniquement. Choix
+  // exclusif entre les deux.
+  largeurMode: LargeurMode;
   hauteurFinie: number;
   prixTissu: number; // €/m² du tissu enrouleur/screen
   // Toggle saisie : soit prix au m² (prixTissu), soit prix total HT (prixTotalTissu).
@@ -40,33 +52,51 @@ type Inputs = {
   prixTotalTissu: number;
   chainetteCouleur: string;
   chainetteCote: ChainetteCote;
+  chainetteLongueur: number; // cm — valeur d'un menu déroulant fixé
+  couleurMecanisme: string;
   enroulement: Enroulement;
   fixation: Fixation;
   avecCasquette: boolean;
   casquetteHauteur: number; // cm, 0 si pas de casquette
   prixMecanisme: number; // forfait, paramétrable
   avecPose: boolean;
-  prixPose: number;
+  // Le prix de la pose n'est plus saisi manuellement : il vient de la grille
+  // tarifaire (lookupPosePrice) et n'est pas modifiable par l'équipe.
 };
+
+const CHAINETTE_LONGUEURS = [75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325] as const;
+const MECANISME_COULEURS = [
+  "blanc",
+  "noir",
+  "gris",
+  "alu",
+  "chrome",
+  "rouille",
+  "doré",
+  "noir mat",
+  "autre",
+] as const;
 
 const initial: Inputs = {
   typeToile: "enrouleur",
   referenceTissu: "",
   coloris: "",
   largeurFinie: 120,
+  largeurMode: "mecanisme",
   hauteurFinie: 180,
   prixTissu: 80,
   prixMode: "m2",
   prixTotalTissu: 0,
   chainetteCouleur: "blanc",
   chainetteCote: "droite",
+  chainetteLongueur: 100,
+  couleurMecanisme: "blanc",
   enroulement: "arriere",
   fixation: "mural",
   avecCasquette: false,
   casquetteHauteur: 8,
   prixMecanisme: 90,
   avecPose: true,
-  prixPose: 70,
 };
 
 /**
@@ -110,9 +140,23 @@ export function StoreEnrouleurForm({
         ? Math.round((v.prixTotalTissu / surface) * 100) / 100
         : v.prixTissu;
     const prixMecanisme = v.prixMecanisme;
-    const prixPose = v.avecPose ? v.prixPose : 0;
+    // Grille tarifaire — non modifiable par l'équipe.
+    const category = v.typeToile === "screen" ? "store_screen" : "store_enrouleur";
+    const posePriceFromGrid = v.avecPose
+      ? lookupPosePrice(category, v.largeurFinie, v.hauteurFinie)
+      : null;
+    const prixPose = v.avecPose ? (posePriceFromGrid ?? 0) : 0;
+    const poseHorsGrille = v.avecPose && posePriceFromGrid === null;
     const total = prixTissu + prixMecanisme + prixPose;
-    return { surface, prixTissu, prixTissuMetreCarre, prixMecanisme, prixPose, total };
+    return {
+      surface,
+      prixTissu,
+      prixTissuMetreCarre,
+      prixMecanisme,
+      prixPose,
+      poseHorsGrille,
+      total,
+    };
   }, [v, validationError]);
 
   const handleAdd = () => {
@@ -121,7 +165,7 @@ export function StoreEnrouleurForm({
     const coteLabel = v.chainetteCote === "gauche" ? "à gauche" : "à droite";
     const enroulementLabel =
       v.enroulement === "avant" ? "enroulement Contra" : "enroulement Standard";
-    const fixationLabel = v.fixation === "plafond" ? "plafond" : "mural";
+    const fixationLabel = FIXATION_LABELS[v.fixation].toLowerCase();
     const casquetteLabel = v.avecCasquette
       ? ` · casquette ${v.casquetteHauteur} cm`
       : "";
@@ -134,7 +178,9 @@ export function StoreEnrouleurForm({
       designation: `${toileLabel} — Tissu`,
       ref: v.referenceTissu || undefined,
       detail:
-        `${v.largeurFinie}×${v.hauteurFinie}cm · surface ${calc.surface.toFixed(2)}m² · ${enroulementLabel}` +
+        `${v.largeurFinie}×${v.hauteurFinie}cm ` +
+        `(largeur ${v.largeurMode === "toile" ? "toile" : "mécanisme"}) ` +
+        `· surface ${calc.surface.toFixed(2)}m² · ${enroulementLabel}` +
         (v.referenceTissu ? ` · ${v.referenceTissu}` : "") +
         colorisLabel,
       qty: 1,
@@ -149,6 +195,7 @@ export function StoreEnrouleurForm({
         referenceTissu: v.referenceTissu,
         coloris: v.coloris || null,
         largeurFinie: v.largeurFinie,
+        largeurMode: v.largeurMode,
         hauteurFinie: v.hauteurFinie,
         surface: calc.surface,
         enroulement: v.enroulement,
@@ -162,7 +209,8 @@ export function StoreEnrouleurForm({
       designation: `Mécanisme ${toileLabel.toLowerCase()}`,
       ref: v.typeToile === "screen" ? "MECA-SCREEN" : "MECA-ENROUL",
       detail:
-        `largeur ${v.largeurFinie}cm · chaînette ${v.chainetteCouleur} ${coteLabel}` +
+        `largeur ${v.largeurFinie}cm · couleur ${v.couleurMecanisme}` +
+        ` · chaînette ${v.chainetteCouleur} ${coteLabel} · L. ${v.chainetteLongueur}cm` +
         ` · fixation ${fixationLabel}` +
         casquetteLabel,
       qty: 1,
@@ -172,6 +220,8 @@ export function StoreEnrouleurForm({
         typeArticle: "store_enrouleur_mecanisme",
         chainetteCouleur: v.chainetteCouleur,
         chainetteCote: v.chainetteCote,
+        chainetteLongueur: v.chainetteLongueur,
+        couleurMecanisme: v.couleurMecanisme,
         enroulement: v.enroulement,
         fixation: v.fixation,
         avecCasquette: v.avecCasquette,
@@ -207,8 +257,8 @@ export function StoreEnrouleurForm({
           <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
             {(
               [
-                { v: "enrouleur", label: "Enrouleur (opaque / tamisant)" },
-                { v: "screen", label: "Screen (voir à travers)" },
+                { v: "enrouleur", label: "Enrouleur" },
+                { v: "screen", label: "Screen" },
               ] as { v: TypeToile; label: string }[]
             ).map((t) => (
               <button
@@ -231,6 +281,31 @@ export function StoreEnrouleurForm({
         {/* Dimensions */}
         <section>
           <p className="eyebrow mb-2">Dimensions</p>
+          <div className="mb-3">
+            <Label>La largeur saisie correspond à</Label>
+            <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+              {(
+                [
+                  { v: "mecanisme", label: "Largeur mécanisme (tout inclus)" },
+                  { v: "toile", label: "Largeur toile uniquement" },
+                ] as { v: LargeurMode; label: string }[]
+              ).map((m) => (
+                <button
+                  key={m.v}
+                  type="button"
+                  onClick={() => update({ largeurMode: m.v })}
+                  className={
+                    "text-[11.5px] font-semibold rounded-[5px] transition-colors " +
+                    (v.largeurMode === m.v
+                      ? "bg-ink text-white"
+                      : "text-muted hover:text-ink")
+                  }
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Largeur finie (cm) *</Label>
@@ -275,20 +350,20 @@ export function StoreEnrouleurForm({
             </div>
             <div>
               <Label>Fixation</Label>
-              <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
-                {(["mural", "plafond"] as Fixation[]).map((f) => (
+              <div className="grid grid-cols-3 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                {(["mural", "plafond", "sur_ouvrant"] as Fixation[]).map((f) => (
                   <button
                     key={f}
                     type="button"
                     onClick={() => update({ fixation: f })}
                     className={
-                      "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
+                      "text-[11.5px] font-semibold rounded-[5px] transition-colors " +
                       (v.fixation === f
                         ? "bg-ink text-white"
                         : "text-muted hover:text-ink")
                     }
                   >
-                    {f}
+                    {FIXATION_LABELS[f]}
                   </button>
                 ))}
               </div>
@@ -394,6 +469,19 @@ export function StoreEnrouleurForm({
           <p className="eyebrow mb-2">Mécanisme</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <Label>Couleur mécanisme</Label>
+              <Select
+                value={v.couleurMecanisme}
+                onChange={(e) => update({ couleurMecanisme: e.target.value })}
+              >
+                {MECANISME_COULEURS.map((c) => (
+                  <option key={c} value={c}>
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
               <Label>Couleur chaînette</Label>
               <Select
                 value={v.chainetteCouleur}
@@ -403,6 +491,19 @@ export function StoreEnrouleurForm({
                 <option value="alu">Aluminium</option>
                 <option value="noir">Noir</option>
                 <option value="laiton">Laiton</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Longueur chaînette (cm)</Label>
+              <Select
+                value={String(v.chainetteLongueur)}
+                onChange={(e) => update({ chainetteLongueur: Number(e.target.value) })}
+              >
+                {CHAINETTE_LONGUEURS.map((l) => (
+                  <option key={l} value={l}>
+                    {l} cm
+                  </option>
+                ))}
               </Select>
             </div>
             <div>
@@ -454,15 +555,24 @@ export function StoreEnrouleurForm({
             <span className="text-ink-2">Inclure la pose</span>
           </label>
           {v.avecPose && (
-            <div className="mt-3 max-w-[200px]">
-              <Label>Prix pose (€)</Label>
-              <Input
-                type="number"
-                step="1"
-                min={0}
-                value={v.prixPose || ""}
-                onChange={(e) => update({ prixPose: Number(e.target.value) || 0 })}
-              />
+            <div className="mt-3">
+              <Label>Prix pose (grille tarifaire)</Label>
+              <div className="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-line bg-canvas-2 text-[13px]">
+                <span className="font-semibold text-ink tabular-nums">
+                  {calc && !calc.poseHorsGrille
+                    ? eurFmt.format(calc.prixPose)
+                    : "—"}
+                </span>
+                <span className="text-[11.5px] text-muted-2">
+                  {calc?.poseHorsGrille
+                    ? "Dimensions hors grille"
+                    : "Automatique · non modifiable"}
+                </span>
+              </div>
+              <Hint>
+                Le tarif de pose est calculé automatiquement selon la grille
+                tarifaire (largeur × hauteur). Non modifiable par l'équipe.
+              </Hint>
             </div>
           )}
         </section>

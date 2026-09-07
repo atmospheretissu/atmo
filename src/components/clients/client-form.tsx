@@ -29,6 +29,10 @@ export function ClientForm({ client, action, title, cancelHref }: Props) {
 
   const errors = state && !state.ok ? state.errors : {};
   const message = state && !state.ok ? state.message : undefined;
+  // À la création (pas de `client`), email/tél/adresse/CP/ville deviennent
+  // obligatoires côté serveur ET affichés avec un * côté UI (Pauline 07/09).
+  const isCreation = !client;
+  const reqStar = isCreation ? " *" : "";
 
   return (
     <form action={formAction} className="space-y-6">
@@ -98,26 +102,30 @@ export function ClientForm({ client, action, title, cancelHref }: Props) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email{reqStar}</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
                   placeholder="contact@exemple.fr"
                   defaultValue={client?.email ?? ""}
+                  required={isCreation}
                   aria-invalid={!!errors?.email}
                 />
                 {errors?.email && <Hint className="text-red">{errors.email}</Hint>}
               </div>
               <div>
-                <Label htmlFor="phone">Téléphone</Label>
+                <Label htmlFor="phone">Téléphone{reqStar}</Label>
                 <Input
                   id="phone"
                   name="phone"
                   type="tel"
                   placeholder="06 12 34 56 78"
                   defaultValue={client?.phone ?? ""}
+                  required={isCreation}
+                  aria-invalid={!!errors?.phone}
                 />
+                {errors?.phone && <Hint className="text-red">{errors.phone}</Hint>}
               </div>
             </div>
             <div>
@@ -138,32 +146,47 @@ export function ClientForm({ client, action, title, cancelHref }: Props) {
               <p className="eyebrow mb-3">02 · Adresse de pose</p>
             </div>
             <div>
-              <Label htmlFor="address_pose">Adresse</Label>
+              <Label htmlFor="address_pose">Adresse{reqStar}</Label>
               <Input
                 id="address_pose"
                 name="address_pose"
                 placeholder="42 cours du Maréchal Foch"
                 defaultValue={client?.address_pose ?? ""}
+                required={isCreation}
+                aria-invalid={!!errors?.address_pose}
               />
+              {errors?.address_pose && (
+                <Hint className="text-red">{errors.address_pose}</Hint>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="city">Ville</Label>
+                <Label htmlFor="city">Ville{reqStar}</Label>
                 <Input
                   id="city"
                   name="city"
                   placeholder="Bordeaux"
                   defaultValue={client?.city ?? ""}
+                  required={isCreation}
+                  aria-invalid={!!errors?.city}
                 />
+                {errors?.city && (
+                  <Hint className="text-red">{errors.city}</Hint>
+                )}
               </div>
               <div>
-                <Label htmlFor="postal_code">Code postal</Label>
+                <Label htmlFor="postal_code">Code postal{reqStar}</Label>
                 <Input
                   id="postal_code"
                   name="postal_code"
                   placeholder="33000"
                   defaultValue={client?.postal_code ?? ""}
+                  required={isCreation}
+                  aria-invalid={!!errors?.postal_code}
                 />
+                {errors?.postal_code && (
+                  <Hint className="text-red">{errors.postal_code}</Hint>
+                )}
               </div>
             </div>
           </Card>

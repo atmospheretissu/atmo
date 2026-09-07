@@ -56,10 +56,49 @@ export const clientSchema = z.object({
 export type ClientFormInput = z.infer<typeof clientSchema>;
 
 /**
+ * Schéma strict pour la CRÉATION d'une nouvelle fiche client :
+ * email, téléphone, adresse, ville, CP sont tous obligatoires (Pauline 07/09).
+ * Les modifications de fiches existantes continuent d'utiliser clientSchema
+ * (souple) pour ne pas bloquer les fiches historiques incomplètes.
+ */
+export const newClientSchema = clientSchema.extend({
+  email: z
+    .string()
+    .trim()
+    .email("Email invalide")
+    .max(120, "Email trop long"),
+  phone: z
+    .string()
+    .trim()
+    .min(4, "Téléphone requis")
+    .max(30, "Téléphone trop long"),
+  address_pose: z
+    .string()
+    .trim()
+    .min(3, "Adresse requise")
+    .max(200, "Adresse trop longue"),
+  city: z
+    .string()
+    .trim()
+    .min(1, "Ville requise")
+    .max(80, "Ville trop longue"),
+  postal_code: z
+    .string()
+    .trim()
+    .min(3, "Code postal requis")
+    .max(20, "Code postal trop long"),
+});
+
+/**
  * Helper: transforme FormData → objet validable par Zod.
  * Les champs vides deviennent `undefined` pour passer la validation optionnelle.
+ * Par défaut utilise clientSchema (édition) ; passer strict=true pour utiliser
+ * newClientSchema (création — tous les champs coordonnées obligatoires).
  */
-export function parseClientForm(formData: FormData): {
+export function parseClientForm(
+  formData: FormData,
+  opts: { strict?: boolean } = {},
+): {
   data: ClientFormInput | null;
   errors: Record<string, string> | null;
 } {
@@ -76,7 +115,8 @@ export function parseClientForm(formData: FormData): {
     preferences: formData.get("preferences")?.toString() ?? "",
   };
 
-  const parsed = clientSchema.safeParse(raw);
+  const schema = opts.strict ? newClientSchema : clientSchema;
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const errors: Record<string, string> = {};
     for (const issue of parsed.error.issues) {

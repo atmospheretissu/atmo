@@ -66,7 +66,7 @@ const TYPES: {
     key: "store_enrouleur",
     label: "Store enrouleur / screen",
     description:
-      "Enrouleur classique (opaque, tamisant) OU screen (voir à travers) — même mécanisme, toile différente",
+      "Enrouleur ou screen — même mécanisme, toile différente",
     tone: "blue",
     icon: Disc,
     available: true,

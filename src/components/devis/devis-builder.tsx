@@ -447,7 +447,7 @@ export function DevisBuilder({
                           type="text"
                           value={l.label}
                           onChange={(e) => updateLine(l.id, { label: e.target.value })}
-                          placeholder="Ex: Rideau plis flamand · Salon baie vitrée"
+                          placeholder="Cliquez pour saisir la désignation"
                           className="w-full bg-transparent text-[13px] text-ink px-1 py-1 rounded focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-2"
                         />
                         <input

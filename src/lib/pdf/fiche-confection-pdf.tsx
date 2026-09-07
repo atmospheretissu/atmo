@@ -573,6 +573,31 @@ export function FicheConfectionPDF({
                       <Text style={styles.observText}>{line.detail}</Text>
                     </View>
                   )}
+                  {/* Notes poseur — jamais visibles côté client */}
+                  {(() => {
+                    const notePoseur = meta["notePoseur"];
+                    if (!notePoseur || typeof notePoseur !== "string") return null;
+                    return (
+                      <View style={styles.observBlock}>
+                        <Text style={styles.observLabel}>
+                          Note poseur (interne)
+                        </Text>
+                        <Text style={styles.observText}>{notePoseur}</Text>
+                      </View>
+                    );
+                  })()}
+                  {(() => {
+                    const noteClient = meta["noteClient"];
+                    if (!noteClient || typeof noteClient !== "string") return null;
+                    return (
+                      <View style={styles.observBlock}>
+                        <Text style={styles.observLabel}>
+                          Note client (rappel)
+                        </Text>
+                        <Text style={styles.observText}>{noteClient}</Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               );
             })}

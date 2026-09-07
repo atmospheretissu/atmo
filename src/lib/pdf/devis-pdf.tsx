@@ -542,6 +542,12 @@ export function DevisPDF({
                   ) : (
                     l.detail && <Text style={styles.lineDetail}>{l.detail}</Text>
                   )}
+                  {(() => {
+                    const noteClient = metaGet(l.meta as MetaRecord | null, "noteClient");
+                    return noteClient ? (
+                      <Text style={styles.lineDetail}>Note : {noteClient}</Text>
+                    ) : null;
+                  })()}
                 </View>
                 <Text style={[styles.cQty, styles.cellNum]}>
                   {Number(l.qty)} {l.unit_label}

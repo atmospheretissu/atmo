@@ -429,37 +429,81 @@ export function BoutiqueWizard({
                 <>
                   <div className="divide-y divide-line">
                     {piece.articles.map((a, aIdx) => (
-                      <div key={aIdx} className="px-5 py-3 flex items-start gap-3">
-                        <ColorChip tone={articleTone(a.type)} size="md">
-                          {articleIcon(a.type)}
-                        </ColorChip>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-ink leading-tight">
-                            {a.designation}
-                          </p>
-                          {a.ref && (
-                            <p className="text-[11px] text-muted-2 font-mono mt-0.5">{a.ref}</p>
-                          )}
-                          {a.detail && (
-                            <p className="text-[11.5px] text-muted mt-0.5">{a.detail}</p>
-                          )}
+                      <div key={aIdx} className="px-5 py-3">
+                        <div className="flex items-start gap-3">
+                          <ColorChip tone={articleTone(a.type)} size="md">
+                            {articleIcon(a.type)}
+                          </ColorChip>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-ink leading-tight">
+                              {a.designation}
+                            </p>
+                            {a.ref && (
+                              <p className="text-[11px] text-muted-2 font-mono mt-0.5">{a.ref}</p>
+                            )}
+                            {a.detail && (
+                              <p className="text-[11.5px] text-muted mt-0.5">{a.detail}</p>
+                            )}
+                          </div>
+                          <div className="text-right text-[12.5px] shrink-0">
+                            <p className="font-mono text-muted-2">
+                              {a.qty} {a.unitLabel} × {eurFmt.format(a.unitPriceHt)}
+                            </p>
+                            <p className="font-semibold text-ink tabular-nums mt-0.5">
+                              {eurFmt.format(a.qty * a.unitPriceHt)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveArticle(idx, aIdx)}
+                            className="text-muted-2 hover:text-red transition-colors mt-0.5"
+                            aria-label="Supprimer l'article"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <div className="text-right text-[12.5px] shrink-0">
-                          <p className="font-mono text-muted-2">
-                            {a.qty} {a.unitLabel} × {eurFmt.format(a.unitPriceHt)}
-                          </p>
-                          <p className="font-semibold text-ink tabular-nums mt-0.5">
-                            {eurFmt.format(a.qty * a.unitPriceHt)}
-                          </p>
+                        <div className="mt-2 ml-[52px] grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10.5px] uppercase tracking-wider text-muted-2 font-semibold">
+                              Note client (visible sur le devis)
+                            </label>
+                            <textarea
+                              value={a.noteClient ?? ""}
+                              onChange={(e) =>
+                                setPieces((prev) => {
+                                  const next = [...prev];
+                                  const arts = [...next[idx].articles];
+                                  arts[aIdx] = { ...arts[aIdx], noteClient: e.target.value };
+                                  next[idx] = { ...next[idx], articles: arts };
+                                  return next;
+                                })
+                              }
+                              rows={2}
+                              placeholder="Ex : livraison sur RDV, précision technique côté client…"
+                              className="w-full text-[12px] rounded border border-line px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-2"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10.5px] uppercase tracking-wider text-muted-2 font-semibold">
+                              Note poseur (interne, jamais visible client)
+                            </label>
+                            <textarea
+                              value={a.notePoseur ?? ""}
+                              onChange={(e) =>
+                                setPieces((prev) => {
+                                  const next = [...prev];
+                                  const arts = [...next[idx].articles];
+                                  arts[aIdx] = { ...arts[aIdx], notePoseur: e.target.value };
+                                  next[idx] = { ...next[idx], articles: arts };
+                                  return next;
+                                })
+                              }
+                              rows={2}
+                              placeholder="Ex : accès escalier étroit, prévoir échafaudage…"
+                              className="w-full text-[12px] rounded border border-line px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent placeholder:text-muted-2 bg-amber-soft/20"
+                            />
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveArticle(idx, aIdx)}
-                          className="text-muted-2 hover:text-red transition-colors mt-0.5"
-                          aria-label="Supprimer l'article"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
                       </div>
                     ))}
                   </div>
