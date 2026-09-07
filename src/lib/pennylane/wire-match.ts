@@ -26,8 +26,22 @@ import {
 } from "./settings";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-const DEVIS_REGEX = /DEV-\d{4}-\d{3,5}/i;
+// Deux formats acceptés dans le libellé du virement :
+//   1. Nouveau (Atmo)    : "DEV-2026-0011"      → lookup devis.number
+//   2. Historique (Cesar) : "DEVIS 2411" | "DEVIS-2469-" → lookup devis.legacy_number
+const NEW_REF_REGEX = /DEV-\d{4}-\d{3,5}/i;
+const LEGACY_REF_REGEX = /DEVIS[-\s]+(\d{3,5})/i;
 const TOLERANCE_PCT = 0.02;
+
+type ExtractedRef = { kind: "new" | "legacy"; value: string };
+
+function extractDevisRef(label: string): ExtractedRef | null {
+  const newMatch = label.match(NEW_REF_REGEX);
+  if (newMatch) return { kind: "new", value: newMatch[0].toUpperCase() };
+  const legacyMatch = label.match(LEGACY_REF_REGEX);
+  if (legacyMatch) return { kind: "legacy", value: legacyMatch[1] };
+  return null;
+}
 
 export type WireMatchResult = {
   ok: boolean;
@@ -112,7 +126,7 @@ export async function pullWireTransfersAndReconcile(opts: {
       const amount = Number(tx.currency_amount);
       if (!Number.isFinite(amount) || amount <= 0) continue; // sortie/débit
       const label = tx.label ?? "";
-      const match = label.match(DEVIS_REGEX);
+      const ref = extractDevisRef(label);
 
       // Déjà traité ? (idempotence)
       const { data: existing } = (await sb
@@ -122,8 +136,8 @@ export async function pullWireTransfersAndReconcile(opts: {
         .maybeSingle()) as { data: { id: string } | null; error: unknown };
       if (existing) continue;
 
-      // Aucun motif DEV-YYYY-NNNN : on trace quand même pour la page de suivi.
-      if (!match) {
+      // Aucun motif reconnu : on trace quand même pour la page de suivi.
+      if (!ref) {
         await sb.from("pennylane_wire_matches").insert({
           pennylane_transaction_id: String(tx.id),
           transaction_date: tx.date,
@@ -135,15 +149,16 @@ export async function pullWireTransfersAndReconcile(opts: {
         });
         continue;
       }
-      const devisNumber = match[0].toUpperCase();
+      const devisNumber = ref.value;
+      const lookupColumn = ref.kind === "new" ? "number" : "legacy_number";
 
-      // Lookup devis
+      // Lookup devis — sur "number" (nouveau) ou "legacy_number" (Cesar)
       const { data: devis } = (await sb
         .from("devis")
         .select(
           "id, number, status, total_ttc, acompte_ttc, client_id",
         )
-        .eq("number", devisNumber)
+        .eq(lookupColumn, devisNumber)
         .maybeSingle()) as {
         data: {
           id: string;
