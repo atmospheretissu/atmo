@@ -1052,11 +1052,13 @@ function FreeLineModal({
       alert("Prix négatif interdit.");
       return;
     }
+    // L'équipe caisse saisit en TTC. On convertit en HT (÷ 1,20) avant
+    // stockage — le reste de la caisse fonctionne en HT + TVA 20 %.
     onAdd({
       label: label.trim(),
       detail: detail.trim(),
       qty,
-      unit,
+      unit: Math.round((unit / 1.2) * 100) / 100,
       unitLabel,
     });
   };
@@ -1122,7 +1124,7 @@ function FreeLineModal({
           </div>
           <div>
             <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
-              P.U. HT €
+              P.U. TTC €
             </label>
             <Input
               type="number"
@@ -1131,6 +1133,9 @@ function FreeLineModal({
               value={unit}
               onChange={(e) => setUnit(Number(e.target.value) || 0)}
             />
+            <p className="text-[10.5px] text-muted-2 mt-0.5">
+              HT équivalent : {(unit / 1.2).toFixed(2)} € (TVA 20 %)
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 pt-2 border-t border-line">

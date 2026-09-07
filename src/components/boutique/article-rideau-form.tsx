@@ -39,7 +39,7 @@ const RAILS: { value: TypeRail; label: string }[] = [
   { value: "DV", label: "DV — droit vague" },
   { value: "CS", label: "CS — courbe standard" },
   { value: "CV", label: "CV — courbe vague" },
-  { value: "Tringle", label: "Tringle (pas de rail)" },
+  { value: "Tringle", label: "Pas de rail" },
 ];
 
 type TypeMontage = "paire" | "panneau";

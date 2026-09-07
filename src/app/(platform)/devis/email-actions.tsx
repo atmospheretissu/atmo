@@ -159,7 +159,7 @@ export async function sendDevisEmailAction(
       </p>
     </div>
     <div style="padding:14px 24px;background:#f8f7fb;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af">
-      Atmosphère Tissus · 33 cours du Maréchal Foch, 33000 Bordeaux<br/>
+      Atmosphère Tissus · 1 rue de l'Union, Village des Voiles, 59520 Marquette-lez-Lille<br/>
       Ce message contient des informations confidentielles.
     </div>
   </div>

@@ -618,13 +618,11 @@ export function DevisPDF({
           />
         ) : null}
 
-        {/* Notes atelier — optionnel */}
-        {devis.workshop_notes && (
-          <View style={{ marginTop: 18 }}>
-            <Text style={styles.blockTitle}>Notes atelier</Text>
-            <Text style={styles.blockBody}>{devis.workshop_notes}</Text>
-          </View>
-        )}
+        {/* Les notes atelier globales (devis.workshop_notes) NE DOIVENT PAS
+            apparaître sur le PDF client — ce sont des notes internes destinées
+            à l'atelier. Les notes visibles côté client passent par le champ
+            noteClient au niveau de chaque article (rendu plus haut dans le
+            détail de ligne). */}
 
         <PdfLegalFooter docNumber={devis.number} />
       </Page>

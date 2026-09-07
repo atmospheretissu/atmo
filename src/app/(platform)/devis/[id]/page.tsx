@@ -151,7 +151,14 @@ export default async function DevisDetailPage({
               {status === "acompte_recu" && dossier && !dossier.solde_paid && (
                 <MarkSoldeButton devisId={devis.id} />
               )}
-              <SendEmailButton devisId={devis.id} />
+              {/* Envoi du devis PDF : uniquement tant que le client n'a pas
+                  encore réglé l'acompte. Après acompte, l'action correcte est
+                  d'envoyer la facture (bouton dédié à créer côté factures). */}
+              {status !== "acompte_recu" &&
+                status !== "refuse" &&
+                status !== "expire" && (
+                  <SendEmailButton devisId={devis.id} />
+                )}
               <PennylaneVerifyButton devisId={devis.id} />
               <OpenSavTicketButton
                 context={{

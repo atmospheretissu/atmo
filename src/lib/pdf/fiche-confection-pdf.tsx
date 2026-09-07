@@ -604,10 +604,15 @@ export function FicheConfectionPDF({
           </View>
         ))}
 
-        {/* Commentaires atelier */}
-        <View style={styles.commentSection}>
-          <Text style={styles.commentTitle}>Commentaires atelier</Text>
-        </View>
+        {/* Commentaires atelier — rendus depuis dossier.workshop_notes.
+            Cette section reste interne : la fiche confection n'est jamais
+            envoyée au client. */}
+        {dossier.workshop_notes && dossier.workshop_notes.trim().length > 0 && (
+          <View style={styles.commentSection}>
+            <Text style={styles.commentTitle}>Commentaires atelier</Text>
+            <Text style={styles.observText}>{dossier.workshop_notes}</Text>
+          </View>
+        )}
 
         {/* Footer */}
         <View style={styles.footer} fixed>

@@ -145,19 +145,18 @@ export async function bookPoseOnAvailability(args: {
     return { ok: false, message: "Ce créneau n'est plus disponible" };
   }
 
-  // 2. Récupère le poseur.profile_id (pour poser sur poses.poseur_id qui référence profiles)
-  const { data: poseur } = await admin
-    .from("poseurs")
-    .select("profile_id")
-    .eq("id", availRow.poseur_id)
-    .maybeSingle();
+  // 2. poses.poseur_id référence poseurs.id (pas profiles.id) — on utilise
+  //    directement l'id du poseur associé au créneau. Le commentaire précédent
+  //    parlait de profile_id, mais la contrainte FK est bien vers poseurs.id
+  //    (violation constatée en prod le 03/09/26 : ancien code utilisait
+  //    profile_id, ce qui provoquait « poses_poseur_id_fkey » violation).
 
   // 3. Crée la pose
   const { data: pose, error } = await admin
     .from("poses")
     .insert({
       dossier_id: args.dossierId,
-      poseur_id: (poseur as { profile_id?: string })?.profile_id ?? null,
+      poseur_id: availRow.poseur_id,
       scheduled_at: args.scheduledAt,
       status: "planifie",
     })

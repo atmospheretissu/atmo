@@ -12,6 +12,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ColorChip } from "@/components/ui/status-pill";
+import { StartProcurementButton } from "@/components/confections/start-procurement-button";
 
 type Props = {
   dossierId: string;
@@ -33,6 +34,8 @@ type Step = {
   ctaLabel: string;
   ctaHref: string;
   variant?: "accent" | "primary" | "secondary";
+  /** Si défini, le CTA appelle la Server Action au lieu de suivre ctaHref. */
+  action?: "start_procurement";
 };
 
 function pickNextStep(p: Props): Step | null {
@@ -63,6 +66,7 @@ function pickNextStep(p: Props): Step | null {
         ctaLabel: "Lancer l'approvisionnement",
         ctaHref: `#dossier-${p.dossierId}`,
         variant: "accent",
+        action: "start_procurement",
       };
     }
     case "attente_matiere": {
@@ -211,12 +215,16 @@ export function NextStepBanner(p: Props) {
           </p>
         </div>
         <div className="shrink-0">
-          <Link href={step.ctaHref}>
-            <Button variant={step.variant ?? "accent"} size="md">
-              {step.ctaLabel}
-              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
-            </Button>
-          </Link>
+          {step.action === "start_procurement" ? (
+            <StartProcurementButton dossierId={p.dossierId} />
+          ) : (
+            <Link href={step.ctaHref}>
+              <Button variant={step.variant ?? "accent"} size="md">
+                {step.ctaLabel}
+                <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.4} />
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     </Card>

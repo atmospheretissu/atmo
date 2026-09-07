@@ -160,7 +160,7 @@ export default async function MerciPage({
             Atmosphère Tissus
           </p>
           <p className="text-[11.5px] text-muted pt-1">
-            33 cours du Maréchal Foch, 33000 Bordeaux
+            1 rue de l'Union, Village des Voiles, 59520 Marquette-lez-Lille
           </p>
           <p className="text-[11.5px]">
             <Link

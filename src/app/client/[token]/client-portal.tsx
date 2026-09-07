@@ -464,7 +464,7 @@ export function ClientPortal({
           </p>
           <p className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-2 pt-1">
             <MapPin className="h-3 w-3" strokeWidth={2.2} />
-            33 cours du Maréchal Foch, 33000 Bordeaux
+            1 rue de l'Union, Village des Voiles, 59520 Marquette-lez-Lille
           </p>
           <p className="text-[11px] text-muted-2">
             <a
