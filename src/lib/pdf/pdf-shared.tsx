@@ -17,6 +17,7 @@ import {
   companyAddress,
 } from "./pdf-design";
 import { LOGO_ATMOSPHERE_DATA_URI } from "@/assets/logo-atmosphere";
+import { sanitizePdfString } from "./pdf-format";
 
 const styles = StyleSheet.create({
   page: { ...PAGE },
@@ -277,13 +278,17 @@ export function SignatureEvidenceBlock({
   signedByName: string;
   signedByPhone?: string | null;
 }) {
-  const d = new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(signedAt));
+  // Sanitize via sanitizePdfString pour éviter les espaces fines U+202F
+  // que Helvetica ne rend pas (elles apparaissaient en "/" — cf pdf-format.ts).
+  const d = sanitizePdfString(
+    new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(signedAt)),
+  );
   return (
     <View
       style={{

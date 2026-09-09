@@ -6,14 +6,9 @@ type Dossier = Database["public"]["Tables"]["dossiers"]["Row"];
 type Client = Database["public"]["Tables"]["clients"]["Row"];
 type DevisLine = Database["public"]["Tables"]["devis_lines"]["Row"];
 
-const date = (d: string | null) =>
-  d
-    ? new Intl.DateTimeFormat("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }).format(new Date(d))
-    : "—";
+import { datePdf } from "./pdf-format";
+
+const date = (d: string | null) => datePdf(d);
 
 const styles = StyleSheet.create({
   page: { ...PAGE },

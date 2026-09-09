@@ -16,21 +16,9 @@ import {
 } from "./pdf-design";
 import { PdfHeader, PdfLegalFooter } from "./pdf-shared";
 
-const eur = (n: number) =>
-  new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(n);
+import { eurPdf as eur, datePdf } from "./pdf-format";
 
-const date = (d: string | null) =>
-  d
-    ? new Intl.DateTimeFormat("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }).format(new Date(d))
-    : "—";
+const date = (d: string | null) => datePdf(d);
 
 type Lang = "FR" | "DE" | "PL" | "UA";
 

@@ -22,21 +22,12 @@ type Client = Database["public"]["Tables"]["clients"]["Row"];
 
 export type FactureKind = "acompte" | "solde";
 
-const eur = (n: number) =>
-  new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-  }).format(n);
+import { eurPdf as eur, datePdf } from "./pdf-format";
 
-const date = (d: string | null | Date) =>
-  d
-    ? new Intl.DateTimeFormat("fr-FR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }).format(new Date(d))
-    : "—";
+const date = (d: string | null | Date) => {
+  if (!d) return "—";
+  return datePdf(d instanceof Date ? d.toISOString() : d);
+};
 
 const styles = StyleSheet.create({
   page: { ...PAGE },
