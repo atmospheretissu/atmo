@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { ColorChip } from "@/components/ui/status-pill";
 import { LetterAvatar, toneFor } from "@/components/ui/letter-avatar";
 import { QrScanner } from "@/components/reception/qr-scanner";
+import { ManualReceiveButton } from "@/components/reception/manual-receive-button";
 import {
   getPendingReceptionItems,
   getRecentReceptions,
@@ -131,6 +132,10 @@ export default async function ReceptionPage() {
                             <p className="ref">{p.dossierNumber}</p>
                           </div>
                         </div>
+                        <ManualReceiveButton
+                          qrCode={p.qr_code}
+                          itemLabel={p.label}
+                        />
                       </div>
                     );
                   })}

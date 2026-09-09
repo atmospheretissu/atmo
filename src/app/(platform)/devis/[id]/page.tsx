@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
+import { SendFactureButton } from "@/components/devis/send-facture-button";
 import { PaymentProgress } from "@/components/devis/payment-progress";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { NextStepDevisBanner } from "@/components/devis/next-step-devis";
@@ -152,13 +153,23 @@ export default async function DevisDetailPage({
                 <MarkSoldeButton devisId={devis.id} />
               )}
               {/* Envoi du devis PDF : uniquement tant que le client n'a pas
-                  encore réglé l'acompte. Après acompte, l'action correcte est
-                  d'envoyer la facture (bouton dédié à créer côté factures). */}
+                  encore réglé l'acompte. */}
               {status !== "acompte_recu" &&
                 status !== "refuse" &&
                 status !== "expire" && (
                   <SendEmailButton devisId={devis.id} />
                 )}
+              {/* Envoi des factures : disponible à partir de acompte_recu.
+                  L'envoi automatique se fait déjà à l'encaissement (F9), ces
+                  boutons servent à re-envoyer manuellement au besoin. */}
+              {status === "acompte_recu" && (
+                <>
+                  <SendFactureButton devisId={devis.id} kind="acompte" />
+                  {dossier && !dossier.solde_paid && (
+                    <SendFactureButton devisId={devis.id} kind="solde" />
+                  )}
+                </>
+              )}
               <PennylaneVerifyButton devisId={devis.id} />
               <OpenSavTicketButton
                 context={{

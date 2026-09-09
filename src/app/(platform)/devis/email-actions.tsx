@@ -178,7 +178,8 @@ L'équipe Atmosphère Tissus`;
   // 3. Envoi Brevo
   const sendResult = await sendBrevoEmail({
     to: [{ email: client.email, name: client.display_name }],
-    subject: `Atmosphère Tissus — Devis ${devis.number}`,
+    // Format demandé par PE (08/09) : "ATMOSPHERE – Votre devis XXX"
+    subject: `ATMOSPHERE – Votre devis ${devis.number}`,
     htmlContent: html,
     textContent: text,
     attachment: [

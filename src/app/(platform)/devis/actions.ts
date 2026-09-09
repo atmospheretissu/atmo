@@ -334,6 +334,18 @@ export async function markAcompteRecuAction(
     console.warn("[trigger acompte_recu]", err);
   }
 
+  // 2b. F9 (PE 08/09) : envoi automatique de la facture d'acompte au client
+  //     dès encaissement. Best-effort — n'échoue jamais l'action métier.
+  try {
+    const { sendFactureEmailAction } = await import("./facture-email-actions");
+    void sendFactureEmailAction(devisId, "acompte", {
+      paidAt: new Date().toISOString(),
+      paidMethod: method,
+    }).catch((e) => console.warn("[auto send facture acompte]", e));
+  } catch (err) {
+    console.warn("[auto send facture acompte import]", err);
+  }
+
   // 3. Auto-création (ou récupération) du dossier de confection.
   //    Idempotent : si la fiche a déjà été créée depuis la boutique avec
   //    acompte_paid=false, on flip simplement le flag.
@@ -440,6 +452,18 @@ export async function markSoldeRecuAction(
       .from("dossiers")
       .update({ solde_paid: true, solde_paid_at: new Date().toISOString() })
       .eq("id", dossier.id);
+  }
+
+  // F9 (PE 08/09) : envoi automatique de la facture de solde au client
+  // dès encaissement. Best-effort — n'échoue jamais l'action métier.
+  try {
+    const { sendFactureEmailAction } = await import("./facture-email-actions");
+    void sendFactureEmailAction(devisId, "solde", {
+      paidAt: new Date().toISOString(),
+      paidMethod: method,
+    }).catch((e) => console.warn("[auto send facture solde]", e));
+  } catch (err) {
+    console.warn("[auto send facture solde import]", err);
   }
 
   revalidatePath(`/devis/${devisId}`);

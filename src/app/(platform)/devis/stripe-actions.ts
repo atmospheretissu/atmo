@@ -122,3 +122,87 @@ export async function createStripeCheckoutAction(
     };
   }
 }
+
+/**
+ * Crée une session Checkout Stripe pour le SOLDE d'un devis (F8 PE 08/09).
+ * Le montant = total_ttc - acompte_ttc. Utilisé au moment où le solde doit
+ * être encaissé, avec un lien inséré dans la facture solde envoyée par email.
+ * Le webhook Stripe (checkout.session.completed avec metadata.kind="solde")
+ * marque le solde reçu automatiquement.
+ */
+export async function createStripeCheckoutForSoldeAction(
+  devisId: string
+): Promise<StripeCheckoutResult> {
+  if (!isStripeConfigured()) {
+    return {
+      ok: false,
+      message: "Stripe non configuré (manque STRIPE_SECRET_KEY).",
+    };
+  }
+  const supabase = await createClient();
+  const { data: devis, error } = await supabase
+    .from("devis")
+    .select("id, number, client_id, total_ttc, acompte_ttc, product_summary, client_access_token")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (error || !devis) return { ok: false, message: "Devis introuvable." };
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("display_name, email")
+    .eq("id", devis.client_id)
+    .maybeSingle();
+
+  const totalTtc = Number(devis.total_ttc ?? 0);
+  const acompteTtc = Number(devis.acompte_ttc ?? totalTtc * 0.5);
+  const soldeAmount = Math.max(0, Math.round((totalTtc - acompteTtc) * 100) / 100);
+  if (soldeAmount <= 0) {
+    return { ok: false, message: "Aucun solde à encaisser." };
+  }
+
+  const stripe = getStripe();
+  const appUrl = normalizeAppUrl(
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.RAILWAY_PUBLIC_DOMAIN,
+  );
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      customer_email: client?.email ?? undefined,
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            unit_amount: Math.round(soldeAmount * 100),
+            product_data: {
+              name: `Solde — Devis ${devis.number}`,
+              description: `${devis.product_summary ?? ""} — ${client?.display_name ?? ""}`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        devis_id: devis.id,
+        devis_number: devis.number,
+        kind: "solde",
+        atmosphere_app_version: "1",
+      },
+      success_url: (devis as { client_access_token?: string }).client_access_token
+        ? `${appUrl}/client/${(devis as { client_access_token: string }).client_access_token}?paid=success&session_id={CHECKOUT_SESSION_ID}`
+        : `${appUrl}/paiement/merci/${devis.id}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: (devis as { client_access_token?: string }).client_access_token
+        ? `${appUrl}/client/${(devis as { client_access_token: string }).client_access_token}?paid=cancel`
+        : `${appUrl}/paiement/annule/${devis.id}`,
+      locale: "fr",
+    });
+    return { ok: true, url: session.url ?? `${appUrl}/devis/${devis.id}` };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Erreur Stripe",
+    };
+  }
+}

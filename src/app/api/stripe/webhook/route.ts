@@ -152,6 +152,20 @@ export async function POST(request: NextRequest) {
         console.warn("[trigger stripe → solde_recu]", err);
       }
 
+      // F9 (PE 08/09) : envoi automatique de la facture de solde après
+      // encaissement Stripe. Best-effort (n'échoue jamais le webhook).
+      try {
+        const { sendFactureEmailAction } = await import(
+          "@/app/(platform)/devis/facture-email-actions"
+        );
+        void sendFactureEmailAction(devisId, "solde", {
+          paidAt: new Date().toISOString(),
+          paidMethod: "stripe",
+        }).catch((e) => console.warn("[stripe→auto facture solde]", e));
+      } catch (err) {
+        console.warn("[stripe→auto facture solde import]", err);
+      }
+
       return NextResponse.json({ received: true, devisId, paymentKind: "solde" });
     }
 
@@ -231,6 +245,19 @@ export async function POST(request: NextRequest) {
       }
     } catch (err) {
       console.warn("[trigger stripe → acompte_recu]", err);
+    }
+
+    // F9 : envoi automatique de la facture d'acompte après paiement Stripe.
+    try {
+      const { sendFactureEmailAction } = await import(
+        "@/app/(platform)/devis/facture-email-actions"
+      );
+      void sendFactureEmailAction(devisId, "acompte", {
+        paidAt: new Date().toISOString(),
+        paidMethod: "stripe",
+      }).catch((e) => console.warn("[stripe→auto facture acompte]", e));
+    } catch (err) {
+      console.warn("[stripe→auto facture acompte import]", err);
     }
 
     // 3. Auto-création (ou récupération) du dossier — idempotent.

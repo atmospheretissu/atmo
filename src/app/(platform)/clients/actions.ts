@@ -76,6 +76,78 @@ export async function createClientAction(
 }
 
 /**
+ * Version « quick » de createClient — ne redirige pas, retourne le client
+ * créé directement. Utilisé par la caisse (F11 PE 08/09) pour créer un
+ * client depuis le picker sans quitter le module de vente.
+ * Applique la même validation stricte (email/tél/adresse obligatoires).
+ */
+export async function createClientQuickAction(
+  formData: FormData,
+): Promise<
+  | {
+      ok: true;
+      client: {
+        id: string;
+        display_name: string;
+        city: string | null;
+        phone: string | null;
+        email: string | null;
+      };
+    }
+  | { ok: false; errors: Record<string, string>; message?: string }
+> {
+  const { data, errors } = parseClientForm(formData, { strict: true });
+  if (!data || errors) {
+    return { ok: false, errors: errors ?? {}, message: "Vérifie les champs en rouge." };
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, errors: {}, message: "Session expirée." };
+  const storeId = await getCreationStoreId();
+  const payload = {
+    ...clientToDbRow(data),
+    created_by: user.id,
+    store_id: storeId,
+  };
+  const { data: inserted, error } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => {
+          select: (s: string) => {
+            single: () => Promise<{
+              data: {
+                id: string;
+                display_name: string;
+                city: string | null;
+                phone: string | null;
+                email: string | null;
+              } | null;
+              error: { code?: string; message?: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
+    .from("clients")
+    .insert(payload)
+    .select("id, display_name, city, phone, email")
+    .single();
+  if (error || !inserted) {
+    return {
+      ok: false,
+      errors: {},
+      message:
+        error?.code === "23505"
+          ? "Un client avec cet email existe déjà."
+          : error?.message ?? "Insertion échouée.",
+    };
+  }
+  revalidatePath("/clients");
+  return { ok: true, client: inserted };
+}
+
+/**
  * Met à jour un client existant.
  */
 export async function updateClientAction(

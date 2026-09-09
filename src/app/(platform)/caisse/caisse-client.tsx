@@ -29,6 +29,8 @@ import {
   searchClientsForCaisseAction,
   listCaisseCatalogFacetsAction,
 } from "./actions";
+import { createClientQuickAction } from "@/app/(platform)/clients/actions";
+import { UserPlus2 } from "lucide-react";
 import type {
   TodayStats,
   PaymentMethod,
@@ -982,8 +984,10 @@ function ClientPickerModal({
   const [q, setQ] = useState("");
   const [items, setItems] = useState<ClientPick[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<"pick" | "create">("pick");
 
   useEffect(() => {
+    if (mode !== "pick") return;
     setLoading(true);
     const t = setTimeout(async () => {
       try {
@@ -994,7 +998,18 @@ function ClientPickerModal({
       }
     }, 200);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, mode]);
+
+  if (mode === "create") {
+    return (
+      <NewClientQuickModal
+        onClose={onClose}
+        onBackToPick={() => setMode("pick")}
+        onCreated={(c) => onPick(c)}
+        initialName={q.trim() || undefined}
+      />
+    );
+  }
 
   return (
     <Modal onClose={onClose}>
@@ -1011,7 +1026,7 @@ function ClientPickerModal({
           className="pl-9"
         />
       </div>
-      <div className="max-h-[50vh] overflow-y-auto -mx-2">
+      <div className="max-h-[45vh] overflow-y-auto -mx-2">
         {loading ? (
           <div className="flex items-center justify-center py-8 text-muted">
             <Loader2 className="h-4 w-4 animate-spin mr-2" /> Chargement…
@@ -1041,6 +1056,160 @@ function ClientPickerModal({
           </ul>
         )}
       </div>
+      <div className="mt-3 pt-3 border-t border-line">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setMode("create")}
+          className="w-full"
+        >
+          <UserPlus2 className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouveau client
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Modal de création rapide d'un client — depuis la caisse (F11 PE 08/09).
+ * Réutilise la validation stricte : email, tél, adresse, CP, ville tous
+ * obligatoires (Pauline). Retourne le client fraîchement créé pour l'associer
+ * immédiatement au ticket.
+ */
+function NewClientQuickModal({
+  onClose,
+  onBackToPick,
+  onCreated,
+  initialName,
+}: {
+  onClose: () => void;
+  onBackToPick: () => void;
+  onCreated: (c: ClientPick) => void;
+  initialName?: string;
+}) {
+  const [pending, start] = useTransition();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [globalMsg, setGlobalMsg] = useState<string | null>(null);
+
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setErrors({});
+    setGlobalMsg(null);
+    start(async () => {
+      const r = await createClientQuickAction(fd);
+      if (r.ok) {
+        onCreated({
+          id: r.client.id,
+          display_name: r.client.display_name,
+          city: r.client.city,
+          phone: r.client.phone,
+          email: r.client.email,
+        });
+      } else {
+        setErrors(r.errors);
+        setGlobalMsg(r.message ?? "Erreur de création");
+      }
+    });
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[16px] font-semibold text-ink">Nouveau client</h2>
+        <button
+          type="button"
+          onClick={onBackToPick}
+          className="text-[11.5px] text-muted hover:text-ink"
+        >
+          ← Retour à la recherche
+        </button>
+      </div>
+      <form onSubmit={submit} className="space-y-3">
+        <div>
+          <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+            Nom complet *
+          </label>
+          <Input name="display_name" defaultValue={initialName} required autoFocus />
+          {errors.display_name && (
+            <p className="text-[11px] text-pink mt-0.5">{errors.display_name}</p>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              Email *
+            </label>
+            <Input name="email" type="email" required />
+            {errors.email && (
+              <p className="text-[11px] text-pink mt-0.5">{errors.email}</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              Téléphone *
+            </label>
+            <Input name="phone" type="tel" required />
+            {errors.phone && (
+              <p className="text-[11px] text-pink mt-0.5">{errors.phone}</p>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+            Adresse *
+          </label>
+          <Input name="address_pose" required />
+          {errors.address_pose && (
+            <p className="text-[11px] text-pink mt-0.5">{errors.address_pose}</p>
+          )}
+        </div>
+        <div className="grid grid-cols-[1fr_120px] gap-2">
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              Ville *
+            </label>
+            <Input name="city" required />
+            {errors.city && (
+              <p className="text-[11px] text-pink mt-0.5">{errors.city}</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-muted-2 mb-1">
+              CP *
+            </label>
+            <Input name="postal_code" required />
+            {errors.postal_code && (
+              <p className="text-[11px] text-pink mt-0.5">{errors.postal_code}</p>
+            )}
+          </div>
+        </div>
+        <input type="hidden" name="channel" value="magasin" />
+        {globalMsg && (
+          <div className="text-[12.5px] text-pink bg-pink-soft/40 border border-pink/30 rounded px-3 py-2">
+            {globalMsg}
+          </div>
+        )}
+        <div className="flex items-center gap-2 pt-2 border-t border-line">
+          <Button variant="ghost" size="sm" onClick={onClose} className="flex-1">
+            Annuler
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            type="submit"
+            disabled={pending}
+            className="flex-1"
+          >
+            {pending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />
+            ) : (
+              <UserPlus2 className="h-3.5 w-3.5" strokeWidth={2.4} />
+            )}
+            Créer et associer
+          </Button>
+        </div>
+      </form>
     </Modal>
   );
 }
