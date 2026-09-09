@@ -150,10 +150,23 @@ export function BoutiqueWizard({
 
   const handleAddArticles = (pieceIdx: number, articles: BoutiquePieceArticle[]) => {
     setPieces((p) => {
+      // Une seule ligne « Déplacement » par devis (Pauline 08/09). Si un
+      // déplacement existe déjà dans une pièce (n'importe laquelle),
+      // on ignore les nouvelles occurrences venant du form.
+      const hasExistingDeplacement = p.some((piece) =>
+        piece.articles.some(
+          (a) => a.meta?.typeArticle === "deplacement" || a.ref === "DEPLACEMENT",
+        ),
+      );
+      const filtered = hasExistingDeplacement
+        ? articles.filter(
+            (a) => a.meta?.typeArticle !== "deplacement" && a.ref !== "DEPLACEMENT",
+          )
+        : articles;
       const next = [...p];
       next[pieceIdx] = {
         ...next[pieceIdx],
-        articles: [...next[pieceIdx].articles, ...articles],
+        articles: [...next[pieceIdx].articles, ...filtered],
       };
       return next;
     });

@@ -80,7 +80,7 @@ export function DevisBuilder({
     (initialClientId && clients.find((c) => c.id === initialClientId)) || null;
   const [selectedClient, setSelectedClient] = useState<ClientPick | null>(initial);
   const [clientQuery, setClientQuery] = useState("");
-  const [productSummary, setProductSummary] = useState("Rideaux sur mesure");
+  const [productSummary, setProductSummary] = useState("");
   const [productDetail, setProductDetail] = useState("");
   const [tvaRate, setTvaRate] = useState(20);
   const [workshopNotes, setWorkshopNotes] = useState("");
@@ -128,7 +128,11 @@ export function DevisBuilder({
   };
 
   const removeLine = (id: string) => {
-    setLines((arr) => (arr.length > 1 ? arr.filter((l) => l.id !== id) : arr));
+    // Toujours autoriser la suppression, y compris de la dernière ligne
+    // (Pauline 08/09 : la première ligne semblait verrouillée sur un
+    // rideau, alors qu'en fait removeLine refusait juste la suppression
+    // quand il ne restait qu'une ligne).
+    setLines((arr) => arr.filter((l) => l.id !== id));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -429,6 +433,17 @@ export function DevisBuilder({
                 </tr>
               </thead>
               <tbody>
+                {lines.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-3 py-6 text-center text-[12.5px] text-muted-2"
+                    >
+                      Aucune ligne — cliquez sur « Ajouter une ligne » pour
+                      commencer.
+                    </td>
+                  </tr>
+                )}
                 {lines.map((l) => {
                   const totalLineHt = Math.round(l.qty * l.unit_price_ht * 100) / 100;
                   return (
@@ -499,8 +514,7 @@ export function DevisBuilder({
                         <button
                           type="button"
                           onClick={() => removeLine(l.id)}
-                          disabled={lines.length === 1}
-                          className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red transition-opacity disabled:hidden"
+                          className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-red transition-opacity"
                           aria-label="Supprimer"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

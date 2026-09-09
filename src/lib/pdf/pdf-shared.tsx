@@ -83,8 +83,10 @@ const styles = StyleSheet.create({
     borderBottom: `0.5px solid ${COLORS.border}`,
   },
   logo: {
-    width: 130,
-    height: 44,
+    // Demande Pierre-Edouard 08/09 : logo plus grand sur le devis.
+    // 130x44 → 200x68 (env. +55 %).
+    width: 200,
+    height: 68,
     objectFit: "contain",
   },
   meta: { textAlign: "right" },

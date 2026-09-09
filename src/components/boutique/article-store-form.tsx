@@ -243,19 +243,31 @@ export function StoreForm({
       },
     });
 
-    // ARTICLE 3 — Pose
+    // ARTICLE 3 — Pose (grille) + ligne déplacement séparée (déduplication
+    // par le wizard : 1 seule ligne de déplacement par devis).
     if (v.avecPose && calc.prixPose > 0) {
       articles.push({
         type: "store",
         designation: "Pose store à domicile",
         ref: "POSE-STORE",
-        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · forfait déplacement inclus`,
+        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · tarif grille`,
         qty: 1,
         unitLabel: "forfait",
         unitPriceHt: Math.round(calc.prixPose * 100) / 100,
         meta: {
           typeArticle: "pose_store",
-          forfaitDeplacement: CONFIG.forfaits.deplacement,
+        },
+      });
+      articles.push({
+        type: "pose",
+        designation: "Déplacement",
+        ref: "DEPLACEMENT",
+        detail: "Forfait déplacement pour pose à domicile",
+        qty: 1,
+        unitLabel: "forfait",
+        unitPriceHt: calc.prixDeplacement,
+        meta: {
+          typeArticle: "deplacement",
         },
       });
     }

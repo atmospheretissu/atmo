@@ -37,6 +37,10 @@ import type {
 } from "@/lib/db/caisse";
 
 type CartItem = {
+  /** Identifiant unique de la ligne panier — UUID produit pour les items
+   * catalogue (permet à 2 produits partageant la même ref chez 2 fournisseurs
+   * différents de coexister), ou clé LIBRE-* pour les lignes libres. */
+  id: string;
   ref: string;
   label: string;
   detail: string;
@@ -57,6 +61,7 @@ type ClientPick = {
 };
 
 type SearchResult = {
+  id: string;
   reference: string;
   nom: string;
   designation: string;
@@ -156,36 +161,42 @@ export default function CaisseClient({
   }, [query, catFilter, supplierFilter, hasFilter, hasQuery]);
 
   const addItem = (p: SearchResult) => {
-    if (p.prix == null) return;
-    const existing = cart.find((c) => c.ref === p.reference);
-    if (existing) {
-      setCart(cart.map((c) => (c.ref === p.reference ? { ...c, qty: c.qty + 1 } : c)));
-    } else {
-      setCart([
-        ...cart,
+    const unit = p.prix;
+    if (unit == null) {
+      alert("Ce produit n'a pas de prix renseigné. Ajoutez le prix dans le catalogue avant de le vendre.");
+      return;
+    }
+    setCart((prev) => {
+      const existing = prev.find((c) => c.id === p.id);
+      if (existing) {
+        return prev.map((c) => (c.id === p.id ? { ...c, qty: c.qty + 1 } : c));
+      }
+      return [
+        ...prev,
         {
+          id: p.id,
           ref: p.reference,
           label: p.nom,
           detail: `${p.fournisseur} · ${p.type}`,
-          unit: p.prix,
+          unit,
           qty: 1,
           unitLabel: p.type.toLowerCase().includes("tissu") ? "m" : "u",
         },
-      ]);
-    }
+      ];
+    });
   };
 
-  const adjustQty = (ref: string, delta: number) => {
-    setCart(
-      cart
+  const adjustQty = (id: string, delta: number) => {
+    setCart((prev) =>
+      prev
         .map((c) =>
-          c.ref === ref ? { ...c, qty: Math.max(0.5, Number((c.qty + delta).toFixed(2))) } : c
+          c.id === id ? { ...c, qty: Math.max(0.5, Number((c.qty + delta).toFixed(2))) } : c
         )
         .filter((c) => c.qty > 0)
     );
   };
 
-  const removeItem = (ref: string) => setCart(cart.filter((c) => c.ref !== ref));
+  const removeItem = (id: string) => setCart((prev) => prev.filter((c) => c.id !== id));
 
   const addFreeItem = (input: {
     label: string;
@@ -194,11 +205,12 @@ export default function CaisseClient({
     unit: number;
     unitLabel: string;
   }) => {
-    const freeRef = `LIBRE-${Date.now().toString(36)}`;
-    setCart([
-      ...cart,
+    const freeId = `LIBRE-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    setCart((prev) => [
+      ...prev,
       {
-        ref: freeRef,
+        id: freeId,
+        ref: freeId,
         label: input.label,
         detail: input.detail,
         qty: input.qty,
@@ -524,7 +536,7 @@ export default function CaisseClient({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {results.map((p) => (
                   <button
-                    key={p.reference}
+                    key={p.id}
                     onClick={() => addItem(p)}
                     disabled={p.prix == null}
                     className="card p-3 text-left hover:border-line-strong transition-colors disabled:opacity-50"
@@ -584,7 +596,7 @@ export default function CaisseClient({
               ) : (
                 <div className="divide-y divide-line">
                   {cart.map((c) => (
-                    <div key={c.ref} className="p-3 flex items-start gap-2.5">
+                    <div key={c.id} className="p-3 flex items-start gap-2.5">
                       <ColorChip tone="violet" size="sm">
                         <Tag className="h-3 w-3" strokeWidth={2.4} />
                       </ColorChip>
@@ -599,7 +611,7 @@ export default function CaisseClient({
                             const val = e.target.value;
                             setCart((prev) =>
                               prev.map((x) =>
-                                x.ref === c.ref ? { ...x, notes: val } : x,
+                                x.id === c.id ? { ...x, notes: val } : x,
                               ),
                             );
                           }}
@@ -608,20 +620,20 @@ export default function CaisseClient({
                         />
                         <div className="flex items-center justify-between mt-1.5">
                           <div className="inline-flex items-center gap-1 rounded-md border border-line bg-white p-0.5">
-                            <button onClick={() => adjustQty(c.ref, -0.5)} className="h-5 w-5 rounded inline-flex items-center justify-center text-muted hover:bg-canvas-2 hover:text-ink">
+                            <button onClick={() => adjustQty(c.id, -0.5)} className="h-5 w-5 rounded inline-flex items-center justify-center text-muted hover:bg-canvas-2 hover:text-ink">
                               <Minus className="h-3 w-3" strokeWidth={2.4} />
                             </button>
                             <span className="text-[11.5px] font-mono font-semibold tabular-nums px-1 text-ink">
                               {c.qty.toLocaleString("fr-FR")} {c.unitLabel}
                             </span>
-                            <button onClick={() => adjustQty(c.ref, 0.5)} className="h-5 w-5 rounded inline-flex items-center justify-center text-muted hover:bg-canvas-2 hover:text-ink">
+                            <button onClick={() => adjustQty(c.id, 0.5)} className="h-5 w-5 rounded inline-flex items-center justify-center text-muted hover:bg-canvas-2 hover:text-ink">
                               <Plus className="h-3 w-3" strokeWidth={2.4} />
                             </button>
                           </div>
                           <span className="text-[12.5px] font-semibold tabular-nums text-ink">{eur(c.unit * c.qty)}</span>
                         </div>
                       </div>
-                      <button onClick={() => removeItem(c.ref)} className="text-muted-2 hover:text-pink transition-colors" aria-label="Retirer">
+                      <button onClick={() => removeItem(c.id)} className="text-muted-2 hover:text-pink transition-colors" aria-label="Retirer">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -671,21 +683,29 @@ export default function CaisseClient({
                   <p className="text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">
                     Mode de règlement
                   </p>
-                  <label className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-ink-2 cursor-pointer">
+                  <label className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-violet cursor-pointer rounded-md px-2 py-1 hover:bg-violet-soft/40 transition-colors">
                     <input
                       type="checkbox"
                       checked={splitEnabled}
                       onChange={(e) => {
                         setSplitEnabled(e.target.checked);
-                        if (e.target.checked && totalTtc > 0) {
-                          const half = Math.round((totalTtc / 2) * 100) / 100;
-                          setAmount1Str(half.toFixed(2));
-                          setAmount2Str((totalTtc - half).toFixed(2));
+                        if (e.target.checked) {
+                          // Défaut : payment2 différent de payment
+                          if (payment === payment2) {
+                            const alt = (["especes", "cb", "cheque", "virement"] as const)
+                              .find((m) => m !== payment);
+                            if (alt) setPayment2(alt);
+                          }
+                          if (totalTtc > 0) {
+                            const half = Math.round((totalTtc / 2) * 100) / 100;
+                            setAmount1Str(half.toFixed(2));
+                            setAmount2Str((totalTtc - half).toFixed(2));
+                          }
                         }
                       }}
-                      className="h-3.5 w-3.5"
+                      className="h-4 w-4 accent-violet"
                     />
-                    Paiement en 2 fois
+                    Paiement mixte (2 modes)
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -697,6 +717,14 @@ export default function CaisseClient({
                         key={mode}
                         onClick={() => {
                           setPayment(mode);
+                          // Si le split est actif et que le 2ᵉ mode devient
+                          // identique au 1ᵉʳ, on bascule le 2ᵉ sur le premier
+                          // mode différent (évite le blocage "2 modes différents").
+                          if (splitEnabled && mode === payment2) {
+                            const alt = (["especes", "cb", "cheque", "virement"] as const)
+                              .find((m) => m !== mode);
+                            if (alt) setPayment2(alt);
+                          }
                           if (!splitEnabled) {
                             if (mode !== "especes" && totalTtc > 0) {
                               setCashReceived(String(totalTtc));

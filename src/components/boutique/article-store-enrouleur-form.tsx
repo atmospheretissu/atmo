@@ -235,13 +235,26 @@ export function StoreEnrouleurForm({
         type: "pose",
         designation: "Pose store enrouleur",
         ref: "POSE-ENROUL",
-        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · forfait déplacement inclus`,
+        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · tarif grille`,
         qty: 1,
         unitLabel: "forfait",
         unitPriceHt: calc.prixPose,
         meta: {
           typeArticle: "pose_store_enrouleur",
           prixPose: calc.prixPose,
+        },
+      });
+      // Ligne déplacement séparée (dédup par wizard, montant modifiable).
+      articles.push({
+        type: "pose",
+        designation: "Déplacement",
+        ref: "DEPLACEMENT",
+        detail: "Forfait déplacement pour pose à domicile",
+        qty: 1,
+        unitLabel: "forfait",
+        unitPriceHt: 59,
+        meta: {
+          typeArticle: "deplacement",
         },
       });
     }

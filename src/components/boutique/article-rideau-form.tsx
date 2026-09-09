@@ -207,13 +207,21 @@ export function RideauForm({
 
   /**
    * Nombre de galets calculé auto.
-   * Convention : 1 pli simple par 10cm de largeur finie (pour plis simples).
-   * Pour Vague / Œillets / Panneau : ne s'applique pas (0).
+   * - Plis simples : 1 pli tous les 10 cm de largeur finie.
+   * - Vague (DV, CV) : ceil((largeur / 8 + 2) / 4) * 4 — arrondi au multiple
+   *   de 4 supérieur (Pierre-Edouard 08/09). Vérifiable :
+   *     100 cm → 16 galets / 150 → 24 / 200 → 28 / 250 → 36 / 300 → 40 / 400 → 52.
+   * - Œillets / Panneau : ne s'applique pas.
    */
   const nombreGaletsAuto = useMemo(() => {
-    if (v.typeRideau !== "Plis simples") return 0;
     if (!v.largeurFinie) return 0;
-    return Math.max(1, Math.round(v.largeurFinie / 10));
+    if (v.typeRideau === "Plis simples") {
+      return Math.max(1, Math.round(v.largeurFinie / 10));
+    }
+    if (v.typeRideau === "Vague") {
+      return Math.ceil((v.largeurFinie / 8 + 2) / 4) * 4;
+    }
+    return 0;
   }, [v.typeRideau, v.largeurFinie]);
 
   const validationError = useMemo(() => {
@@ -401,13 +409,26 @@ export function RideauForm({
         type: "rideau",
         designation: "Pose rideau à domicile",
         ref: "POSE-RID",
-        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · forfait déplacement inclus`,
+        detail: `${v.largeurFinie}×${v.hauteurFinie}cm · tarif grille`,
         qty: 1,
         unitLabel: "forfait",
         unitPriceHt: Math.round(calc.prixPose * 100) / 100,
         meta: {
           typeArticle: "pose_rideau",
-          forfaitDeplacement: CONFIG.forfaits.deplacement,
+        },
+      });
+      // Ligne déplacement séparée — dédupliquée au niveau wizard (1 seule
+      // ligne par devis, montant modifiable dans le devis).
+      articles.push({
+        type: "pose",
+        designation: "Déplacement",
+        ref: "DEPLACEMENT",
+        detail: "Forfait déplacement pour pose à domicile",
+        qty: 1,
+        unitLabel: "forfait",
+        unitPriceHt: calc.prixDeplacement,
+        meta: {
+          typeArticle: "deplacement",
         },
       });
     }

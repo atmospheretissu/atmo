@@ -37,6 +37,7 @@ export async function createTicketAction(
 }
 
 type CatalogSearchRow = {
+  id: string;
   ref: string;
   name: string;
   category: string;
@@ -46,6 +47,10 @@ type CatalogSearchRow = {
 };
 
 export type CaisseSearchResult = {
+  /** UUID stable du produit — sert de clé React et d'identité en panier.
+   * Nécessaire depuis que 2 fournisseurs peuvent partager la même ref
+   * (couple unique (ref, supplier_name) — cf migration 20260907120000). */
+  id: string;
   reference: string;
   nom: string;
   designation: string;
@@ -96,7 +101,7 @@ export async function searchCaisseCatalogAction(
     }
   )
     .from("catalog_products")
-    .select("ref, name, category, description, unit_price_ht, supplier_name")
+    .select("id, ref, name, category, description, unit_price_ht, supplier_name")
     .eq("active", true)
     .not("unit_price_ht", "is", null) as QueryChain;
 
@@ -110,6 +115,7 @@ export async function searchCaisseCatalogAction(
   const { data } = await qb.order("name", { ascending: true }).limit(40);
 
   return (data ?? []).map((p) => ({
+    id: p.id,
     reference: p.ref,
     nom: p.name,
     designation: p.description ?? p.name,

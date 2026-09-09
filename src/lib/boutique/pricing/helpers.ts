@@ -183,6 +183,10 @@ export interface RideauCalculation {
   prixRail: number;
   prixCoudes: number;
   prixPose: number;
+  /** Forfait déplacement — désormais séparé du prix de la pose (Pauline 08/09).
+   * Le wizard émet une ligne dédiée « Déplacement » facturée une seule fois
+   * par devis, quelle que soit la quantité d'articles. */
+  prixDeplacement: number;
   prixTotal: number;
   details: {
     coefficient: number;
@@ -207,6 +211,7 @@ export function calculateRideau(input: RideauInput): RideauCalculation {
     prixRail: 0,
     prixCoudes: 0,
     prixPose: 0,
+    prixDeplacement: 0,
     prixTotal: 0,
     details: {
       coefficient: 1.7,
@@ -273,11 +278,11 @@ export function calculateRideau(input: RideauInput): RideauCalculation {
   calc.prixCoudes = input.nombreCoudes * CONFIG.coutCoude;
 
   if (input.avecPose) {
-    // tarifPose + forfait_deplacement - 45 (formule existante)
-    calc.prixPose =
-      getTarifPoseRideau(input.largeurFinie, input.hauteurFinie) +
-      CONFIG.forfaits.deplacement -
-      45;
+    // Le prix de la pose vient directement de la grille tarifaire (largeur ×
+    // hauteur), sans forfait ni magique. Le déplacement est exposé séparément
+    // (Pauline 08/09) et sera facturé sur une ligne dédiée par le wizard.
+    calc.prixPose = getTarifPoseRideau(input.largeurFinie, input.hauteurFinie);
+    calc.prixDeplacement = CONFIG.forfaits.deplacement;
   }
 
   calc.prixTotal =
@@ -287,7 +292,8 @@ export function calculateRideau(input: RideauInput): RideauCalculation {
     calc.prixAccessoires +
     calc.prixRail +
     calc.prixCoudes +
-    calc.prixPose;
+    calc.prixPose +
+    calc.prixDeplacement;
 
   return calc;
 }
@@ -315,6 +321,7 @@ export interface StoreCalculation {
   prixMecanisme: number;
   supplementChainette: number;
   prixPose: number;
+  prixDeplacement: number;
   prixTotal: number;
   details: {
     hauteurAvecMarge: number;
@@ -337,6 +344,7 @@ export function calculateStore(input: StoreInput): StoreCalculation {
     prixMecanisme: 0,
     supplementChainette: 0,
     prixPose: 0,
+    prixDeplacement: 0,
     prixTotal: 0,
     details: {
       hauteurAvecMarge: 0,
@@ -394,10 +402,10 @@ export function calculateStore(input: StoreInput): StoreCalculation {
   calc.prixAccessoires = getAccessoiresStore(input.largeurFinie, input.hauteurFinie);
 
   if (input.avecPose) {
-    calc.prixPose =
-      getTarifPoseStore(input.largeurFinie, input.hauteurFinie) +
-      CONFIG.forfaits.deplacement -
-      45;
+    // Pose du store : grille pure. Déplacement séparé, facturé une ligne
+    // dédiée par le wizard (Pauline 08/09).
+    calc.prixPose = getTarifPoseStore(input.largeurFinie, input.hauteurFinie);
+    calc.prixDeplacement = CONFIG.forfaits.deplacement;
   }
 
   calc.prixTotal =
@@ -407,7 +415,8 @@ export function calculateStore(input: StoreInput): StoreCalculation {
     calc.prixMecanisme +
     calc.supplementChainette +
     calc.prixAccessoires +
-    calc.prixPose;
+    calc.prixPose +
+    calc.prixDeplacement;
 
   return calc;
 }
