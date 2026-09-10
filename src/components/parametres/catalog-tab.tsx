@@ -651,6 +651,8 @@ function ImportCsvModal({
     created: number;
     updated: number;
     errors: number;
+    errorDetails: { line: number; ref: string; message: string }[];
+    durationMs: number;
   } | null>(null);
 
   const onFile = (file: File) => {
@@ -678,7 +680,13 @@ function ImportCsvModal({
     startTransition(async () => {
       const r = await commitCsvImportAction(csvText);
       if (r.ok) {
-        setResult({ created: r.created, updated: r.updated, errors: r.errors });
+        setResult({
+          created: r.created,
+          updated: r.updated,
+          errors: r.errors,
+          errorDetails: r.errorDetails,
+          durationMs: r.durationMs,
+        });
       } else {
         setError(r.message ?? "Erreur à l'import");
       }
@@ -828,18 +836,52 @@ function ImportCsvModal({
                   Import terminé
                 </p>
                 <p className="text-[12.5px] text-ink-2">
-                  <strong>{result.created}</strong> créé(s), <strong>{result.updated}</strong>{" "}
-                  mis à jour.
+                  <strong>{result.created}</strong> créé(s),{" "}
+                  <strong>{result.updated}</strong> mis à jour.
                   {result.errors > 0 && (
                     <>
-                      {" "}
+                      {" · "}
                       <span className="text-pink">
-                        {result.errors} erreur(s).
+                        {result.errors} erreur(s)
                       </span>
                     </>
                   )}
+                  {" · "}
+                  <span className="text-muted">
+                    {(result.durationMs / 1000).toFixed(1)}s
+                  </span>
                 </p>
               </div>
+
+              {result.errorDetails.length > 0 && (
+                <div className="text-[12px] text-pink bg-pink-soft/30 border border-pink/20 rounded px-3 py-2 max-h-64 overflow-auto">
+                  <p className="font-semibold mb-1.5">
+                    Détail des {result.errors} erreurs — vérifier ces lignes
+                    dans le CSV :
+                  </p>
+                  <ul className="space-y-0.5 list-disc pl-4">
+                    {result.errorDetails.slice(0, 100).map((e, i) => (
+                      <li key={i}>
+                        <span className="font-mono">L{e.line}</span>
+                        {e.ref && (
+                          <span className="font-mono text-ink">
+                            {" "}
+                            [{e.ref}]
+                          </span>
+                        )}{" "}
+                        — {e.message}
+                      </li>
+                    ))}
+                    {result.errors > result.errorDetails.length && (
+                      <li className="italic">
+                        … et {result.errors - result.errorDetails.length} autres
+                        (limite à 100).
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <button
                   onClick={() => onDone()}
