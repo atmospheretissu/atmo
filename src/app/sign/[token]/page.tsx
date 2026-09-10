@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { SignForm } from "./sign-form";
+import { PayNowButton } from "./pay-now-button";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function SignDevisPage({
                 client_id: string | null;
                 signed_at: string | null;
                 signed_by_name: string | null;
+                status: string | null;
               } | null;
             }>;
           };
@@ -44,7 +46,7 @@ export default async function SignDevisPage({
   )
     .from("devis")
     .select(
-      "id, number, total_ttc, acompte_ttc, acompte_pct, product_summary, client_id, signed_at, signed_by_name",
+      "id, number, total_ttc, acompte_ttc, acompte_pct, product_summary, client_id, signed_at, signed_by_name, status",
     )
     .eq("signature_token", token)
     .maybeSingle();
@@ -135,10 +137,12 @@ export default async function SignDevisPage({
                 </svg>
               </div>
               <h2 className="text-[18px] font-semibold text-ink mb-1">
-                Merci, votre signature a bien été enregistrée
+                {devis.status === "acompte_recu"
+                  ? "Merci — votre commande est validée"
+                  : "Signature enregistrée, il reste le paiement"}
               </h2>
               <p className="text-[13.5px] text-muted">
-                Attestation Atmosphère : signé par{" "}
+                Signé par{" "}
                 <strong className="text-ink">{signed.signed_by_name}</strong>{" "}
                 le{" "}
                 {new Intl.DateTimeFormat("fr-FR", {
@@ -150,9 +154,18 @@ export default async function SignDevisPage({
                 }).format(new Date(signed.signed_at))}
                 .
               </p>
-              <p className="text-[12.5px] text-muted-2 mt-3">
-                L&apos;équipe Atmosphère vous contacte pour organiser la suite.
-              </p>
+              {devis.status === "acompte_recu" ? (
+                <p className="text-[12.5px] text-muted-2 mt-3">
+                  L&apos;équipe Atmosphère vous contacte pour organiser la suite.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[12.5px] text-muted-2 mt-3 mb-2">
+                    Pour lancer la commande, réglez l&apos;acompte en ligne :
+                  </p>
+                  <PayNowButton token={token} />
+                </>
+              )}
             </div>
           ) : (
             <SignForm token={token} />

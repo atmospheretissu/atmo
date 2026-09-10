@@ -38,6 +38,9 @@ export async function sendDevisEmailAction(
 
   // Token d'accès espace client (généré auto par la migration ; backfill au besoin).
   const clientToken = (devis as unknown as { client_access_token?: string }).client_access_token ?? null;
+  // Token de signature — CTA principal du flow unifié F7 (Axonaut/Odoo style :
+  // le client signe puis paie sur la même page).
+  const signatureToken = (devis as unknown as { signature_token?: string }).signature_token ?? null;
 
   if (!client?.email) {
     return {
@@ -104,27 +107,34 @@ export async function sendDevisEmailAction(
     console.warn("[devis email] Stripe link non généré:", err);
   }
 
-  // CTA principal : si l'on a un token portail, on envoie le client sur son
-  // espace dédié (qui contient le bouton Stripe + le suivi de commande).
-  // Sinon on garde le lien Stripe direct ou un message contact.
-  const ctaHtml = portalLink
+  // F7 (PE 08/09) : CTA principal = parcours unifié /sign qui enchaîne
+  // signature → paiement Stripe sans autre clic. Fallback vers portail
+  // client puis Stripe direct puis message contact.
+  const signatureLink = signatureToken ? `${appUrl}/sign/${signatureToken}` : null;
+  const ctaHtml = signatureLink
     ? `<p style="margin:20px 0 8px 0">
-        <a href="${portalLink}" style="display:inline-block;padding:14px 22px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
-          → Voir mon devis et payer en ligne
+        <a href="${signatureLink}" style="display:inline-block;padding:14px 22px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
+          → Signer et payer l'acompte ${eur(acompte)}
         </a>
       </p>
       <p style="margin:0 0 16px 0;font-size:11.5px;color:#9ca3af">
-        Espace personnel sécurisé · paiement Stripe · suivi de votre commande en temps réel
+        Une seule étape : signature électronique puis paiement sécurisé Stripe.
       </p>`
-    : stripeUrl
-      ? `<p style="margin:20px 0 12px 0">
-          <a href="${stripeUrl}" style="display:inline-block;padding:14px 22px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
-            ✓ Accepter et payer l'acompte ${eur(acompte)}
+    : portalLink
+      ? `<p style="margin:20px 0 8px 0">
+          <a href="${portalLink}" style="display:inline-block;padding:14px 22px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
+            → Voir mon devis et payer en ligne
           </a>
         </p>`
-      : `<p style="margin:8px 0 16px 0;font-size:12px;color:#9ca3af;font-style:italic">
-          Pour valider et payer l'acompte, contactez Atmosphère Tissus au 03.20.72.46.15.
-        </p>`;
+      : stripeUrl
+        ? `<p style="margin:20px 0 12px 0">
+            <a href="${stripeUrl}" style="display:inline-block;padding:14px 22px;background:#10b981;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;letter-spacing:0.2px">
+              ✓ Payer l'acompte ${eur(acompte)}
+            </a>
+          </p>`
+        : `<p style="margin:8px 0 16px 0;font-size:12px;color:#9ca3af;font-style:italic">
+            Pour valider et payer l'acompte, contactez Atmosphère Tissus au 03.20.72.46.15.
+          </p>`;
 
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8f7fb;padding:24px;margin:0;color:#111111">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
@@ -171,7 +181,7 @@ Voici votre devis ${devis.number} pour ${devis.product_summary}.
 Total TTC : ${eur(totalTtc)}
 Acompte 50% à la validation : ${eur(acompte)}
 
-${portalLink ? `Voir mon devis et payer en ligne :\n${portalLink}\n\n` : stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}PDF détaillé en pièce jointe.
+${signatureLink ? `Signer et payer l'acompte en ligne :\n${signatureLink}\n\n` : portalLink ? `Voir mon devis et payer en ligne :\n${portalLink}\n\n` : stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}PDF détaillé en pièce jointe.
 
 L'équipe Atmosphère Tissus`;
 

@@ -284,6 +284,23 @@ export default async function DossierDetailPage({
                             itemId={item.id}
                             initialStatus={item.status}
                             qrCode={item.qr_code}
+                            ateliers={ateliers
+                              .filter((a) => a.active !== false)
+                              .map((a) => ({ id: a.id, name: a.name }))}
+                            defaultAtelierId={
+                              (dossier as { atelier_id?: string | null })
+                                .atelier_id ?? null
+                            }
+                            currentAtelierName={(() => {
+                              const itemAtelierId =
+                                (item as { atelier_id?: string | null })
+                                  .atelier_id ?? null;
+                              if (!itemAtelierId) return currentAtelier?.name ?? null;
+                              return (
+                                ateliers.find((a) => a.id === itemAtelierId)
+                                  ?.name ?? null
+                              );
+                            })()}
                           />
                         </div>
 

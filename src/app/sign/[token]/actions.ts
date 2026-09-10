@@ -4,8 +4,64 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
+/**
+ * F7 fallback — récupère (ou re-crée) une session Stripe Checkout pour le
+ * devis identifié par son token de signature. Utilisé quand le client revient
+ * sur /sign après avoir déjà signé mais sans avoir réglé l'acompte.
+ */
+export async function getStripeCheckoutForSignAction(
+  token: string,
+): Promise<{ ok: true; url: string | null } | { ok: false; message: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(token)) {
+    return { ok: false, message: "Token invalide." };
+  }
+  const sb = createServiceRoleClient();
+  const { data: devis } = await (
+    sb as unknown as {
+      from: (t: string) => {
+        select: (s: string) => {
+          eq: (
+            c: string,
+            v: string,
+          ) => {
+            maybeSingle: () => Promise<{
+              data: { id: string } | null;
+            }>;
+          };
+        };
+      };
+    }
+  )
+    .from("devis")
+    .select("id")
+    .eq("signature_token", token)
+    .maybeSingle();
+  if (!devis) return { ok: false, message: "Devis introuvable." };
+  try {
+    const { createStripeCheckoutAction } = await import(
+      "@/app/(platform)/devis/stripe-actions"
+    );
+    const r = await createStripeCheckoutAction(devis.id);
+    if (r.ok) return { ok: true, url: r.url };
+    return { ok: false, message: r.message };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Erreur Stripe",
+    };
+  }
+}
+
 export type SignatureResult =
-  | { ok: true; devisId: string; number: string }
+  | {
+      ok: true;
+      devisId: string;
+      number: string;
+      /** URL Stripe Checkout pour l'acompte — le client est redirigé
+       *  directement après signature (F7 PE 08/09 : parcours unifié). Null
+       *  si Stripe indispo (l'app affiche alors un message alternatif). */
+      stripeUrl: string | null;
+    }
   | { ok: false; message: string };
 
 /**
@@ -104,5 +160,21 @@ export async function signDevisAction(
   if (e2) return { ok: false, message: e2.message };
 
   revalidatePath(`/devis/${devis.id}`);
-  return { ok: true, devisId: devis.id, number: devis.number };
+
+  // F7 (PE 08/09) : parcours unifié signature → paiement Stripe.
+  // On génère l'URL Stripe Checkout dès la signature validée, pour que le
+  // client soit redirigé immédiatement sans intermédiaire. Best-effort :
+  // si Stripe échoue, on renvoie null et l'UI affiche un fallback texte.
+  let stripeUrl: string | null = null;
+  try {
+    const { createStripeCheckoutAction } = await import(
+      "@/app/(platform)/devis/stripe-actions"
+    );
+    const r = await createStripeCheckoutAction(devis.id);
+    if (r.ok) stripeUrl = r.url;
+  } catch (err) {
+    console.warn("[sign→stripe]", err);
+  }
+
+  return { ok: true, devisId: devis.id, number: devis.number, stripeUrl };
 }

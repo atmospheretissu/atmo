@@ -100,6 +100,7 @@ export type ToggleItemResult =
 export async function setItemStatusAction(
   itemId: string,
   next: ItemNewStatus,
+  opts?: { atelierId?: string | null },
 ): Promise<ToggleItemResult> {
   const supabase = await createClient();
   const {
@@ -117,15 +118,33 @@ export async function setItemStatusAction(
 
   const wasReceived = item.status === "recu";
 
-  const { error: e2 } = await supabase
+  const update: Record<string, unknown> = {
+    status: next,
+    received_at: next === "recu" ? new Date().toISOString() : null,
+    received_by: next === "recu" ? user.id : null,
+  };
+  // F5 (PE 08/09) : à l'envoi en confection, l'atelier est choisi par LIGNE
+  // et non plus au niveau dossier. Un dossier peut donc partir dans 2 ateliers
+  // différents selon les articles.
+  if (next === "confection") {
+    if (opts?.atelierId !== undefined) {
+      update.atelier_id = opts.atelierId;
+    }
+    update.atelier_sent_at = new Date().toISOString();
+  }
+  const { error: e2 } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: unknown) => {
+          eq: (c: string, v: string) => Promise<{ error: { message?: string } | null }>;
+        };
+      };
+    }
+  )
     .from("dossier_items")
-    .update({
-      status: next,
-      received_at: next === "recu" ? new Date().toISOString() : null,
-      received_by: next === "recu" ? user.id : null,
-    })
+    .update(update)
     .eq("id", itemId);
-  if (e2) return { ok: false, message: e2.message };
+  if (e2) return { ok: false, message: e2.message ?? "Erreur update item" };
 
   const { data: dossier } = await supabase
     .from("dossiers")

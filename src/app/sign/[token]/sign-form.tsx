@@ -11,6 +11,7 @@ export function SignForm({ token }: { token: string }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [acceptCgv, setAcceptCgv] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const submit = () => {
     setError(null);
@@ -20,10 +21,19 @@ export function SignForm({ token }: { token: string }) {
         phone,
         acceptCgv,
       });
-      if (r.ok) {
-        router.refresh();
-      } else {
+      if (!r.ok) {
         setError(r.message);
+        return;
+      }
+      // F7 (PE 08/09) : parcours unifié signature → paiement. On redirige
+      // immédiatement vers Stripe Checkout après la signature. Si Stripe
+      // indispo (stripeUrl null), on refresh la page qui affichera un
+      // message de confirmation + fallback.
+      if (r.stripeUrl) {
+        setRedirecting(true);
+        window.location.href = r.stripeUrl;
+      } else {
+        router.refresh();
       }
     });
   };
@@ -94,11 +104,19 @@ export function SignForm({ token }: { token: string }) {
 
         <button
           onClick={submit}
-          disabled={pending || !fullName.trim() || !acceptCgv}
+          disabled={pending || redirecting || !fullName.trim() || !acceptCgv}
           className="mt-2 w-full h-12 rounded-md bg-ink text-white text-[15px] font-semibold hover:bg-ink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          {pending ? "Enregistrement…" : "Signer et valider le devis"}
+          {redirecting
+            ? "Redirection vers le paiement…"
+            : pending
+              ? "Enregistrement…"
+              : "Signer puis payer l'acompte"}
         </button>
+        <p className="text-[11px] text-muted-2 text-center">
+          Vous serez redirigé automatiquement vers le paiement sécurisé Stripe
+          après la signature.
+        </p>
 
         <p className="text-[11px] text-muted-2 text-center pt-1">
           Votre horodatage, votre nom et votre adresse IP sont conservés à
