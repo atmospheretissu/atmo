@@ -1461,14 +1461,22 @@ function ClosureModal({
   const hasAny = DENOMS.some((d) => (counts[d.key] || 0) > 0);
 
   const submit = () => {
+    // Clôture à 0 € (aucune espèce à compter) : autorisée depuis 14/09.
+    // Demande une confirmation explicite pour éviter les clics accidentels.
     if (!hasAny) {
-      setError(
-        "Renseigne le nombre de billets/pièces (comptage détaillé obligatoire).",
-      );
+      if (
+        !confirm(
+          `Aucun encaissement en espèces sur cette journée ?\n\nClôturer le ${date} à 0 € ?`,
+        )
+      )
+        return;
+    } else if (
+      !confirm(
+        `Confirmer la clôture du ${date} avec un total compté de ${eur(total)} ?`,
+      )
+    ) {
       return;
     }
-    if (!confirm(`Confirmer la clôture du ${date} avec un total compté de ${eur(total)} ?`))
-      return;
     setError(null);
     startTransition(async () => {
       const denominations: Denominations = {};
