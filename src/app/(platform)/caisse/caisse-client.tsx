@@ -1630,7 +1630,7 @@ function ClosureModal({
             variant="primary"
             size="sm"
             onClick={submit}
-            disabled={pending || !hasAny}
+            disabled={pending}
             className="flex-1"
           >
             {pending ? (
