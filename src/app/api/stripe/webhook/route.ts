@@ -18,11 +18,71 @@ import { triggerEvent, firstNameOf } from "@/lib/brevo/trigger-event";
  * (les webhooks ne sont pas authentifiés en tant qu'utilisateur).
  */
 export async function POST(request: NextRequest) {
+  const t0 = Date.now();
   const sig = request.headers.get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
+  // Log helper — écrit dans stripe_webhook_log même en cas d'erreur précoce.
+  // Best-effort : si le log lui-même échoue, on ne bloque pas la réponse.
+  const logCall = async (patch: {
+    eventId?: string | null;
+    eventType?: string | null;
+    signatureValid?: boolean;
+    devisId?: string | null;
+    paymentKind?: string | null;
+    sessionId?: string | null;
+    paymentIntentId?: string | null;
+    amountTotal?: number | null;
+    responseStatus: number;
+    responseBody?: string | null;
+    errorMessage?: string | null;
+  }) => {
+    try {
+      const sb = createServiceRoleClient();
+      // Cast : la table stripe_webhook_log est trop récente pour être
+      // dans le typegen Supabase. Insert direct via cast unknown.
+      await (
+        sb as unknown as {
+          from: (t: string) => {
+            insert: (v: Record<string, unknown>) => Promise<{
+              error: { message?: string } | null;
+            }>;
+          };
+        }
+      )
+        .from("stripe_webhook_log")
+        .insert({
+          event_id: patch.eventId ?? null,
+          event_type: patch.eventType ?? null,
+          signature_valid: patch.signatureValid ?? null,
+          devis_id: patch.devisId ?? null,
+          payment_kind: patch.paymentKind ?? null,
+          session_id: patch.sessionId ?? null,
+          payment_intent_id: patch.paymentIntentId ?? null,
+          amount_total: patch.amountTotal ?? null,
+          response_status: patch.responseStatus,
+          response_body: patch.responseBody?.slice(0, 500) ?? null,
+          error_message: patch.errorMessage?.slice(0, 500) ?? null,
+          processing_ms: Date.now() - t0,
+        });
+    } catch (e) {
+      console.warn("[stripe webhook log fail]", e);
+    }
+  };
+
   if (!sig || !secret) {
-    return NextResponse.json({ error: "Webhook non configuré" }, { status: 400 });
+    const missing = !sig
+      ? "missing stripe-signature header"
+      : "missing STRIPE_WEBHOOK_SECRET env";
+    await logCall({
+      signatureValid: false,
+      responseStatus: 400,
+      errorMessage: `Webhook non configuré : ${missing}`,
+    });
+    return NextResponse.json(
+      { error: `Webhook non configuré : ${missing}` },
+      { status: 400 },
+    );
   }
 
   const body = await request.text();
@@ -31,33 +91,89 @@ export async function POST(request: NextRequest) {
     const stripe = getStripe();
     event = stripe.webhooks.constructEvent(body, sig, secret);
   } catch (err) {
+    const msg = err instanceof Error ? err.message : "?";
+    await logCall({
+      signatureValid: false,
+      responseStatus: 400,
+      errorMessage: `Signature invalide : ${msg}`,
+    });
     return NextResponse.json(
-      { error: `Signature invalide: ${err instanceof Error ? err.message : "?"}` },
-      { status: 400 }
+      { error: `Signature invalide: ${msg}` },
+      { status: 400 },
     );
   }
 
   // Service role — bypass RLS pour les writes système
   const supabase = createServiceRoleClient();
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const devisId = session.metadata?.devis_id;
-    const paymentKind = (session.metadata?.kind ?? "acompte") as "acompte" | "solde";
+  // Événements ignorés : on log + 200 pour éviter les retries Stripe.
+  if (event.type !== "checkout.session.completed") {
+    await logCall({
+      eventId: event.id,
+      eventType: event.type,
+      signatureValid: true,
+      responseStatus: 200,
+      responseBody: `ignored (type ${event.type})`,
+    });
+    return NextResponse.json({ received: true, note: `ignored ${event.type}` });
+  }
 
-    if (!devisId) {
-      return NextResponse.json({ received: true, note: "no devis_id metadata" });
-    }
+  const session = event.data.object as Stripe.Checkout.Session;
+  const devisId = session.metadata?.devis_id;
+  const paymentKind = (session.metadata?.kind ?? "acompte") as
+    | "acompte"
+    | "solde";
+  const sessionId = session.id;
+  const piIdEarly =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+  const amountEuros =
+    typeof session.amount_total === "number"
+      ? session.amount_total / 100
+      : null;
 
-    // Lit le devis pour calculer les montants et trigger les events
-    const { data: devis } = await supabase
-      .from("devis")
-      .select("client_id, acompte_ttc, total_ttc, channel, number")
-      .eq("id", devisId)
-      .maybeSingle();
-    if (!devis) {
-      return NextResponse.json({ error: "Devis introuvable" }, { status: 404 });
-    }
+  if (!devisId) {
+    await logCall({
+      eventId: event.id,
+      eventType: event.type,
+      signatureValid: true,
+      sessionId,
+      paymentIntentId: piIdEarly,
+      amountTotal: amountEuros,
+      responseStatus: 200,
+      responseBody: "no devis_id in metadata",
+      errorMessage:
+        "session.metadata.devis_id absent — la Checkout Session a été créée sans passer par nos actions Atmo (créé côté Dashboard Stripe ?)",
+    });
+    return NextResponse.json({ received: true, note: "no devis_id metadata" });
+  }
+
+  // Lit le devis pour calculer les montants et trigger les events
+  const { data: devis } = await supabase
+    .from("devis")
+    .select("client_id, acompte_ttc, total_ttc, channel, number")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (!devis) {
+    await logCall({
+      eventId: event.id,
+      eventType: event.type,
+      signatureValid: true,
+      devisId,
+      paymentKind,
+      sessionId,
+      paymentIntentId: piIdEarly,
+      amountTotal: amountEuros,
+      responseStatus: 404,
+      errorMessage: `Devis ${devisId} introuvable en base`,
+    });
+    return NextResponse.json({ error: "Devis introuvable" }, { status: 404 });
+  }
+
+  // ─── Bloc rebranché : la valeur du bloc historique conservée dans un
+  //     wrapper try/catch pour logger le résultat final ───
+  try {
 
     const totalTtc = Number(devis.total_ttc ?? 0);
     const acompteTtc = Number(devis.acompte_ttc ?? totalTtc * 0.5);
@@ -166,6 +282,18 @@ export async function POST(request: NextRequest) {
         console.warn("[stripe→auto facture solde import]", err);
       }
 
+      await logCall({
+        eventId: event.id,
+        eventType: event.type,
+        signatureValid: true,
+        devisId,
+        paymentKind: "solde",
+        sessionId,
+        paymentIntentId: piId,
+        amountTotal: amount,
+        responseStatus: 200,
+        responseBody: `solde marqué (${amount}€), dossier updated, facture envoyée`,
+      });
       return NextResponse.json({ received: true, devisId, paymentKind: "solde" });
     }
 
@@ -274,14 +402,40 @@ export async function POST(request: NextRequest) {
         .eq("acompte_paid", false);
     }
 
+    await logCall({
+      eventId: event.id,
+      eventType: event.type,
+      signatureValid: true,
+      devisId,
+      paymentKind: "acompte",
+      sessionId,
+      paymentIntentId: piId,
+      amountTotal: acompteTtc,
+      responseStatus: 200,
+      responseBody: `acompte marqué (${acompteTtc}€), dossier ${dossierResult.ok ? "créé" : "non créé"}, facture envoyée`,
+    });
     return NextResponse.json({
       received: true,
       devisId,
       paymentKind: "acompte",
       dossierCreated: dossierResult.ok ? dossierResult.created : false,
     });
+  } catch (err) {
+    // Un throw dans le pipeline (update DB, création dossier, etc.) est loggé
+    // ET renvoyé en 500 pour que Stripe retente.
+    const msg = err instanceof Error ? err.message : String(err);
+    await logCall({
+      eventId: event.id,
+      eventType: event.type,
+      signatureValid: true,
+      devisId,
+      paymentKind,
+      sessionId,
+      paymentIntentId: piIdEarly,
+      amountTotal: amountEuros,
+      responseStatus: 500,
+      errorMessage: msg,
+    });
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  // Évènements non gérés — on accuse réception pour éviter les retries Stripe
-  return NextResponse.json({ received: true, note: `Unhandled: ${event.type}` });
 }
