@@ -311,12 +311,38 @@ export async function createClosure(
   }
 
   // user provient déjà du client authentifié (défini plus haut).
+
+  // Idempotence : si une clôture existe déjà pour cette date, on rattache
+  // simplement les tickets orphelins à cette clôture existante au lieu de
+  // ré-insérer (cause du "duplicate key value violates unique constraint
+  // caisse_closures_date_key" quand une tentative précédente avait créé
+  // la clôture mais échoué à rattacher les tickets).
+  const { data: existingClosure } = await supabase
+    .from("caisse_closures")
+    .select("id, variance")
+    .eq("date", date)
+    .maybeSingle();
+
   const { data: tickets } = await supabase
     .from("caisse_tickets")
     .select("id, payment_method, total_ttc")
     .gte("created_at", dayStart)
     .lte("created_at", dayEnd)
     .is("closure_id", null);
+
+  if (existingClosure) {
+    const ticketIds = (tickets ?? []).map((t) => t.id);
+    if (ticketIds.length > 0) {
+      await supabase
+        .from("caisse_tickets")
+        .update({ closure_id: existingClosure.id })
+        .in("id", ticketIds);
+    }
+    return {
+      id: existingClosure.id,
+      variance: existingClosure.variance,
+    };
+  }
 
   const sums = { especes: 0, cb: 0, cheque: 0, virement: 0, stripe: 0 };
   for (const t of tickets ?? []) {

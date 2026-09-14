@@ -18,15 +18,11 @@ export async function createTicketAction(
   input: TicketInput
 ): Promise<Result<{ ticket: TicketCreated }>> {
   try {
-    // Blocage : impossible d'encaisser tant qu'une journée passée n'est pas
-    // clôturée avec comptage détaillé.
-    const blocked = await getPreviousUnclosedDay();
-    if (blocked) {
-      return {
-        ok: false,
-        message: `Impossible d'encaisser : la journée du ${blocked} n'est pas encore clôturée. Effectue le comptage détaillé pour continuer.`,
-      };
-    }
+    // Ancien blocage supprimé (PE 14/09) : "Impossible d'encaisser tant que
+    // la clôture du JJ/MM n'est pas faite" gênait plus qu'il n'aidait
+    // — cascade de blocages sur ~50 jours quand un opérateur oubliait la
+    // clôture. La caisse encaisse librement ; le rappel de clôture reste
+    // affiché en banner mais n'empêche plus les ventes.
     const ticket = await createTicket(input);
     revalidatePath("/caisse");
     revalidatePath("/dashboard");
@@ -261,6 +257,25 @@ export async function closeAllPastUnclosedDaysAction(): Promise<
         .gte("created_at", dayStart)
         .lte("created_at", dayEnd)
         .is("closure_id", null);
+
+      // Idempotence : réutilise une clôture existante si elle existe déjà
+      // pour ce jour (cause du duplicate key en cas de retry).
+      const { data: existingClosure } = await supabase
+        .from("caisse_closures")
+        .select("id")
+        .eq("date", day)
+        .maybeSingle();
+      if (existingClosure) {
+        const ticketIds = (dayTickets ?? []).map((t) => t.id);
+        if (ticketIds.length > 0) {
+          await supabase
+            .from("caisse_tickets")
+            .update({ closure_id: existingClosure.id })
+            .in("id", ticketIds);
+        }
+        closedDays.push(day);
+        continue;
+      }
 
       const sums = { especes: 0, cb: 0, cheque: 0, virement: 0, stripe: 0 };
       for (const t of dayTickets ?? []) {
