@@ -50,7 +50,19 @@ export async function sendDevisEmailAction(
   }
 
   const supabase = await createClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  // URL absolue OBLIGATOIRE — un lien relatif dans un email ne se résout pas
+  // côté client mail (14/09 : les clients disaient "la clé n'est pas
+  // présente" car le lien pointait sur /sign/xxx sans domaine).
+  // Priorité : NEXT_PUBLIC_APP_URL (explicite), puis RAILWAY_PUBLIC_DOMAIN
+  // (auto — pointe sur le bon service : dev vs prod). Fallback prod en dernier.
+  const rawAppUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : "https://atmo-production.up.railway.app");
+  const appUrl = rawAppUrl.startsWith("http")
+    ? rawAppUrl.replace(/\/+$/, "")
+    : `https://${rawAppUrl.replace(/\/+$/, "")}`;
 
   // 1. Génère le PDF
   let pdfBase64: string;

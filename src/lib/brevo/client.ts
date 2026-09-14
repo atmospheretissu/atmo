@@ -19,17 +19,15 @@ export function isBrevoConfigured(): boolean {
 
 /**
  * Mode sandbox : intercepte tous les envois et les loggue au lieu de les
- * faire partir vers Brevo. Activé automatiquement dès que l'env n'est pas
- * "prod" (recette / dev / preview / local). Peut être forcé via la variable
- * MAIL_SANDBOX=1 (ou désactivé via MAIL_SANDBOX=0 si on veut vraiment
- * tester un vrai envoi depuis dev).
+ * faire partir vers Brevo. Désactivé par défaut depuis 14/09 (PE) — les
+ * mails partent réellement en dev pour tester le parcours client de bout
+ * en bout. Peut être forcé via la variable MAIL_SANDBOX=1 pour revenir au
+ * mode intercepté (utile en tests automatisés ou local sans BREVO_API_KEY).
  */
 export function isMailSandbox(): boolean {
   const explicit = process.env.MAIL_SANDBOX;
   if (explicit === "1" || explicit?.toLowerCase() === "true") return true;
-  if (explicit === "0" || explicit?.toLowerCase() === "false") return false;
-  const env = (process.env.NEXT_PUBLIC_APP_ENV ?? "").toLowerCase();
-  return env !== "" && env !== "prod" && env !== "production";
+  return false;
 }
 
 function fakeMessageId(prefix: string): string {
