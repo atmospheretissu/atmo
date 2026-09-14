@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   CheckCircle2,
   Loader2,
@@ -34,27 +34,35 @@ export function ItemReceptionMenu({
   currentAtelierName?: string | null;
 }) {
   const [status, setStatus] = useState<Status>(initialStatus);
-  const [pending, startTransition] = useTransition();
+  // useState au lieu de useTransition : sinon le `pending` reste true tant
+  // que le RSC refetch (déclenché par revalidatePath dans le server action)
+  // n'est pas terminé. React 19 propage l'état "transition en cours" à TOUS
+  // les useTransition de la page — d'où les spinners qui apparaissent sur
+  // toutes les lignes en même temps sans qu'aucune ne se termine.
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<ItemNewStatus | null>(null);
   const [atelierModalOpen, setAtelierModalOpen] = useState(false);
 
-  const apply = (
+  const apply = async (
     next: ItemNewStatus,
     opts?: { atelierId?: string | null; confirmMsg?: string },
   ) => {
     if (opts?.confirmMsg && !confirm(opts.confirmMsg)) return;
     setError(null);
     setBusy(next);
-    startTransition(async () => {
+    setPending(true);
+    try {
       const r = await setItemStatusAction(itemId, next, {
         atelierId: opts?.atelierId,
       });
       if (r.ok) setStatus(r.newStatus);
       else setError(r.message);
+    } finally {
       setBusy(null);
+      setPending(false);
       setAtelierModalOpen(false);
-    });
+    }
   };
 
   const isReceived = status === "recu";
