@@ -25,7 +25,10 @@ import { PaymentProgress } from "@/components/devis/payment-progress";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { NextStepDevisBanner } from "@/components/devis/next-step-devis";
 import { MarkSoldeButton } from "@/components/devis/mark-solde-button";
-import { StripeCheckoutButton } from "@/components/devis/stripe-button";
+import {
+  StripeCheckoutButton,
+  StripeSoldeCheckoutButton,
+} from "@/components/devis/stripe-button";
 import { SendEmailButton } from "@/components/devis/send-email-button";
 import { SignatureCard } from "@/components/devis/signature-card";
 import { PennylaneVerifyButton } from "@/components/devis/pennylane-verify-button";
@@ -543,6 +546,11 @@ function StripeSeal({
               <p className="text-[14px] font-semibold tabular-nums">{eur(totalTTC, true)}</p>
             </div>
           </div>
+          {solde > 0 && (
+            <div className="pt-4 border-t border-white/10">
+              <StripeSoldeCheckoutButton devisId={devisId} />
+            </div>
+          )}
         </div>
       </div>
     </div>
