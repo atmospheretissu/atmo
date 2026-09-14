@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { sendBrevoEmail, isBrevoConfigured } from "./client";
+import { wrapAtmoEmail, extractCtaFromVars } from "./email-shell";
 
 export type EmailVars = Record<string, string | number | undefined | null>;
 
@@ -36,8 +37,20 @@ export async function sendEmailForTemplate(args: {
   if (!template.active) return { ok: false, message: `Template "${args.templateKey}" désactivé` };
 
   const subject = interpolate(template.subject, args.vars ?? {});
-  const html = interpolate(template.html_body, args.vars ?? {});
+  const innerHtml = interpolate(template.html_body, args.vars ?? {});
   const text = template.text_body ? interpolate(template.text_body, args.vars ?? {}) : undefined;
+
+  // Wrap le corps du template dans le shell Atmosphère (header + footer +
+  // design cohérent + CTA extrait des vars cta_primary_url/label). Si le
+  // template contient déjà <!doctype>, on considère qu'il est déjà stylé
+  // (ex: mails personnalisés admin) et on n'ajoute pas le shell.
+  const alreadyFullHtml = /<!doctype/i.test(innerHtml) || /<html[\s>]/i.test(innerHtml);
+  const html = alreadyFullHtml
+    ? innerHtml
+    : wrapAtmoEmail(innerHtml, {
+        preheader: subject,
+        ...extractCtaFromVars(args.vars ?? {}),
+      });
 
   const senderEmail =
     template.sender_email ?? process.env.BREVO_SENDER_EMAIL ?? "contact@atmospheretissus.fr";
