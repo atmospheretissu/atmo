@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 
 export type CaisseTicket = Database["public"]["Tables"]["caisse_tickets"]["Row"];
@@ -269,7 +269,13 @@ export async function createClosure(
   notes: string | null | undefined,
   denominations: Denominations | null | undefined,
 ): Promise<{ id: string; variance: number | null }> {
-  const supabase = await createClient();
+  // Auth check via client authentifié, puis writes via service_role
+  // pour bypass RLS caisse_closures "admin only" (bug remonté 14/09 —
+  // resp_magasin ne pouvait pas clôturer).
+  const authed = await createClient();
+  const { data: { user } } = await authed.auth.getUser();
+  if (!user) throw new Error("Non authentifié");
+  const supabase = createServiceRoleClient();
   const dayStart = new Date(`${date}T00:00:00`).toISOString();
   const dayEnd = new Date(`${date}T23:59:59.999`).toISOString();
 
@@ -304,8 +310,7 @@ export async function createClosure(
     }
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-
+  // user provient déjà du client authentifié (défini plus haut).
   const { data: tickets } = await supabase
     .from("caisse_tickets")
     .select("id, payment_method, total_ttc")
@@ -342,7 +347,7 @@ export async function createClosure(
       total_virement: sums.virement,
       cash_counted,
       closed_at: new Date().toISOString(),
-      closed_by: user?.id ?? null,
+      closed_by: user.id,
       notes: notes?.trim() || null,
       denominations,
     })

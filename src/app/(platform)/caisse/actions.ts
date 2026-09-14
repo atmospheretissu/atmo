@@ -197,8 +197,15 @@ export async function closeAllPastUnclosedDaysAction(): Promise<
   { ok: true; closedDays: string[]; totalCash: number } | { ok: false; message: string }
 > {
   try {
-    const { createClient } = await import("@/lib/supabase/server");
-    const supabase = await createClient();
+    // Auth check + service-role pour bypass RLS (les policies caisse_closures
+    // exigent is_admin() qui n'inclut pas resp_magasin).
+    const { createClient, createServiceRoleClient } = await import(
+      "@/lib/supabase/server"
+    );
+    const authed = await createClient();
+    const { data: { user } } = await authed.auth.getUser();
+    if (!user) return { ok: false, message: "Non authentifié" };
+    const supabase = createServiceRoleClient();
 
     // 1. Lister les jours DISTINCTS des tickets non clôturés, hors aujourd'hui
     const today = new Date();
@@ -261,8 +268,7 @@ export async function closeAllPastUnclosedDaysAction(): Promise<
         sums[k] += Number(t.total_ttc ?? 0);
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: closure } = await (
+      const { data: closure, error: closureErr } = await (
         supabase as unknown as {
           from: (t: string) => {
             insert: (v: Record<string, unknown>) => {
@@ -292,17 +298,28 @@ export async function closeAllPastUnclosedDaysAction(): Promise<
         .select("id")
         .single();
 
-      if (closure) {
-        const ticketIds = (dayTickets ?? []).map((t) => t.id);
-        if (ticketIds.length > 0) {
-          await supabase
-            .from("caisse_tickets")
-            .update({ closure_id: closure.id })
-            .in("id", ticketIds);
-        }
-        closedDays.push(day);
-        totalCash += closureCash;
+      if (closureErr || !closure) {
+        console.warn(
+          `[bulk close] fail day ${day}:`,
+          closureErr?.message ?? "no closure returned",
+        );
+        continue;
       }
+      const ticketIds = (dayTickets ?? []).map((t) => t.id);
+      if (ticketIds.length > 0) {
+        const { error: updErr } = await supabase
+          .from("caisse_tickets")
+          .update({ closure_id: closure.id })
+          .in("id", ticketIds);
+        if (updErr) {
+          console.warn(
+            `[bulk close] fail attach tickets ${day}:`,
+            updErr.message,
+          );
+        }
+      }
+      closedDays.push(day);
+      totalCash += closureCash;
     }
 
     revalidatePath("/caisse");
