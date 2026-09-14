@@ -251,8 +251,11 @@ export default async function DevisDetailPage({
 
         <div className="px-8 pb-10 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
           <div className="space-y-6 min-w-0">
-            {/* Stripe sceau (only if validated / waiting acompte) */}
-            {(status === "valide" || status === "envoye") && (
+            {/* Bloc Stripe : boutons de paiement acompte + solde. Affiché dès
+                qu'il reste quelque chose à encaisser (brouillon inclus — utile
+                pour tester ou envoyer un lien avant l'envoi du PDF). Masqué
+                seulement pour les devis fermés (refusé / expiré / solde reçu). */}
+            {status !== "refuse" && status !== "expire" && status !== "solde_recu" && (
               <StripeSeal acompte={acompte} totalTTC={totalTTC} solde={solde} devisId={devis.id} />
             )}
 
