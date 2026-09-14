@@ -1529,7 +1529,11 @@ function ClosureModal({
           <span className="font-semibold tabular-nums">
             {eur(expectedCash, true)}
           </span>
-          {" · "}Comptage détaillé <strong className="text-ink">obligatoire</strong>.
+          {expectedCash <= 0.01 ? (
+            <> · Aucun encaissement espèces — tu peux clôturer directement.</>
+          ) : (
+            <> · Comptage détaillé <strong className="text-ink">obligatoire</strong>.</>
+          )}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
