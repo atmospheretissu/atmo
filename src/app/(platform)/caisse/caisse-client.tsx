@@ -31,6 +31,7 @@ import {
 } from "./actions";
 import { createClientQuickAction } from "@/app/(platform)/clients/actions";
 import { UserPlus2 } from "lucide-react";
+import { CloseAllPastButton } from "@/components/caisse/close-all-past-button";
 import type {
   TodayStats,
   PaymentMethod,
@@ -342,13 +343,16 @@ export default function CaisseClient({
                   ci-dessous.
                 </p>
               </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setClosureOpen(true)}
-              >
-                Compter et clôturer
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <CloseAllPastButton />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setClosureOpen(true)}
+                >
+                  Compter et clôturer
+                </Button>
+              </div>
             </div>
           </section>
         )}

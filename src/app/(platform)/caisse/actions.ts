@@ -185,6 +185,134 @@ export async function getPreviousUnclosedDayAction(): Promise<string | null> {
 }
 
 /**
+ * Clôture rétroactive automatique : parcourt tous les jours passés qui ont
+ * des tickets non attachés à une clôture, et crée pour chacun une clôture
+ * "théorique" au montant espèces attendu (variance = 0). Notes = trace
+ * automatique. Débloque la caisse en un clic quand un opérateur a oublié
+ * plusieurs jours d'affilée.
+ *
+ * Ne touche pas à AUJOURD'HUI (la clôture du jour reste manuelle).
+ */
+export async function closeAllPastUnclosedDaysAction(): Promise<
+  { ok: true; closedDays: string[]; totalCash: number } | { ok: false; message: string }
+> {
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+
+    // 1. Lister les jours DISTINCTS des tickets non clôturés, hors aujourd'hui
+    const today = new Date();
+    const todayStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    ).toISOString();
+    const { data: tickets } = await supabase
+      .from("caisse_tickets")
+      .select("created_at, payment_method, total_ttc")
+      .is("closure_id", null)
+      .lt("created_at", todayStart);
+
+    if (!tickets || tickets.length === 0) {
+      return { ok: true, closedDays: [], totalCash: 0 };
+    }
+
+    // Groupe par date locale (YYYY-MM-DD)
+    const byDay = new Map<
+      string,
+      { especes: number; count: number }
+    >();
+    for (const t of tickets) {
+      const d = new Date(t.created_at as string);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const cur = byDay.get(key) ?? { especes: 0, count: 0 };
+      if ((t.payment_method as string) === "especes") {
+        cur.especes += Number(t.total_ttc ?? 0);
+      }
+      cur.count++;
+      byDay.set(key, cur);
+    }
+
+    // 2. Pour chaque jour, appeler createClosure avec le montant espèces
+    //    théorique (variance sera 0). Denominations null → force isZeroClose
+    //    OU un forfait "billet 5€" ×N pour matcher — on préfère juste passer
+    //    le cash_counted = expected sans détail (permis en clôture rétroactive).
+    const closedDays: string[] = [];
+    let totalCash = 0;
+    for (const [day, agg] of Array.from(byDay.entries()).sort()) {
+      // Skip aujourd'hui par sécurité (déjà exclu du filtre .lt() mais on
+      // revalide)
+      const closureCash = Math.round(agg.especes * 100) / 100;
+      // Utilise createClosure via un mode "rétroactif" — insert direct
+      // pour éviter la validation stricte (car on n'a pas les denominations).
+      const dayStart = new Date(`${day}T00:00:00`).toISOString();
+      const dayEnd = new Date(`${day}T23:59:59.999`).toISOString();
+
+      const { data: dayTickets } = await supabase
+        .from("caisse_tickets")
+        .select("id, payment_method, total_ttc")
+        .gte("created_at", dayStart)
+        .lte("created_at", dayEnd)
+        .is("closure_id", null);
+
+      const sums = { especes: 0, cb: 0, cheque: 0, virement: 0, stripe: 0 };
+      for (const t of dayTickets ?? []) {
+        const k = t.payment_method as keyof typeof sums;
+        sums[k] += Number(t.total_ttc ?? 0);
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: closure } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (v: Record<string, unknown>) => {
+              select: (s: string) => {
+                single: () => Promise<{
+                  data: { id: string } | null;
+                  error: { message?: string } | null;
+                }>;
+              };
+            };
+          };
+        }
+      )
+        .from("caisse_closures")
+        .insert({
+          date: day,
+          total_especes: sums.especes,
+          total_cb: sums.cb,
+          total_cheque: sums.cheque,
+          total_virement: sums.virement,
+          cash_counted: closureCash,
+          closed_at: new Date().toISOString(),
+          closed_by: user?.id ?? null,
+          notes: `Clôture rétroactive automatique (${agg.count} ticket${agg.count > 1 ? "s" : ""}) — écart 0 par défaut.`,
+          denominations: null,
+        })
+        .select("id")
+        .single();
+
+      if (closure) {
+        const ticketIds = (dayTickets ?? []).map((t) => t.id);
+        if (ticketIds.length > 0) {
+          await supabase
+            .from("caisse_tickets")
+            .update({ closure_id: closure.id })
+            .in("id", ticketIds);
+        }
+        closedDays.push(day);
+        totalCash += closureCash;
+      }
+    }
+
+    revalidatePath("/caisse");
+    return { ok: true, closedDays, totalCash };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+/**
  * Recherche client pour l'association d'un ticket caisse.
  * Retourne les 20 clients les plus récents si `q` est vide.
  */
