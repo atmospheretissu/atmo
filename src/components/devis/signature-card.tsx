@@ -100,38 +100,30 @@ export function SignatureCard({
       </div>
 
       {url ? (
-        <div className="space-y-2">
-          <div className="flex items-stretch gap-1.5">
-            <input
-              readOnly
-              value={url}
-              onFocus={(e) => e.currentTarget.select()}
-              className="flex-1 min-w-0 h-9 rounded-md border border-line-strong bg-white px-3 text-[12px] text-ink font-mono"
-            />
-            <button
-              type="button"
-              onClick={copy}
-              className="h-9 px-2.5 rounded-md bg-ink text-white text-[11.5px] font-semibold inline-flex items-center gap-1 hover:bg-ink/90"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3 w-3" /> Copié
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" /> Copier
-                </>
-              )}
-            </button>
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="h-9 px-2.5 rounded-md border border-line bg-white text-ink-2 text-[11.5px] font-semibold inline-flex items-center gap-1 hover:border-line-strong"
-            >
-              <ExternalLink className="h-3 w-3" /> Ouvrir
-            </a>
-          </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={copy}
+            className="h-9 px-3 rounded-md bg-ink text-white text-[12px] font-semibold inline-flex items-center gap-1.5 hover:bg-ink/90"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5" /> Lien copié
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" /> Copier le lien de signature
+              </>
+            )}
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="h-9 px-3 rounded-md border border-line bg-white text-ink-2 text-[12px] font-semibold inline-flex items-center gap-1.5 hover:border-line-strong"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Aperçu client
+          </a>
         </div>
       ) : (
         <p className="text-[11.5px] text-muted italic">
