@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { devisStatusLabels } from "@/lib/validation/devis";
 import { ClientPortal } from "./client-portal";
+import { StaffReturnBanner } from "@/components/public/staff-return-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +110,8 @@ export default async function ClientSpacePage({
   }
 
   return (
+    <>
+    <StaffReturnBanner devisId={devis.id} />
     <ClientPortal
       token={token}
       paidJustNow={paid === "success"}
@@ -171,5 +174,6 @@ export default async function ClientSpacePage({
         paid_at: p.paid_at,
       }))}
     />
+    </>
   );
 }

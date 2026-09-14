@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { SignForm } from "./sign-form";
+import { StaffReturnBanner } from "@/components/public/staff-return-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,7 @@ export default async function SignDevisPage({
 
   return (
     <main className="min-h-screen bg-canvas flex items-start justify-center px-4 py-10">
+      <StaffReturnBanner devisId={devis.id} />
       <div className="w-full max-w-2xl">
         <div className="text-center mb-6">
           <p className="text-[11.5px] uppercase tracking-widest font-semibold text-muted-2 mb-1">
