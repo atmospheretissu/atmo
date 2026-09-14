@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { SignForm } from "./sign-form";
-import { PayNowButton } from "./pay-now-button";
 
 export const dynamic = "force-dynamic";
 
@@ -120,56 +119,17 @@ export default async function SignDevisPage({
             </div>
           </div>
 
-          {signed.signed_at ? (
-            <div className="p-6 text-center">
-              <div className="h-14 w-14 rounded-full bg-emerald-soft border-2 border-emerald text-emerald-strong inline-flex items-center justify-center mb-3">
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <h2 className="text-[18px] font-semibold text-ink mb-1">
-                {devis.status === "acompte_recu"
-                  ? "Merci — votre commande est validée"
-                  : "Signature enregistrée, il reste le paiement"}
-              </h2>
-              <p className="text-[13.5px] text-muted">
-                Signé par{" "}
-                <strong className="text-ink">{signed.signed_by_name}</strong>{" "}
-                le{" "}
-                {new Intl.DateTimeFormat("fr-FR", {
-                  day: "2-digit",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(signed.signed_at))}
-                .
-              </p>
-              {devis.status === "acompte_recu" ? (
-                <p className="text-[12.5px] text-muted-2 mt-3">
-                  L&apos;équipe Atmosphère vous contacte pour organiser la suite.
-                </p>
-              ) : (
-                <>
-                  <p className="text-[12.5px] text-muted-2 mt-3 mb-2">
-                    Pour lancer la commande, réglez l&apos;acompte en ligne :
-                  </p>
-                  <PayNowButton token={token} />
-                </>
-              )}
-            </div>
-          ) : (
-            <SignForm token={token} />
-          )}
+          {/* SignForm est TOUJOURS monté — même après signature — pour ne pas
+              perdre l'état "choose" (les 4 modes de paiement) lors du refresh
+              RSC automatique déclenché par revalidatePath dans signDevisAction.
+              Bug 14/09 : après signature l'écran des 4 boutons disparaissait
+              car la page basculait vers la vue "déjà signé", démontant SignForm. */}
+          <SignForm
+            token={token}
+            initialSignedAt={signed.signed_at ?? null}
+            initialSignedByName={signed.signed_by_name ?? null}
+            devisPaid={devis.status === "acompte_recu" || devis.status === "solde_recu"}
+          />
         </div>
 
         <p className="text-center text-[11px] text-muted-2 mt-6 leading-relaxed">

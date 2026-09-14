@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { signDevisAction } from "./actions";
+import { getStripeCheckoutForSignAction, signDevisAction } from "./actions";
 
 /**
  * F7 v2 (PE 14/09) : après la signature, on demande au client SON mode de
@@ -18,19 +18,48 @@ const CHOICE_LABEL: Record<Exclude<PaymentChoice, "cb">, string> = {
   especes: "espèces au magasin",
 };
 
-export function SignForm({ token }: { token: string }) {
+export function SignForm({
+  token,
+  initialSignedAt = null,
+  initialSignedByName = null,
+  devisPaid = false,
+}: {
+  token: string;
+  initialSignedAt?: string | null;
+  initialSignedByName?: string | null;
+  devisPaid?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(initialSignedByName ?? "");
   const [phone, setPhone] = useState("");
   const [acceptCgv, setAcceptCgv] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
-  const [step, setStep] = useState<"sign" | "choose" | "confirmed">("sign");
+  // Si la page charge sur un devis déjà signé mais pas encore payé, on
+  // démarre directement sur l'étape "choose" (proposition des 4 modes de
+  // paiement). Si le paiement est déjà fait → "confirmed".
+  const [step, setStep] = useState<"sign" | "choose" | "confirmed">(
+    devisPaid ? "confirmed" : initialSignedAt ? "choose" : "sign",
+  );
   const [stripeUrl, setStripeUrl] = useState<string | null>(null);
   const [chosenMethod, setChosenMethod] = useState<
     Exclude<PaymentChoice, "cb"> | null
   >(null);
+
+  // Si on démarre sur "choose" (devis déjà signé), il faut aller chercher
+  // le lien Stripe une bonne fois pour que le bouton CB soit actif.
+  useEffect(() => {
+    if (initialSignedAt && !devisPaid && !stripeUrl) {
+      getStripeCheckoutForSignAction(token)
+        .then((r) => {
+          if (r.ok) setStripeUrl(r.url);
+        })
+        .catch(() => {
+          /* silencieux : le bouton CB sera juste désactivé */
+        });
+    }
+  }, [initialSignedAt, devisPaid, stripeUrl, token]);
 
   const submitSignature = () => {
     setError(null);

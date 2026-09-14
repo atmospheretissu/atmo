@@ -244,7 +244,17 @@ export function ClientPortal({
 
             {/* CTA contextuel */}
             <div className="pt-1">
-              {!acomptePaye ? (
+              {/* Si le client vient de payer (retour Stripe ?paid=success) mais
+                  que le webhook n'a pas encore mis à jour la DB, on MASQUE le
+                  bouton "Accepter et payer" pour éviter un double paiement.
+                  La bannière verte au-dessus explique déjà l'état d'attente. */}
+              {paidJustNow && !acomptePaye ? (
+                <div className="rounded-lg border border-amber/30 bg-amber-soft/40 px-4 py-3 text-[12.5px] text-ink-2 leading-relaxed">
+                  Paiement en cours d&apos;enregistrement dans notre système.
+                  Recharge cette page dans quelques secondes pour voir la mise
+                  à jour. Ne relance pas le paiement — Stripe l&apos;a bien reçu.
+                </div>
+              ) : !acomptePaye ? (
                 <ButtonPay
                   onClick={() => handlePay("acompte")}
                   loading={pending}
