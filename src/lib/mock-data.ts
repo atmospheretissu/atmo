@@ -3,6 +3,7 @@ export type DevisStatus =
   | "envoye"
   | "valide"
   | "acompte_recu"
+  | "solde_recu"
   | "refuse"
   | "expire";
 
@@ -56,6 +57,7 @@ export const statusLabels: Record<DevisStatus, string> = {
   envoye: "Envoyé",
   valide: "Validé",
   acompte_recu: "Acompte reçu",
+  solde_recu: "Solde reçu",
   refuse: "Refusé",
   expire: "Expiré",
 };
@@ -65,6 +67,7 @@ export const statusTones: Record<DevisStatus, "neutral" | "info" | "accent" | "s
   envoye: "info",
   valide: "accent",
   acompte_recu: "success",
+  solde_recu: "success",
   refuse: "danger",
   expire: "warning",
 };

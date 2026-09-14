@@ -155,6 +155,7 @@ export async function getDevisStats() {
     envoye: 0,
     valide: 0,
     acompte_recu: 0,
+    solde_recu: 0,
     refuse: 0,
     expire: 0,
   };

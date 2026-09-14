@@ -249,6 +249,20 @@ export async function POST(request: NextRequest) {
           .eq("id", dossier.id);
       }
 
+      // 2b. Advance devis.status → solde_recu (progression linéaire)
+      await (
+        supabase as unknown as {
+          from: (t: string) => {
+            update: (v: unknown) => {
+              eq: (c: string, v: string) => Promise<{ error: unknown }>;
+            };
+          };
+        }
+      )
+        .from("devis")
+        .update({ status: "solde_recu" })
+        .eq("id", devisId);
+
       // 3. Trigger event interne (alerte admin "solde encaissé")
       try {
         const { data: client } = await supabase

@@ -454,6 +454,23 @@ export async function markSoldeRecuAction(
       .eq("id", dossier.id);
   }
 
+  // Advance devis.status → solde_recu (progression linéaire : acompte_recu
+  // → solde_recu). Sans ce push, le devis restait bloqué à "acompte_recu"
+  // même quand 100% du montant était encaissé — incohérence visuelle
+  // rapportée par David 14/09.
+  await (
+    supabase as unknown as {
+      from: (t: string) => {
+        update: (v: unknown) => {
+          eq: (c: string, v: string) => Promise<{ error: unknown }>;
+        };
+      };
+    }
+  )
+    .from("devis")
+    .update({ status: "solde_recu" })
+    .eq("id", devisId);
+
   // F9 (PE 08/09) : envoi automatique de la facture de solde au client
   // dès encaissement. Best-effort — n'échoue jamais l'action métier.
   try {

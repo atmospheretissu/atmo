@@ -154,6 +154,20 @@ export async function syncStripePaymentForDevisAction(
           .eq("id", dossier.id);
       }
 
+      // Advance devis.status → solde_recu
+      await (
+        supabase as unknown as {
+          from: (t: string) => {
+            update: (v: unknown) => {
+              eq: (c: string, v: string) => Promise<{ error: unknown }>;
+            };
+          };
+        }
+      )
+        .from("devis")
+        .update({ status: "solde_recu" })
+        .eq("id", devisId);
+
       // Envoi auto facture solde
       try {
         const { sendFactureEmailAction } = await import("./facture-email-actions");

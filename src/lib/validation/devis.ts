@@ -6,6 +6,7 @@ export const devisStatusEnum = z.enum([
   "envoye",
   "valide",
   "acompte_recu",
+  "solde_recu",
   "refuse",
   "expire",
 ]);
@@ -16,6 +17,7 @@ export const devisStatusLabels: Record<DevisStatus, string> = {
   envoye: "Envoyé",
   valide: "Validé",
   acompte_recu: "Acompte reçu",
+  solde_recu: "Solde reçu",
   refuse: "Refusé",
   expire: "Expiré",
 };
@@ -28,6 +30,7 @@ export const devisStatusTones: Record<
   envoye: "info",
   valide: "violet",
   acompte_recu: "emerald",
+  solde_recu: "emerald",
   refuse: "danger",
   expire: "warning",
 };

@@ -462,6 +462,108 @@ export interface Database {
         };
         Relationships: [];
       };
+      boutique_chainette_prices: {
+        Row: {
+          id: string;
+          code: string;
+          label: string;
+          price: number;
+          position: number;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          label: string;
+          price?: number;
+          position?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          label?: string;
+          price?: number;
+          position?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      boutique_tarif_grids: {
+        Row: {
+          id: string;
+          tissu_id: string;
+          confection: string;
+          largeurs: Json;
+          hauteurs: Json;
+          grid: Json;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tissu_id: string;
+          confection: string;
+          largeurs: Json;
+          hauteurs: Json;
+          grid: Json;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tissu_id?: string;
+          confection?: string;
+          largeurs?: Json;
+          hauteurs?: Json;
+          grid?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      boutique_tarif_tissus: {
+        Row: {
+          id: string;
+          name: string;
+          category: string;
+          family: string;
+          laize_cm: number | null;
+          coefficient: number | null;
+          active: boolean;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          category: string;
+          family: string;
+          laize_cm?: number | null;
+          coefficient?: number | null;
+          active?: boolean;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          category?: string;
+          family?: string;
+          laize_cm?: number | null;
+          coefficient?: number | null;
+          active?: boolean;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       caisse_closures: {
         Row: {
           id: string;
@@ -476,6 +578,8 @@ export interface Database {
           closed_at: string | null;
           exported_to_pennylane: boolean;
           notes: string | null;
+          denominations: Json | null;
+          cash_counted_required: boolean;
         };
         Insert: {
           id?: string;
@@ -490,6 +594,8 @@ export interface Database {
           closed_at?: string | null;
           exported_to_pennylane?: boolean;
           notes?: string | null;
+          denominations?: Json | null;
+          cash_counted_required?: boolean;
         };
         Update: {
           id?: string;
@@ -504,6 +610,8 @@ export interface Database {
           closed_at?: string | null;
           exported_to_pennylane?: boolean;
           notes?: string | null;
+          denominations?: Json | null;
+          cash_counted_required?: boolean;
         };
         Relationships: [];
       };
@@ -566,6 +674,9 @@ export interface Database {
           pennylane_invoice_id: string | null;
           pennylane_export_notes: string | null;
           store_id: string | null;
+          payment_method_2: Database["public"]["Enums"]["payment_method"] | null;
+          amount_1: number | null;
+          amount_2: number | null;
         };
         Insert: {
           id?: string;
@@ -586,6 +697,9 @@ export interface Database {
           pennylane_invoice_id?: string | null;
           pennylane_export_notes?: string | null;
           store_id?: string | null;
+          payment_method_2?: Database["public"]["Enums"]["payment_method"] | null;
+          amount_1?: number | null;
+          amount_2?: number | null;
         };
         Update: {
           id?: string;
@@ -606,6 +720,9 @@ export interface Database {
           pennylane_invoice_id?: string | null;
           pennylane_export_notes?: string | null;
           store_id?: string | null;
+          payment_method_2?: Database["public"]["Enums"]["payment_method"] | null;
+          amount_1?: number | null;
+          amount_2?: number | null;
         };
         Relationships: [];
       };
@@ -616,7 +733,7 @@ export interface Database {
           name: string;
           category: string;
           description: string | null;
-          unit_price_ht: number;
+          unit_price_ht: number | null;
           unit_label: string;
           width_cm: number | null;
           raccord_cm: number | null;
@@ -626,6 +743,9 @@ export interface Database {
           active: boolean;
           created_at: string;
           updated_at: string;
+          supplier_id: string | null;
+          supplier_name: string | null;
+          catalog_source: string;
         };
         Insert: {
           id?: string;
@@ -633,7 +753,7 @@ export interface Database {
           name: string;
           category: string;
           description?: string | null;
-          unit_price_ht: number;
+          unit_price_ht?: number | null;
           unit_label?: string;
           width_cm?: number | null;
           raccord_cm?: number | null;
@@ -643,6 +763,9 @@ export interface Database {
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          supplier_id?: string | null;
+          supplier_name?: string | null;
+          catalog_source?: string;
         };
         Update: {
           id?: string;
@@ -650,7 +773,7 @@ export interface Database {
           name?: string;
           category?: string;
           description?: string | null;
-          unit_price_ht?: number;
+          unit_price_ht?: number | null;
           unit_label?: string;
           width_cm?: number | null;
           raccord_cm?: number | null;
@@ -660,6 +783,9 @@ export interface Database {
           active?: boolean;
           created_at?: string;
           updated_at?: string;
+          supplier_id?: string | null;
+          supplier_name?: string | null;
+          catalog_source?: string;
         };
         Relationships: [];
       };
@@ -681,6 +807,7 @@ export interface Database {
           updated_at: string;
           source_id: string | null;
           store_id: string | null;
+          pennylane_customer_id: number | null;
         };
         Insert: {
           id?: string;
@@ -699,6 +826,7 @@ export interface Database {
           updated_at?: string;
           source_id?: string | null;
           store_id?: string | null;
+          pennylane_customer_id?: number | null;
         };
         Update: {
           id?: string;
@@ -717,6 +845,7 @@ export interface Database {
           updated_at?: string;
           source_id?: string | null;
           store_id?: string | null;
+          pennylane_customer_id?: number | null;
         };
         Relationships: [];
       };
@@ -765,10 +894,6 @@ export interface Database {
           total_ttc: number;
           tva_rate: number;
           acompte_ht: number | null;
-          acompte_ttc: number | null;
-          acompte_pct: number;
-          hide_measurements_for_client: boolean;
-          client_viewed_at: string | null;
           pdf_url: string | null;
           workshop_notes: string | null;
           commercial_id: string | null;
@@ -779,6 +904,17 @@ export interface Database {
           client_access_token: string;
           source_id: string | null;
           store_id: string | null;
+          acompte_pct: number;
+          hide_measurements_for_client: boolean;
+          client_viewed_at: string | null;
+          decoratrice_id: string | null;
+          signed_at: string | null;
+          signed_by_name: string | null;
+          signed_by_phone: string | null;
+          signed_by_ip: string | null;
+          signature_token: string | null;
+          acompte_ttc: number | null;
+          legacy_number: string | null;
         };
         Insert: {
           id?: string;
@@ -794,10 +930,6 @@ export interface Database {
           total_ttc?: number;
           tva_rate?: number;
           acompte_ht?: number | null;
-          acompte_ttc?: number | null;
-          acompte_pct?: number;
-          hide_measurements_for_client?: boolean;
-          client_viewed_at?: string | null;
           pdf_url?: string | null;
           workshop_notes?: string | null;
           commercial_id?: string | null;
@@ -808,6 +940,17 @@ export interface Database {
           client_access_token?: string;
           source_id?: string | null;
           store_id?: string | null;
+          acompte_pct?: number;
+          hide_measurements_for_client?: boolean;
+          client_viewed_at?: string | null;
+          decoratrice_id?: string | null;
+          signed_at?: string | null;
+          signed_by_name?: string | null;
+          signed_by_phone?: string | null;
+          signed_by_ip?: string | null;
+          signature_token?: string | null;
+          acompte_ttc?: number | null;
+          legacy_number?: string | null;
         };
         Update: {
           id?: string;
@@ -823,10 +966,6 @@ export interface Database {
           total_ttc?: number;
           tva_rate?: number;
           acompte_ht?: number | null;
-          acompte_ttc?: number | null;
-          acompte_pct?: number;
-          hide_measurements_for_client?: boolean;
-          client_viewed_at?: string | null;
           pdf_url?: string | null;
           workshop_notes?: string | null;
           commercial_id?: string | null;
@@ -837,6 +976,17 @@ export interface Database {
           client_access_token?: string;
           source_id?: string | null;
           store_id?: string | null;
+          acompte_pct?: number;
+          hide_measurements_for_client?: boolean;
+          client_viewed_at?: string | null;
+          decoratrice_id?: string | null;
+          signed_at?: string | null;
+          signed_by_name?: string | null;
+          signed_by_phone?: string | null;
+          signed_by_ip?: string | null;
+          signature_token?: string | null;
+          acompte_ttc?: number | null;
+          legacy_number?: string | null;
         };
         Relationships: [];
       };
@@ -942,6 +1092,8 @@ export interface Database {
           created_at: string;
           collection: boolean;
           matiere: string | null;
+          atelier_id: string | null;
+          atelier_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -963,6 +1115,8 @@ export interface Database {
           created_at?: string;
           collection?: boolean;
           matiere?: string | null;
+          atelier_id?: string | null;
+          atelier_sent_at?: string | null;
         };
         Update: {
           id?: string;
@@ -984,6 +1138,68 @@ export interface Database {
           created_at?: string;
           collection?: boolean;
           matiere?: string | null;
+          atelier_id?: string | null;
+          atelier_sent_at?: string | null;
+        };
+        Relationships: [];
+      };
+      dossier_notes: {
+        Row: {
+          id: string;
+          dossier_id: string;
+          author_id: string | null;
+          body: string;
+          kind: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          dossier_id: string;
+          author_id?: string | null;
+          body: string;
+          kind?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          dossier_id?: string;
+          author_id?: string | null;
+          body?: string;
+          kind?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      dossier_ratings: {
+        Row: {
+          id: string;
+          dossier_id: string;
+          rate_token: string;
+          rating: number | null;
+          comment: string | null;
+          google_review_offered_at: string | null;
+          created_at: string;
+          rated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          dossier_id: string;
+          rate_token?: string;
+          rating?: number | null;
+          comment?: string | null;
+          google_review_offered_at?: string | null;
+          created_at?: string;
+          rated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          dossier_id?: string;
+          rate_token?: string;
+          rating?: number | null;
+          comment?: string | null;
+          google_review_offered_at?: string | null;
+          created_at?: string;
+          rated_at?: string | null;
         };
         Relationships: [];
       };
@@ -1062,33 +1278,6 @@ export interface Database {
           pret_pose_at?: string | null;
           cloture_at?: string | null;
           atelier_deadline_at?: string | null;
-        };
-        Relationships: [];
-      };
-      dossier_notes: {
-        Row: {
-          id: string;
-          dossier_id: string;
-          author_id: string | null;
-          body: string;
-          kind: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          dossier_id: string;
-          author_id?: string | null;
-          body: string;
-          kind?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          dossier_id?: string;
-          author_id?: string | null;
-          body?: string;
-          kind?: string;
-          created_at?: string;
         };
         Relationships: [];
       };
@@ -1401,6 +1590,96 @@ export interface Database {
         };
         Relationships: [];
       };
+      pennylane_settings: {
+        Row: {
+          id: boolean;
+          push_customer_enabled: boolean;
+          push_invoice_enabled: boolean;
+          pull_reconciliation_enabled: boolean;
+          last_push_at: string | null;
+          last_pull_at: string | null;
+          last_pull_stats: Json | null;
+          last_error: string | null;
+          updated_at: string;
+          auto_reconcile_by_wire_label: boolean;
+          last_wire_scan_at: string | null;
+          last_wire_scan_stats: Json | null;
+        };
+        Insert: {
+          id?: boolean;
+          push_customer_enabled?: boolean;
+          push_invoice_enabled?: boolean;
+          pull_reconciliation_enabled?: boolean;
+          last_push_at?: string | null;
+          last_pull_at?: string | null;
+          last_pull_stats?: Json | null;
+          last_error?: string | null;
+          updated_at?: string;
+          auto_reconcile_by_wire_label?: boolean;
+          last_wire_scan_at?: string | null;
+          last_wire_scan_stats?: Json | null;
+        };
+        Update: {
+          id?: boolean;
+          push_customer_enabled?: boolean;
+          push_invoice_enabled?: boolean;
+          pull_reconciliation_enabled?: boolean;
+          last_push_at?: string | null;
+          last_pull_at?: string | null;
+          last_pull_stats?: Json | null;
+          last_error?: string | null;
+          updated_at?: string;
+          auto_reconcile_by_wire_label?: boolean;
+          last_wire_scan_at?: string | null;
+          last_wire_scan_stats?: Json | null;
+        };
+        Relationships: [];
+      };
+      pennylane_wire_matches: {
+        Row: {
+          id: string;
+          pennylane_transaction_id: string;
+          devis_id: string | null;
+          devis_number: string | null;
+          amount: number | null;
+          label: string | null;
+          matched_at: string;
+          action: string;
+          notes: string | null;
+          transaction_date: string | null;
+          cron_run_id: string | null;
+          identified_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          pennylane_transaction_id: string;
+          devis_id?: string | null;
+          devis_number?: string | null;
+          amount?: number | null;
+          label?: string | null;
+          matched_at?: string;
+          action: string;
+          notes?: string | null;
+          transaction_date?: string | null;
+          cron_run_id?: string | null;
+          identified_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          pennylane_transaction_id?: string;
+          devis_id?: string | null;
+          devis_number?: string | null;
+          amount?: number | null;
+          label?: string | null;
+          matched_at?: string;
+          action?: string;
+          notes?: string | null;
+          transaction_date?: string | null;
+          cron_run_id?: string | null;
+          identified_by?: string | null;
+        };
+        Relationships: [];
+      };
       poses: {
         Row: {
           id: string;
@@ -1453,6 +1732,42 @@ export interface Database {
           client_confirmed?: boolean;
           client_confirmed_at?: string | null;
           satisfaction_sent?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      poseur_availabilities: {
+        Row: {
+          id: string;
+          poseur_id: string;
+          date: string;
+          slot: string;
+          status: string;
+          pose_id: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          poseur_id: string;
+          date: string;
+          slot: string;
+          status?: string;
+          pose_id?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          poseur_id?: string;
+          date?: string;
+          slot?: string;
+          status?: string;
+          pose_id?: string | null;
+          notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1513,6 +1828,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           store_id: string | null;
+          secondary_roles: string[];
         };
         Insert: {
           id: string;
@@ -1526,6 +1842,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           store_id?: string | null;
+          secondary_roles?: string[];
         };
         Update: {
           id?: string;
@@ -1539,6 +1856,85 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           store_id?: string | null;
+          secondary_roles?: string[];
+        };
+        Relationships: [];
+      };
+      sav_ticket_notes: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          ticket_id: string;
+          author_id?: string | null;
+          body: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          ticket_id?: string;
+          author_id?: string | null;
+          body?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      sav_tickets: {
+        Row: {
+          id: string;
+          number: string;
+          client_id: string | null;
+          devis_id: string | null;
+          dossier_id: string | null;
+          title: string;
+          description: string | null;
+          priority: Database["public"]["Enums"]["sav_priority"];
+          status: Database["public"]["Enums"]["sav_status"];
+          assigned_to: string | null;
+          store_id: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          number: string;
+          client_id?: string | null;
+          devis_id?: string | null;
+          dossier_id?: string | null;
+          title: string;
+          description?: string | null;
+          priority?: Database["public"]["Enums"]["sav_priority"];
+          status?: Database["public"]["Enums"]["sav_status"];
+          assigned_to?: string | null;
+          store_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          number?: string;
+          client_id?: string | null;
+          devis_id?: string | null;
+          dossier_id?: string | null;
+          title?: string;
+          description?: string | null;
+          priority?: Database["public"]["Enums"]["sav_priority"];
+          status?: Database["public"]["Enums"]["sav_status"];
+          assigned_to?: string | null;
+          store_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          resolved_at?: string | null;
         };
         Relationships: [];
       };
@@ -1623,84 +2019,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      sav_tickets: {
-        Row: {
-          id: string;
-          number: string;
-          client_id: string | null;
-          devis_id: string | null;
-          dossier_id: string | null;
-          title: string;
-          description: string | null;
-          priority: "normale" | "haute" | "urgente";
-          status: "nouveau" | "en_cours" | "resolu" | "annule";
-          assigned_to: string | null;
-          store_id: string | null;
-          created_by: string | null;
-          created_at: string;
-          updated_at: string;
-          resolved_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          number: string;
-          client_id?: string | null;
-          devis_id?: string | null;
-          dossier_id?: string | null;
-          title: string;
-          description?: string | null;
-          priority?: "normale" | "haute" | "urgente";
-          status?: "nouveau" | "en_cours" | "resolu" | "annule";
-          assigned_to?: string | null;
-          store_id?: string | null;
-          created_by?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          resolved_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          number?: string;
-          client_id?: string | null;
-          devis_id?: string | null;
-          dossier_id?: string | null;
-          title?: string;
-          description?: string | null;
-          priority?: "normale" | "haute" | "urgente";
-          status?: "nouveau" | "en_cours" | "resolu" | "annule";
-          assigned_to?: string | null;
-          store_id?: string | null;
-          created_by?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          resolved_at?: string | null;
-        };
-        Relationships: [];
-      };
-      sav_ticket_notes: {
-        Row: {
-          id: string;
-          ticket_id: string;
-          author_id: string | null;
-          body: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          ticket_id: string;
-          author_id?: string | null;
-          body: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          ticket_id?: string;
-          author_id?: string | null;
-          body?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
       sources: {
         Row: {
           id: string;
@@ -1782,6 +2100,57 @@ export interface Database {
           position?: number;
           created_at?: string;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      stripe_webhook_log: {
+        Row: {
+          id: string;
+          received_at: string;
+          event_id: string | null;
+          event_type: string | null;
+          signature_valid: boolean | null;
+          devis_id: string | null;
+          payment_kind: string | null;
+          session_id: string | null;
+          payment_intent_id: string | null;
+          amount_total: number | null;
+          response_status: number | null;
+          response_body: string | null;
+          error_message: string | null;
+          processing_ms: number | null;
+        };
+        Insert: {
+          id?: string;
+          received_at?: string;
+          event_id?: string | null;
+          event_type?: string | null;
+          signature_valid?: boolean | null;
+          devis_id?: string | null;
+          payment_kind?: string | null;
+          session_id?: string | null;
+          payment_intent_id?: string | null;
+          amount_total?: number | null;
+          response_status?: number | null;
+          response_body?: string | null;
+          error_message?: string | null;
+          processing_ms?: number | null;
+        };
+        Update: {
+          id?: string;
+          received_at?: string;
+          event_id?: string | null;
+          event_type?: string | null;
+          signature_valid?: boolean | null;
+          devis_id?: string | null;
+          payment_kind?: string | null;
+          session_id?: string | null;
+          payment_intent_id?: string | null;
+          amount_total?: number | null;
+          response_status?: number | null;
+          response_body?: string | null;
+          error_message?: string | null;
+          processing_ms?: number | null;
         };
         Relationships: [];
       };
@@ -1895,8 +2264,8 @@ export interface Database {
       atmolead_job_status: "pending" | "running" | "done" | "failed" | "cancelled";
       atmolead_trigger: "cron" | "manual" | "startup";
       bc_status: "brouillon" | "envoye" | "confirme" | "expedie" | "recu" | "probleme";
-      channel: "magasin" | "leroy_merlin" | "ecommerce" | "decoratrice" | "visio";
-      devis_status: "brouillon" | "envoye" | "valide" | "acompte_recu" | "refuse" | "expire";
+      channel: "magasin" | "leroy_merlin" | "ecommerce" | "decoratrice" | "visio" | "saint_maclou";
+      devis_status: "brouillon" | "envoye" | "valide" | "acompte_recu" | "solde_recu" | "refuse" | "expire";
       dossier_item_status: "en_attente" | "commande" | "expedie" | "recu" | "confection" | "probleme";
       dossier_item_type: "tissu" | "rail" | "accessoire" | "autre" | "confection";
       dossier_status: "en_cours" | "tout_commande" | "reception_partielle" | "en_confection" | "pret_pose" | "planifie" | "pose" | "commande_validee" | "attente_matiere" | "confection_en_cours" | "pose_a_planifier" | "pose_a_venir" | "cloture" | "sav";
@@ -1905,8 +2274,10 @@ export interface Database {
       payment_kind: "acompte" | "solde" | "comptoir" | "remboursement";
       payment_method: "stripe" | "especes" | "cb" | "cheque" | "virement";
       pose_status: "a_planifier" | "planifie" | "confirme" | "pose" | "annule";
+      sav_priority: "normale" | "haute" | "urgente";
+      sav_status: "nouveau" | "en_cours" | "resolu" | "annule";
       supplier_type: "tissu" | "rail" | "accessoire" | "couture" | "autre";
-      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "couturiere_externe" | "poseur" | "poseur_externe" | "decoratrice" | "consultation_lm" | "resp_magasin";
+      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice" | "consultation_lm" | "resp_magasin" | "couturiere_externe" | "poseur_externe";
     };
     CompositeTypes: Record<string, Record<string, unknown>>;
   };
