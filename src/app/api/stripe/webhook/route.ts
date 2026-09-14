@@ -92,10 +92,17 @@ export async function POST(request: NextRequest) {
     event = stripe.webhooks.constructEvent(body, sig, secret);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "?";
+    // Diagnostic : affiche le fingerprint du secret utilisé + la signature reçue
+    // pour comparer avec ce que Stripe attend. Utile pour lever le doute
+    // "j'ai bien mis le bon secret" vs réalité côté conteneur Railway.
+    const secretFingerprint = `${secret.slice(0, 10)}…${secret.slice(-4)} (len ${secret.length})`;
+    const sigPreview = sig.slice(0, 80);
+    const bodyLen = body.length;
+    const debug = `secret=${secretFingerprint} · sig=${sigPreview}… · bodyLen=${bodyLen}`;
     await logCall({
       signatureValid: false,
       responseStatus: 400,
-      errorMessage: `Signature invalide : ${msg}`,
+      errorMessage: `Signature invalide : ${msg} — ${debug}`,
     });
     return NextResponse.json(
       { error: `Signature invalide: ${msg}` },
