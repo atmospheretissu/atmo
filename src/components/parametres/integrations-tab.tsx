@@ -120,11 +120,22 @@ export function IntegrationsTab({
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {i.name === "Stripe" && (
-              <a href="/parametres/stripe-webhook">
-                <Button variant="secondary" size="sm">
-                  Journal webhook
-                </Button>
-              </a>
+              <>
+                <a href="/parametres/stripe-webhook">
+                  <Button variant="secondary" size="sm">
+                    Journal webhook
+                  </Button>
+                </a>
+                <a
+                  href="https://dashboard.stripe.com/webhooks"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button variant="ghost" size="sm">
+                    <ExternalLink className="h-3.5 w-3.5" /> Webhooks Stripe
+                  </Button>
+                </a>
+              </>
             )}
             {i.docUrl && (
               <a href={i.docUrl} target="_blank" rel="noreferrer">
