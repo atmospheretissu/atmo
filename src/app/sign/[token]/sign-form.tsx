@@ -10,7 +10,13 @@ import { signDevisAction } from "./actions";
  * autres modes (virement / chèque / espèces / magasin), on affiche les infos
  * et l'app attend l'encaissement manuel côté back-office.
  */
-type PaymentChoice = "cb" | "virement" | "magasin";
+type PaymentChoice = "cb" | "virement" | "cheque" | "especes";
+
+const CHOICE_LABEL: Record<Exclude<PaymentChoice, "cb">, string> = {
+  virement: "virement bancaire",
+  cheque: "chèque",
+  especes: "espèces au magasin",
+};
 
 export function SignForm({ token }: { token: string }) {
   const router = useRouter();
@@ -22,6 +28,9 @@ export function SignForm({ token }: { token: string }) {
   const [redirecting, setRedirecting] = useState(false);
   const [step, setStep] = useState<"sign" | "choose" | "confirmed">("sign");
   const [stripeUrl, setStripeUrl] = useState<string | null>(null);
+  const [chosenMethod, setChosenMethod] = useState<
+    Exclude<PaymentChoice, "cb"> | null
+  >(null);
 
   const submitSignature = () => {
     setError(null);
@@ -44,7 +53,7 @@ export function SignForm({ token }: { token: string }) {
     if (choice === "cb") {
       if (!stripeUrl) {
         setError(
-          "Paiement en ligne indisponible. Choisissez virement ou paiement au magasin.",
+          "Paiement en ligne indisponible. Choisissez un autre mode de règlement.",
         );
         return;
       }
@@ -52,11 +61,13 @@ export function SignForm({ token }: { token: string }) {
       window.location.href = stripeUrl;
       return;
     }
+    setChosenMethod(choice);
     setStep("confirmed");
     router.refresh();
   };
 
   if (step === "confirmed") {
+    const method = chosenMethod;
     return (
       <div className="p-6">
         <div className="rounded-lg border border-emerald/30 bg-emerald-soft/40 p-4 mb-4">
@@ -64,17 +75,33 @@ export function SignForm({ token }: { token: string }) {
             ✓ Devis signé
           </p>
           <p className="text-[13px] text-emerald-strong/90 leading-relaxed">
-            Merci ! Votre signature est enregistrée. Pour finaliser la commande,
-            réglez l&apos;acompte par virement bancaire (RIB indiqué sur le PDF
-            du devis) ou directement au magasin. Notre équipe validera votre
-            commande dès réception.
+            Merci ! Votre signature est enregistrée
+            {method ? ` — règlement prévu par ${CHOICE_LABEL[method]}` : ""}.
+            Notre équipe validera votre commande dès réception de l&apos;acompte.
           </p>
         </div>
-        <p className="text-[12.5px] text-muted leading-relaxed">
-          <strong>Rappel RIB :</strong> Code B.I.C CCBPFRPPLIL — Code I.B.A.N
-          FR76 1350 7000 1431 4825 3216 404. Merci d&apos;indiquer le numéro de
-          devis dans le libellé du virement.
-        </p>
+        {method === "virement" && (
+          <p className="text-[12.5px] text-muted leading-relaxed">
+            <strong>RIB à utiliser :</strong> Code B.I.C CCBPFRPPLIL — Code
+            I.B.A.N FR76 1350 7000 1431 4825 3216 404. Merci d&apos;indiquer le
+            numéro de devis dans le libellé du virement.
+          </p>
+        )}
+        {method === "cheque" && (
+          <p className="text-[12.5px] text-muted leading-relaxed">
+            <strong>Chèque à l&apos;ordre de :</strong> Atmosphère Tissus — à
+            remettre au magasin ou à envoyer au 1 rue de l&apos;Union, Village
+            des Voiles, 59520 Marquette-lez-Lille. Indiquez le numéro de devis
+            au dos.
+          </p>
+        )}
+        {method === "especes" && (
+          <p className="text-[12.5px] text-muted leading-relaxed">
+            <strong>Paiement en espèces :</strong> présentez-vous au magasin (1
+            rue de l&apos;Union, Marquette-lez-Lille) muni du numéro de devis.
+            Horaires : mardi-samedi 10h-19h.
+          </p>
+        )}
       </div>
     );
   }
@@ -120,21 +147,35 @@ export function SignForm({ token }: { token: string }) {
               Payer par virement bancaire
             </p>
             <p className="text-[12px] text-muted mt-0.5">
-              RIB fourni sur le PDF du devis. Votre commande sera validée à
+              RIB communiqué à l&apos;étape suivante. Commande validée à
               réception du virement.
             </p>
           </button>
 
           <button
-            onClick={() => choose("magasin")}
+            onClick={() => choose("cheque")}
             disabled={redirecting}
             className="w-full text-left p-4 rounded-lg border border-line hover:border-line-strong hover:bg-canvas-2/40 transition-colors"
           >
             <p className="text-[14px] font-semibold text-ink">
-              Payer au magasin
+              Payer par chèque
             </p>
             <p className="text-[12px] text-muted mt-0.5">
-              CB, chèque ou espèces — sur place, à votre convenance.
+              À l&apos;ordre d&apos;Atmosphère Tissus, à remettre au magasin ou
+              par courrier.
+            </p>
+          </button>
+
+          <button
+            onClick={() => choose("especes")}
+            disabled={redirecting}
+            className="w-full text-left p-4 rounded-lg border border-line hover:border-line-strong hover:bg-canvas-2/40 transition-colors"
+          >
+            <p className="text-[14px] font-semibold text-ink">
+              Payer en espèces au magasin
+            </p>
+            <p className="text-[12px] text-muted mt-0.5">
+              Sur place, aux horaires d&apos;ouverture du magasin.
             </p>
           </button>
         </div>
@@ -228,8 +269,8 @@ export function SignForm({ token }: { token: string }) {
         </button>
 
         <p className="text-[11px] text-muted-2 text-center pt-1">
-          Après signature, vous choisirez votre mode de paiement (CB en ligne,
-          virement, ou paiement au magasin).
+          Après signature, vous choisirez votre mode de paiement de
+          l&apos;acompte (CB en ligne, virement, chèque ou espèces).
         </p>
         <p className="text-[11px] text-muted-2 text-center">
           Votre horodatage, votre nom et votre adresse IP sont conservés à
