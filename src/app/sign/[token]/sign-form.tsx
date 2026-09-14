@@ -4,6 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { signDevisAction } from "./actions";
 
+/**
+ * F7 v2 (PE 14/09) : après la signature, on demande au client SON mode de
+ * paiement de préférence. Stripe s'ouvre UNIQUEMENT s'il choisit CB. Pour les
+ * autres modes (virement / chèque / espèces / magasin), on affiche les infos
+ * et l'app attend l'encaissement manuel côté back-office.
+ */
+type PaymentChoice = "cb" | "virement" | "magasin";
+
 export function SignForm({ token }: { token: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -12,8 +20,10 @@ export function SignForm({ token }: { token: string }) {
   const [phone, setPhone] = useState("");
   const [acceptCgv, setAcceptCgv] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [step, setStep] = useState<"sign" | "choose" | "confirmed">("sign");
+  const [stripeUrl, setStripeUrl] = useState<string | null>(null);
 
-  const submit = () => {
+  const submitSignature = () => {
     setError(null);
     startTransition(async () => {
       const r = await signDevisAction(token, {
@@ -25,19 +35,126 @@ export function SignForm({ token }: { token: string }) {
         setError(r.message);
         return;
       }
-      // F7 (PE 08/09) : parcours unifié signature → paiement. On redirige
-      // immédiatement vers Stripe Checkout après la signature. Si Stripe
-      // indispo (stripeUrl null), on refresh la page qui affichera un
-      // message de confirmation + fallback.
-      if (r.stripeUrl) {
-        setRedirecting(true);
-        window.location.href = r.stripeUrl;
-      } else {
-        router.refresh();
-      }
+      setStripeUrl(r.stripeUrl);
+      setStep("choose");
     });
   };
 
+  const choose = (choice: PaymentChoice) => {
+    if (choice === "cb") {
+      if (!stripeUrl) {
+        setError(
+          "Paiement en ligne indisponible. Choisissez virement ou paiement au magasin.",
+        );
+        return;
+      }
+      setRedirecting(true);
+      window.location.href = stripeUrl;
+      return;
+    }
+    setStep("confirmed");
+    router.refresh();
+  };
+
+  if (step === "confirmed") {
+    return (
+      <div className="p-6">
+        <div className="rounded-lg border border-emerald/30 bg-emerald-soft/40 p-4 mb-4">
+          <p className="text-[15px] font-semibold text-emerald-strong mb-1">
+            ✓ Devis signé
+          </p>
+          <p className="text-[13px] text-emerald-strong/90 leading-relaxed">
+            Merci ! Votre signature est enregistrée. Pour finaliser la commande,
+            réglez l&apos;acompte par virement bancaire (RIB indiqué sur le PDF
+            du devis) ou directement au magasin. Notre équipe validera votre
+            commande dès réception.
+          </p>
+        </div>
+        <p className="text-[12.5px] text-muted leading-relaxed">
+          <strong>Rappel RIB :</strong> Code B.I.C CCBPFRPPLIL — Code I.B.A.N
+          FR76 1350 7000 1431 4825 3216 404. Merci d&apos;indiquer le numéro de
+          devis dans le libellé du virement.
+        </p>
+      </div>
+    );
+  }
+
+  if (step === "choose") {
+    return (
+      <div className="p-6">
+        <div className="rounded-lg border border-emerald/30 bg-emerald-soft/30 p-3 mb-5">
+          <p className="text-[13px] font-semibold text-emerald-strong">
+            ✓ Signature enregistrée pour {fullName}
+          </p>
+        </div>
+
+        <p className="text-[13.5px] text-ink-2 mb-4">
+          Comment souhaitez-vous régler l&apos;acompte ?
+        </p>
+
+        <div className="space-y-2">
+          <button
+            onClick={() => choose("cb")}
+            disabled={redirecting || !stripeUrl}
+            className="w-full text-left p-4 rounded-lg border-2 border-violet bg-violet-soft/30 hover:bg-violet-soft/60 transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[14px] font-semibold text-ink">
+                  Payer par carte bancaire
+                </p>
+                <p className="text-[12px] text-muted mt-0.5">
+                  Paiement sécurisé en ligne via Stripe. Confirmation immédiate.
+                </p>
+              </div>
+              <span className="text-[20px]">→</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => choose("virement")}
+            disabled={redirecting}
+            className="w-full text-left p-4 rounded-lg border border-line hover:border-line-strong hover:bg-canvas-2/40 transition-colors"
+          >
+            <p className="text-[14px] font-semibold text-ink">
+              Payer par virement bancaire
+            </p>
+            <p className="text-[12px] text-muted mt-0.5">
+              RIB fourni sur le PDF du devis. Votre commande sera validée à
+              réception du virement.
+            </p>
+          </button>
+
+          <button
+            onClick={() => choose("magasin")}
+            disabled={redirecting}
+            className="w-full text-left p-4 rounded-lg border border-line hover:border-line-strong hover:bg-canvas-2/40 transition-colors"
+          >
+            <p className="text-[14px] font-semibold text-ink">
+              Payer au magasin
+            </p>
+            <p className="text-[12px] text-muted mt-0.5">
+              CB, chèque ou espèces — sur place, à votre convenance.
+            </p>
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-4 text-[12.5px] text-pink bg-pink-soft/40 border border-pink/30 rounded px-3 py-2">
+            {error}
+          </div>
+        )}
+
+        {redirecting && (
+          <p className="mt-4 text-[13px] text-muted text-center">
+            Redirection vers le paiement sécurisé…
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // step === "sign"
   return (
     <div className="p-6">
       <p className="text-[13.5px] text-ink-2 mb-5">
@@ -103,22 +220,18 @@ export function SignForm({ token }: { token: string }) {
         )}
 
         <button
-          onClick={submit}
-          disabled={pending || redirecting || !fullName.trim() || !acceptCgv}
+          onClick={submitSignature}
+          disabled={pending || !fullName.trim() || !acceptCgv}
           className="mt-2 w-full h-12 rounded-md bg-ink text-white text-[15px] font-semibold hover:bg-ink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          {redirecting
-            ? "Redirection vers le paiement…"
-            : pending
-              ? "Enregistrement…"
-              : "Signer puis payer l'acompte"}
+          {pending ? "Enregistrement…" : "Signer le devis"}
         </button>
-        <p className="text-[11px] text-muted-2 text-center">
-          Vous serez redirigé automatiquement vers le paiement sécurisé Stripe
-          après la signature.
-        </p>
 
         <p className="text-[11px] text-muted-2 text-center pt-1">
+          Après signature, vous choisirez votre mode de paiement (CB en ligne,
+          virement, ou paiement au magasin).
+        </p>
+        <p className="text-[11px] text-muted-2 text-center">
           Votre horodatage, votre nom et votre adresse IP sont conservés à
           titre de preuve de signature.
         </p>

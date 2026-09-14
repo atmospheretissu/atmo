@@ -273,21 +273,35 @@ export async function createClosure(
   const dayStart = new Date(`${date}T00:00:00`).toISOString();
   const dayEnd = new Date(`${date}T23:59:59.999`).toISOString();
 
-  // Le comptage détaillé est obligatoire pour clôturer.
-  if (!denominations || Object.values(denominations).every((v) => !v || Number(v) === 0)) {
-    throw new Error(
-      "Le comptage détaillé des coupures est obligatoire pour clôturer la journée.",
-    );
-  }
-  // Le total compté doit être cohérent avec la somme des coupures.
-  const denomsTotal = totalFromDenominations(denominations);
-  if (cash_counted == null) {
-    throw new Error("Montant compté requis.");
-  }
-  if (Math.abs(denomsTotal - Number(cash_counted)) > 0.02) {
-    throw new Error(
-      `Incohérence : total saisi ${cash_counted}€ ≠ somme des coupures ${denomsTotal}€.`,
-    );
+  // Cas particulier : clôture d'une journée SANS aucun encaissement espèces.
+  // On autorise cash_counted = 0 avec denominations vides (bug remonté 14/09) :
+  // impossible auparavant de clôturer un jour vide car le comptage détaillé
+  // était systématiquement exigé.
+  const countedNumber = Number(cash_counted ?? 0);
+  const denomsTotal = denominations
+    ? totalFromDenominations(denominations)
+    : 0;
+  const isZeroClose =
+    countedNumber === 0 && denomsTotal === 0;
+
+  if (!isZeroClose) {
+    // Comptage détaillé obligatoire dès qu'il y a de l'espèce à clôturer.
+    if (
+      !denominations ||
+      Object.values(denominations).every((v) => !v || Number(v) === 0)
+    ) {
+      throw new Error(
+        "Le comptage détaillé des coupures est obligatoire pour clôturer la journée (utilisez 0 partout pour une caisse vide).",
+      );
+    }
+    if (cash_counted == null) {
+      throw new Error("Montant compté requis.");
+    }
+    if (Math.abs(denomsTotal - countedNumber) > 0.02) {
+      throw new Error(
+        `Incohérence : total saisi ${cash_counted}€ ≠ somme des coupures ${denomsTotal}€.`,
+      );
+    }
   }
 
   const { data: { user } } = await supabase.auth.getUser();

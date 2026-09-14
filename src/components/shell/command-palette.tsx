@@ -107,7 +107,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
     ];
 
     const commands: Item[] = [
-      { id: "c-new-devis", label: "Devis rapide", sub: "Lignes manuelles, sans wizard", icon: Plus, tone: "violet", href: "/devis/nouveau", shortcut: "N D", kind: "command" },
+      { id: "c-new-devis", label: "Devis express", sub: "Lignes manuelles, sans wizard", icon: Plus, tone: "violet", href: "/devis/nouveau", shortcut: "N D", kind: "command" },
       { id: "c-new-boutique", label: "Devis boutique", sub: "Wizard pièces + simulateurs métier", icon: Plus, tone: "pink", href: "/boutique/nouveau", shortcut: "N B", kind: "command" },
       { id: "c-scan", label: "Scanner un colis", sub: "Caméra mobile ou pistolet", icon: ScanIcon, tone: "yellow", href: "/reception", shortcut: "N S", kind: "command" },
       { id: "c-plan-pose", label: "Planifier une pose", icon: Calendar, tone: "emerald", href: "/poses", kind: "command" },

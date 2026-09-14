@@ -108,11 +108,14 @@ export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
     homeRoute: "/confections",
   },
   poseur: {
-    allowed: ["/poses", "/agenda", "/feed"],
+    // Le poseur accède aux confections (rebrandé « Fiche d'intervention »
+    // côté UI selon le rôle) pour lire les notes atelier internes qui
+    // le concernent avant une pose.
+    allowed: ["/poses", "/agenda", "/feed", "/confections"],
     homeRoute: "/poses",
   },
   poseur_externe: {
-    allowed: ["/poses"],
+    allowed: ["/poses", "/confections"],
     homeRoute: "/poses",
   },
   decoratrice: {

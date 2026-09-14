@@ -52,8 +52,8 @@ const navMain: Item[] = [
   { label: "Suivi de commande", href: "/confections", icon: Scissors, tone: "orange" },
   { label: "Commandes fournisseurs", href: "/commandes", icon: PackageSearch, tone: "blue" },
   { label: "Réception", href: "/reception", icon: ScanLine, tone: "yellow" },
-  { label: "Poses", href: "/poses", icon: Wrench, tone: "emerald" },
   { label: "Agenda", href: "/agenda", icon: Calendar, tone: "violet" },
+  { label: "Poses", href: "/poses", icon: Wrench, tone: "emerald" },
 ];
 
 const navSecondary: Item[] = [

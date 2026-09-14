@@ -20,6 +20,7 @@ import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
 import { SendFactureButton } from "@/components/devis/send-facture-button";
+import { StripeSyncButton } from "@/components/devis/stripe-sync-button";
 import { PaymentProgress } from "@/components/devis/payment-progress";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
 import { NextStepDevisBanner } from "@/components/devis/next-step-devis";
@@ -170,6 +171,7 @@ export default async function DevisDetailPage({
                   )}
                 </>
               )}
+              <StripeSyncButton devisId={devis.id} />
               <PennylaneVerifyButton devisId={devis.id} />
               <OpenSavTicketButton
                 context={{

@@ -103,12 +103,31 @@ export default async function PoseDetailPage({
                 <h1 className="text-[32px] font-semibold tracking-tight text-ink leading-[1.1]">
                   {client?.display_name ?? "—"}
                 </h1>
-                {pose.address && (
-                  <p className="text-[13.5px] text-muted mt-1.5 flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {pose.address}
-                  </p>
-                )}
+                {(() => {
+                  const poseurName = pose.poseur_id
+                    ? (poseurs.find((p) => p.id === pose.poseur_id)?.name ??
+                      null)
+                    : null;
+                  return (
+                    <p className="text-[13.5px] text-muted mt-1.5 flex items-center gap-1.5 flex-wrap">
+                      {poseurName ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-violet-soft/50 text-violet-strong px-2 py-0.5 font-semibold">
+                          Pose par {poseurName}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-soft text-amber px-2 py-0.5 font-semibold">
+                          Poseur non assigné
+                        </span>
+                      )}
+                      {pose.address && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {pose.address}
+                        </span>
+                      )}
+                    </p>
+                  );
+                })()}
               </div>
             </div>
 

@@ -92,7 +92,7 @@ export default async function DashboardPage({
               />
               <Link href="/devis/nouveau">
                 <Button variant="secondary" size="sm">
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis rapide
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Devis express
                 </Button>
               </Link>
               <Link href="/boutique/nouveau">

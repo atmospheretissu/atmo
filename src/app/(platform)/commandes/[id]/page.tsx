@@ -217,12 +217,9 @@ export default async function CommandeDetailPage({
                 <h3 className="text-[15px] font-semibold text-ink">Lignes</h3>
               </div>
               <BcLinesEditor bcId={bc.id} lines={lines} canEdit={canEdit} />
-              <div className="bg-canvas-2/30 px-5 py-4 flex items-center justify-between border-t border-line">
-                <span className="text-[13px] font-semibold text-ink">Total HT</span>
-                <span className="text-[20px] font-semibold tabular-nums text-ink">
-                  {eur(amount, true)}
-                </span>
-              </div>
+              {/* Total masqué (PE 14/09) : le BC est une checklist de
+                  préparation pour le fournisseur, pas une facture. Le
+                  montant reste stocké en base pour les stats internes. */}
             </Card>
 
             {bc.notes && bc.status !== "probleme" && (

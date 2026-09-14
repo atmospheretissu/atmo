@@ -5,6 +5,7 @@ import {
   Text,
   View,
   StyleSheet,
+  Link,
 } from "@react-pdf/renderer";
 import type { Database } from "@/lib/supabase/types";
 import {
@@ -589,6 +590,71 @@ export function DevisPDF({
             )}
           </View>
         </View>
+
+        {/* Bouton visible « Accepter et payer en ligne » — pointe sur le
+            portail client (/client/[token]) où le client signe puis paie
+            en une seule visite. Affiché uniquement si le devis a un token
+            d'accès ET n'est pas déjà signé. */}
+        {(() => {
+          const token = (devis as { client_access_token?: string | null })
+            .client_access_token;
+          const appUrl =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            (process.env.RAILWAY_PUBLIC_DOMAIN
+              ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+              : "https://atmo-production.up.railway.app");
+          if (!token || isSigned) return null;
+          const url = `${appUrl.replace(/\/+$/, "")}/client/${token}`;
+          return (
+            <View
+              style={{
+                marginTop: SPACING.lg,
+                marginBottom: SPACING.lg,
+                padding: 16,
+                border: `1.5px solid ${COLORS.ink}`,
+                borderRadius: 6,
+                backgroundColor: COLORS.ink,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: "#FFFFFF",
+                  fontFamily: "Helvetica-Bold",
+                  marginBottom: 6,
+                  letterSpacing: 0.3,
+                }}
+              >
+                ACCEPTER ET PAYER EN LIGNE
+              </Text>
+              <Link src={url}>
+                <Text
+                  style={{
+                    fontSize: 10.5,
+                    color: "#FFFFFF",
+                    textDecoration: "underline",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {url}
+                </Text>
+              </Link>
+              <Text
+                style={{
+                  fontSize: 9,
+                  color: "#CBD5E1",
+                  marginTop: 6,
+                  lineHeight: 1.4,
+                  textAlign: "center",
+                }}
+              >
+                Cliquez sur le lien pour signer électroniquement le devis
+                et régler l&apos;acompte en ligne (CB, virement).
+              </Text>
+            </View>
+          );
+        })()}
 
         {/* Modalités de règlement + coordonnées bancaires */}
         <ModalitesReglementBlock

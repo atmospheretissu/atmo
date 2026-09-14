@@ -49,7 +49,7 @@ export default function NotFound() {
                 href="/devis/nouveau"
                 className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full bg-white border border-line hover:border-line-strong text-[12px] text-ink-2 transition-colors"
               >
-                Devis rapide
+                Devis express
               </Link>
               <Link
                 href="/boutique/nouveau"

@@ -208,7 +208,7 @@ export function DevisBuilder({
               Simulateur · chiffrage temps réel
             </p>
             <h1 className="text-[34px] font-semibold tracking-tight text-ink leading-[1.1]">
-              Devis rapide
+              Devis express
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -391,13 +391,15 @@ export function DevisBuilder({
             </div>
             {decoratrices.length > 0 && (
               <div>
-                <Label htmlFor="decoratrice_id">Décoratrice suivante</Label>
+                <Label htmlFor="decoratrice_id">
+                  Personne en charge du dossier
+                </Label>
                 <Select
                   id="decoratrice_id"
                   value={decoratriceId}
                   onChange={(e) => setDecoratriceId(e.target.value)}
                 >
-                  <option value="">— Aucune —</option>
+                  <option value="">— Personne —</option>
                   {decoratrices.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.full_name}
@@ -427,8 +429,8 @@ export function DevisBuilder({
                   <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-left">Désignation *</th>
                   <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-right w-24">Qté</th>
                   <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-left w-16">Unité</th>
-                  <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-right w-28">P.U. HT</th>
-                  <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-right w-28">Total HT</th>
+                  <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-right w-28">P.U. TTC</th>
+                  <th className="px-3 py-2 text-[10.5px] font-semibold tracking-wider uppercase text-muted-2 text-right w-28">Total TTC</th>
                   <th className="w-8 px-1 py-2" aria-hidden></th>
                 </tr>
               </thead>
@@ -497,17 +499,32 @@ export function DevisBuilder({
                         </select>
                       </td>
                       <td className="px-2 py-1.5 text-right">
+                        {/* Saisie en TTC (PE 14/09) : on stocke le HT en base
+                            pour la compta et le PDF, mais l'équipe manipule
+                            uniquement du TTC dans l'UI. */}
                         <input
                           type="number"
                           step="0.01"
-                          value={l.unit_price_ht}
-                          onChange={(e) => updateLine(l.id, { unit_price_ht: Number(e.target.value) || 0 })}
+                          value={
+                            Math.round(
+                              l.unit_price_ht * (1 + tvaRate / 100) * 100,
+                            ) / 100
+                          }
+                          onChange={(e) => {
+                            const ttc = Number(e.target.value) || 0;
+                            const ht =
+                              Math.round((ttc / (1 + tvaRate / 100)) * 100) / 100;
+                            updateLine(l.id, { unit_price_ht: ht });
+                          }}
                           className="w-24 bg-transparent text-[13px] font-mono text-right text-ink-2 px-1 py-1 rounded focus:outline-none focus:ring-1 focus:ring-accent tabular-nums"
                         />
                       </td>
                       <td className="px-2 py-1.5 text-right">
                         <span className="font-semibold text-ink tabular-nums">
-                          {eurFmt.format(totalLineHt)}
+                          {eurFmt.format(
+                            Math.round(totalLineHt * (1 + tvaRate / 100) * 100) /
+                              100,
+                          )}
                         </span>
                       </td>
                       <td className="px-1 py-1.5">

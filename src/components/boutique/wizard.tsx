@@ -460,10 +460,10 @@ export function BoutiqueWizard({
                           </div>
                           <div className="text-right text-[12.5px] shrink-0">
                             <p className="font-mono text-muted-2">
-                              {a.qty} {a.unitLabel} × {eurFmt.format(a.unitPriceHt)}
+                              {a.qty} {a.unitLabel} × {eurFmt.format(a.unitPriceHt * (1 + tvaRate / 100))} TTC
                             </p>
                             <p className="font-semibold text-ink tabular-nums mt-0.5">
-                              {eurFmt.format(a.qty * a.unitPriceHt)}
+                              {eurFmt.format(a.qty * a.unitPriceHt * (1 + tvaRate / 100))}
                             </p>
                           </div>
                           <button
@@ -621,7 +621,7 @@ export function BoutiqueWizard({
               <div className="divide-y divide-line">
                 {pieces.map((piece, idx) => {
                   const pieceTotal = piece.articles.reduce(
-                    (acc, a) => acc + a.qty * a.unitPriceHt,
+                    (acc, a) => acc + a.qty * a.unitPriceHt * (1 + tvaRate / 100),
                     0
                   );
                   return (
@@ -645,7 +645,7 @@ export function BoutiqueWizard({
                               )}
                             </div>
                             <span className="text-muted tabular-nums shrink-0">
-                              {a.qty} {a.unitLabel} × {eurFmt.format(a.unitPriceHt)}
+                              {a.qty} {a.unitLabel} × {eurFmt.format(a.unitPriceHt * (1 + tvaRate / 100))} TTC
                             </span>
                           </div>
                         ))}

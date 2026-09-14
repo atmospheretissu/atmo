@@ -83,15 +83,16 @@ export function BcLinesEditor({
             <th className="px-5 py-2.5 text-left text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">Réf.</th>
             <th className="px-2 py-2.5 text-left text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">Désignation</th>
             <th className="px-2 py-2.5 text-right text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">Qté</th>
-            <th className="px-2 py-2.5 text-right text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">P.U.</th>
-            <th className="px-5 py-2.5 text-right text-[10.5px] font-semibold tracking-wider uppercase text-muted-2">Total</th>
+            {/* P.U. et Total masqués (PE 14/09) : le BC est une checklist
+                fournisseur, pas une facture. Les prix sont saisis en édition
+                mais ne s'affichent plus en lecture. */}
             {canEdit && <th className="w-10 px-2 py-2.5" aria-hidden></th>}
           </tr>
         </thead>
         <tbody>
           {lines.length === 0 && !adding && (
             <tr>
-              <td colSpan={canEdit ? 6 : 5} className="px-5 py-8 text-center text-muted-2 text-[12.5px]">
+              <td colSpan={canEdit ? 4 : 3} className="px-5 py-8 text-center text-muted-2 text-[12.5px]">
                 Aucune ligne — ajoute les références à commander au fournisseur.
               </td>
             </tr>
@@ -118,14 +119,6 @@ export function BcLinesEditor({
                 <span className="text-ink-2 tabular-nums">
                   {l.qty}
                   <span className="text-muted-2 text-[11px] ml-0.5">{l.unit_label}</span>
-                </span>
-              </td>
-              <td className="px-2 py-3 text-right">
-                <span className="text-ink-2 tabular-nums">{eur(Number(l.unit_price_ht))}</span>
-              </td>
-              <td className="px-5 py-3 text-right">
-                <span className="font-semibold text-ink tabular-nums">
-                  {eur(Number(l.total_ht ?? Number(l.qty) * Number(l.unit_price_ht)))}
                 </span>
               </td>
               {canEdit && (

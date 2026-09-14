@@ -220,7 +220,7 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
   const { bc, supplier, dossier, lines } = detail;
   const lang = (bc.language ?? "FR") as Lang;
   const t = I18N[lang] ?? I18N.FR;
-  const total = Number(bc.amount_ht ?? 0);
+  // Le montant total n'est plus affiché sur le BC PDF (mode todo-list).
 
   return (
     <Document
@@ -263,26 +263,37 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
           </View>
         </View>
 
-        <View style={styles.hero}>
-          <Text style={styles.heroLabel}>{t.subtotalHt}</Text>
-          <Text style={styles.heroValue}>{eur(total)}</Text>
-          {bc.expected_at && (
-            <Text style={styles.heroSub}>
-              {t.expectedDelivery} : {date(bc.expected_at)}
-            </Text>
-          )}
-        </View>
+        {/* Bloc hero simplifié — plus de montant sur le BC (checklist).
+            On garde la date de livraison attendue qui reste utile côté
+            fournisseur. */}
+        {bc.expected_at && (
+          <View style={styles.hero}>
+            <Text style={styles.heroLabel}>{t.expectedDelivery}</Text>
+            <Text style={styles.heroValue}>{date(bc.expected_at)}</Text>
+          </View>
+        )}
 
+        {/* Bon de commande = checklist pour le fournisseur.
+            Pas de prix affichés (demande PE 14/09) — le BC sert à la
+            préparation, pas à la facturation. */}
         <View style={styles.table}>
           <View style={styles.tHead}>
+            <Text style={[styles.tHeadText, { width: 24 }]}> </Text>
             <Text style={[styles.tHeadText, styles.cRef]}>{t.reference}</Text>
             <Text style={[styles.tHeadText, styles.cLabel]}>{t.designation}</Text>
             <Text style={[styles.tHeadText, styles.cQty]}>{t.qty}</Text>
-            <Text style={[styles.tHeadText, styles.cUnit]}>{t.unit}</Text>
-            <Text style={[styles.tHeadText, styles.cTotal]}>{t.total}</Text>
           </View>
           {lines.map((l) => (
             <View style={styles.tRow} key={l.id}>
+              <View
+                style={{
+                  width: 24,
+                  height: 14,
+                  borderWidth: 1,
+                  borderColor: "#0F1720",
+                  borderRadius: 2,
+                }}
+              />
               <Text style={[styles.cRef, { fontSize: 8, color: "#6B7280" }]}>
                 {l.ref ?? "—"}
               </Text>
@@ -313,19 +324,8 @@ export function BcPDF({ detail }: { detail: BCDetail }) {
               <Text style={styles.cQty}>
                 {Number(l.qty)} {l.unit_label}
               </Text>
-              <Text style={styles.cUnit}>{eur(Number(l.unit_price_ht ?? 0))}</Text>
-              <Text style={styles.cTotal}>
-                {eur(Number(l.total_ht ?? Number(l.qty) * Number(l.unit_price_ht ?? 0)))}
-              </Text>
             </View>
           ))}
-        </View>
-
-        <View style={styles.totals}>
-          <View style={styles.totTtc}>
-            <Text style={styles.totTtcLabel}>{t.subtotalHt}</Text>
-            <Text style={styles.totTtcValue}>{eur(total)}</Text>
-          </View>
         </View>
 
         {bc.notes && (

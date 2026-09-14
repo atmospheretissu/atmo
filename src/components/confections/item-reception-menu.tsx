@@ -108,13 +108,14 @@ export function ItemReceptionMenu({
           }
           disabled={pending}
           title="Marquer reçu (retour atelier)"
-          className="h-8 w-8 rounded-md inline-flex items-center justify-center text-muted-2 hover:text-emerald hover:bg-emerald-soft/40 transition-colors disabled:opacity-50"
+          className="h-9 px-3 rounded-md inline-flex items-center gap-1.5 text-[12.5px] font-semibold border border-emerald bg-emerald text-white hover:bg-emerald/90 transition-colors disabled:opacity-50 shadow-sm"
         >
           {pending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.2} />
+            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.4} />
           ) : (
-            <PackageCheck className="h-3.5 w-3.5" strokeWidth={2.2} />
+            <PackageCheck className="h-4 w-4" strokeWidth={2.4} />
           )}
+          Marquer reçu
         </button>
         {error && <span className="text-[11px] text-pink">{error}</span>}
       </div>

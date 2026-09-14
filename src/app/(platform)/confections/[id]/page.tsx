@@ -29,6 +29,7 @@ import { DossierNotesCard } from "@/components/confections/dossier-notes";
 import { listDossierNotes } from "@/lib/db/dossier-notes";
 import { NextStepBanner } from "@/components/confections/next-step-banner";
 import { OpenSavTicketButton } from "@/components/sav/open-sav-ticket-button";
+import { RequestRatingButton } from "@/components/confections/request-rating-button";
 import { StartProcurementButton } from "@/components/confections/start-procurement-button";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
@@ -74,6 +75,24 @@ export default async function DossierDetailPage({
   if (!result) notFound();
   const { dossier, client, items } = result;
 
+  // Adapte le vocabulaire selon le rôle : un poseur voit « Fiche
+  // d'intervention » là où l'équipe magasin voit « Suivi de commande ».
+  const { getEffectiveProfile } = await import("@/lib/db/impersonation");
+  const eff = await getEffectiveProfile();
+  const isPoseur =
+    eff?.effectiveRole === "poseur" || eff?.effectiveRole === "poseur_externe";
+  const labels = isPoseur
+    ? {
+        breadcrumb: "Fiche d'intervention",
+        breadcrumbHref: "/poses",
+        eyebrow: "Intervention",
+      }
+    : {
+        breadcrumb: "Suivi de commande",
+        breadcrumbHref: "/confections",
+        eyebrow: "Dossier",
+      };
+
   // Ateliers (liste pour sélection) + atelier déjà assigné (s'il y en a un)
   const ateliers = await listAteliers();
   const currentAtelier =
@@ -96,7 +115,7 @@ export default async function DossierDetailPage({
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Suivi de commande", href: "/confections" },
+          { label: labels.breadcrumb, href: labels.breadcrumbHref },
           { label: dossier.number },
         ]}
       />
@@ -105,7 +124,7 @@ export default async function DossierDetailPage({
         {/* HERO */}
         <section className="px-8 pt-10 pb-6">
           <div className="flex items-center gap-2 mb-3">
-            <p className="eyebrow">Dossier</p>
+            <p className="eyebrow">{labels.eyebrow}</p>
             <span className="text-muted-2">·</span>
             <StatusPill tone={statusTone(dossier.status)} pulse={dossier.status === "pret_pose"}>
               {statusLabel(dossier.status)}
@@ -156,6 +175,13 @@ export default async function DossierDetailPage({
               )}
               {dossier.status === "pret_pose" && dossier.solde_paid && (
                 <PlanPoseButton dossierId={dossier.id} />
+              )}
+              {/* Fin de dossier : demande de note client (PE 14/09).
+                  Disponible dès que la pose est faite (status "cloture" ou
+                  "pose_a_venir" avec solde payé). */}
+              {(dossier.status === "cloture" ||
+                (dossier.solde_paid && dossier.status === "pret_pose")) && (
+                <RequestRatingButton dossierId={dossier.id} />
               )}
               <OpenSavTicketButton
                 context={{
