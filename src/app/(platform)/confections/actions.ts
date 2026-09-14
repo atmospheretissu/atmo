@@ -190,7 +190,10 @@ export async function setItemStatusAction(
         : "";
 
       if (client) {
-        await triggerEvent("tous_recus", {
+        // Fire-and-forget : l'appel Brevo peut hanger 30s+ si le service
+        // est lent, ce qui bloquait le bouton "Réceptionné" en spinner
+        // infini côté UI. On lance et on rend la main immédiatement.
+        void triggerEvent("tous_recus", {
           toPhone: client.phone,
           toEmail: client.email,
           toName: client.display_name,
@@ -202,7 +205,9 @@ export async function setItemStatusAction(
             numero_dossier: dossier.number,
           },
           triggerSource: "action:set-item-status",
-        });
+        }).catch((err) =>
+          console.warn("[trigger tous_recus from set-item-status]", err),
+        );
       }
     } catch (err) {
       console.warn("[trigger tous_recus from set-item-status]", err);
@@ -305,7 +310,9 @@ export async function toggleItemReceptionAction(
         : "";
 
       if (client) {
-        await triggerEvent("tous_recus", {
+        // Fire-and-forget : Brevo peut mettre 30s+ à répondre et bloquer
+        // le server action → spinner infini sur le bouton "Réceptionné".
+        void triggerEvent("tous_recus", {
           toPhone: client.phone,
           toEmail: client.email,
           toName: client.display_name,
@@ -317,7 +324,9 @@ export async function toggleItemReceptionAction(
             numero_dossier: dossier.number,
           },
           triggerSource: "action:toggle-item-reception",
-        });
+        }).catch((err) =>
+          console.warn("[trigger tous_recus from toggle]", err),
+        );
       }
     } catch (err) {
       console.warn("[trigger tous_recus from toggle]", err);
