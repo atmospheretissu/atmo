@@ -58,7 +58,7 @@ const navMain: Item[] = [
 
 const navSecondary: Item[] = [
   { label: "Caisse", href: "/caisse", icon: Receipt, tone: "lime" },
-  { label: "Virements", href: "/virements", icon: Landmark, tone: "emerald" },
+  { label: "Comptabilité", href: "/comptabilite", icon: Landmark, tone: "emerald" },
   { label: "Collection Atmosphère", href: "/collection", icon: Library, tone: "amber" },
   { label: "Clients", href: "/clients", icon: Users, tone: "ink" },
   { label: "SAV", href: "/sav", icon: AlertTriangle, tone: "pink" },
