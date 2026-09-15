@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill, type StatusTone } from "@/components/ui/status-pill";
 import { AtmoleadTabs } from "@/components/lm-leads/atmolead-tabs";
 import { AtmoleadConfigForm } from "@/components/lm-leads/atmolead-config-form";
+import { AtmoleadBreakerBanner } from "@/components/lm-leads/atmolead-breaker-banner";
 import { AtmoleadWorkerStatusCard } from "@/components/lm-leads/atmolead-worker-status-card";
 import { AtmoleadTestNowButton } from "@/components/lm-leads/atmolead-test-now-button";
 import { describeCron } from "@/lib/atmolead-cron";
@@ -97,6 +98,22 @@ export default async function ConfigPage() {
         </section>
 
         <AtmoleadTabs />
+
+        {(() => {
+          const cfgAny = (config ?? {}) as {
+            paused_at?: string | null;
+            paused_reason?: string | null;
+            consecutive_failures?: number | null;
+          };
+          if (!cfgAny.paused_at) return null;
+          return (
+            <AtmoleadBreakerBanner
+              pausedAt={cfgAny.paused_at}
+              pausedReason={cfgAny.paused_reason ?? null}
+              consecutiveFailures={cfgAny.consecutive_failures ?? 0}
+            />
+          );
+        })()}
 
         <section className="px-8 pt-6 pb-6">
           <AtmoleadWorkerStatusCard

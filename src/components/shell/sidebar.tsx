@@ -42,6 +42,7 @@ type Item = {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   tone: ChipTone;
   badge?: string | number;
+  badgeTone?: "muted" | "danger" | "warning";
 };
 
 const navMain: Item[] = [
@@ -111,9 +112,13 @@ function NavLink({ item, allowed }: { item: Item; allowed: boolean }) {
         <span
           className={cn(
             "shrink-0 rounded-full text-[10.5px] font-semibold px-1.5 py-0.5 leading-none tabular-nums",
-            active
-              ? "bg-canvas-2 text-ink-2"
-              : "bg-white text-muted border border-line",
+            item.badgeTone === "danger"
+              ? "bg-red text-white"
+              : item.badgeTone === "warning"
+                ? "bg-amber text-white"
+                : active
+                  ? "bg-canvas-2 text-ink-2"
+                  : "bg-white text-muted border border-line",
           )}
         >
           {item.badge}
@@ -154,15 +159,27 @@ export function Sidebar({
   stores,
   currentStoreId,
   adminActualRole = null,
+  atmoleadAlert = { paused: false, lastFailed: false },
 }: {
   role: UserRole | null;
   userEmail: string | null;
   stores: Store[];
   currentStoreId: string | null;
   adminActualRole?: UserRole | null;
+  atmoleadAlert?: { paused: boolean; lastFailed: boolean };
 }) {
   const initial = (userEmail ?? "?")[0]?.toUpperCase() ?? "?";
   const roleLabel = role ? ROLE_LABELS[role] : "";
+
+  // Décore l'entrée Atmoleads d'un badge d'alerte si le scraper est en panne
+  const navSecondaryWithAlert = navSecondary.map((item) => {
+    if (item.href !== "/leads-lm") return item;
+    if (atmoleadAlert.paused)
+      return { ...item, badge: "PAUSE", badgeTone: "danger" as const };
+    if (atmoleadAlert.lastFailed)
+      return { ...item, badge: "⚠", badgeTone: "warning" as const };
+    return item;
+  });
 
   return (
     <aside className="w-[252px] shrink-0 border-r border-line bg-canvas flex flex-col h-screen sticky top-0">
@@ -184,7 +201,7 @@ export function Sidebar({
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 pt-2 pb-3 space-y-1">
         <NavSection items={navMain} role={role} />
-        <NavSection label="Magasin" items={navSecondary} role={role} />
+        <NavSection label="Magasin" items={navSecondaryWithAlert} role={role} />
         <NavSection label="Admin" items={navAdmin} role={role} />
       </nav>
 

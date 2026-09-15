@@ -20,6 +20,8 @@ export type AtmoleadExecution = {
   error_message: string | null;
   worker_version: string | null;
   logs: AtmoleadStep[] | null;
+  screenshot_path: string | null;
+  trace_path: string | null;
 };
 
 export type AtmoleadStep = {

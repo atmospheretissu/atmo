@@ -9,6 +9,7 @@ import { AtmoleadTimeline } from "@/components/lm-leads/atmolead-timeline";
 import { AtmoleadRawLeadsTable } from "@/components/lm-leads/atmolead-raw-leads-table";
 import { longDate, time } from "@/lib/formatters";
 import { getAtmoleadExecution, listAtmoleadRawLeads } from "@/lib/db/atmolead";
+import { ArtifactButtons } from "./artifact-buttons";
 
 export const dynamic = "force-dynamic";
 
@@ -115,11 +116,22 @@ export default async function ExecutionDetailPage({
 
         {execution.error_message && (
           <section className="px-8 pb-6">
-            <Card className="border-red bg-red-soft p-4">
-              <div className="mb-1 text-[12.5px] font-semibold text-red">Erreur</div>
-              <pre className="whitespace-pre-wrap text-[12px] text-red">
-                {execution.error_message}
-              </pre>
+            <Card className="border-red bg-red-soft p-4 space-y-3">
+              <div>
+                <div className="mb-1 text-[12.5px] font-semibold text-red">Erreur</div>
+                <pre className="whitespace-pre-wrap text-[12px] text-red">
+                  {execution.error_message}
+                </pre>
+              </div>
+              <div className="border-t border-red/30 pt-3">
+                <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-wider text-red">
+                  Debug — artefacts Playwright
+                </div>
+                <ArtifactButtons
+                  screenshotPath={execution.screenshot_path}
+                  tracePath={execution.trace_path}
+                />
+              </div>
             </Card>
           </section>
         )}

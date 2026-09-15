@@ -1,6 +1,10 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { readFile, unlink, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { env } from './env.js';
 import { logger } from './logger.js';
+import { supabase } from './supabase.js';
 import type { AtmoleadConfig } from './supabase.js';
 import { StepRecorder } from './steps.js';
 
@@ -36,6 +40,34 @@ export type ScrapeResult = {
   finishedAt: Date;
   steps: ReturnType<StepRecorder['toJSON']>;
 };
+
+/**
+ * Uploade un fichier local vers le bucket Storage "atmolead-artifacts" et
+ * retourne le path (relative to bucket). Best-effort : échec silencieux
+ * (le path retourné sera null et l'exec continuera).
+ */
+async function uploadArtifact(
+  localPath: string,
+  destPath: string,
+  contentType: string,
+): Promise<string | null> {
+  try {
+    const buf = await readFile(localPath);
+    const { error } = await supabase.storage
+      .from(env.artifactsBucket)
+      .upload(destPath, buf, { contentType, upsert: true });
+    if (error) {
+      logger.warn({ err: error.message, destPath }, 'artifact upload failed');
+      return null;
+    }
+    return destPath;
+  } catch (err) {
+    logger.warn({ err, destPath }, 'artifact upload threw');
+    return null;
+  } finally {
+    unlink(localPath).catch(() => {});
+  }
+}
 
 const DEFAULT_SELECTORS = {
   startUrl: 'https://partenaires.leroymerlin.fr/',
@@ -233,11 +265,20 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export async function scrape(config: AtmoleadConfig): Promise<ScrapeResult> {
+export async function scrape(
+  config: AtmoleadConfig,
+  executionId: string,
+): Promise<ScrapeResult & { screenshotPath?: string | null; tracePath?: string | null }> {
   const startedAt = new Date();
   const recorder = new StepRecorder();
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
+  let page: Page | null = null;
+
+  // Tracing systématiquement activé (avant : conditionnel sur DEBUG_TRACE) —
+  // c'est le seul moyen de comprendre pourquoi le login LM plante quand le
+  // portail change. Coût négligeable (~10 Mo par run).
+  let tempDir: string | null = null;
 
   try {
     browser = await recorder.run(
@@ -252,17 +293,16 @@ export async function scrape(config: AtmoleadConfig): Promise<ScrapeResult> {
       locale: 'fr-FR',
     });
 
-    if (env.debugTrace) {
-      await context.tracing.start({ screenshots: true, snapshots: true });
-    }
+    tempDir = await mkdtemp(join(tmpdir(), 'atmolead-'));
+    await context.tracing.start({ screenshots: true, snapshots: true });
 
-    const page = await context.newPage();
-    await recorder.run('login', 'Connexion au portail Leroy Merlin', () => login(page, config));
+    page = await context.newPage();
+    await recorder.run('login', 'Connexion au portail Leroy Merlin', () => login(page!, config));
 
     const { items, sourceUrl } = await recorder.run(
       'extract_list',
       'Extraction de la liste des leads',
-      () => extractList(page, config),
+      () => extractList(page!, config),
       (r) => ({ count: r.items.length }),
     );
     await page.close().catch(() => {});
@@ -299,8 +339,16 @@ export async function scrape(config: AtmoleadConfig): Promise<ScrapeResult> {
     const byId = new Map(details.map((d) => [d.id, d]));
     logger.info({ count: details.length }, 'lead details extracted');
 
-    if (env.debugTrace) {
-      await context.tracing.stop({ path: 'trace.zip' });
+    // Stop tracing propre sur succès — pas de trace uploadée (économie
+    // Storage) sauf si DEBUG_TRACE=true. La trace n'est utile qu'en cas
+    // d'échec, un run OK n'a rien à raconter.
+    if (env.debugTrace && tempDir) {
+      const traceLocal = join(tempDir, 'trace.zip');
+      await context.tracing.stop({ path: traceLocal });
+      const tracePath = `${executionId}/trace.zip`;
+      await uploadArtifact(traceLocal, tracePath, 'application/zip');
+    } else {
+      await context.tracing.stop();
     }
 
     const leads: ScrapedLead[] = items.map((r) => {
@@ -336,8 +384,33 @@ export async function scrape(config: AtmoleadConfig): Promise<ScrapeResult> {
 
     return { leads, startedAt, finishedAt: new Date(), steps: recorder.toJSON() };
   } catch (err) {
-    // Make sure we still surface partial steps even on failure
+    // Surface partial steps + capture screenshot + trace pour débogage post-mortem
     (err as Error & { steps?: unknown }).steps = recorder.toJSON();
+
+    if (page && tempDir) {
+      try {
+        const screenshotLocal = join(tempDir, 'failure.png');
+        await page.screenshot({ path: screenshotLocal, fullPage: true }).catch(() => {});
+        const screenshotPath = `${executionId}/failure.png`;
+        const uploaded = await uploadArtifact(screenshotLocal, screenshotPath, 'image/png');
+        (err as Error & { screenshotPath?: string | null }).screenshotPath = uploaded;
+      } catch (screenshotErr) {
+        logger.warn({ err: screenshotErr }, 'failure screenshot capture failed');
+      }
+    }
+
+    if (context && tempDir) {
+      try {
+        const traceLocal = join(tempDir, 'trace.zip');
+        await context.tracing.stop({ path: traceLocal }).catch(() => {});
+        const tracePath = `${executionId}/trace.zip`;
+        const uploaded = await uploadArtifact(traceLocal, tracePath, 'application/zip');
+        (err as Error & { tracePath?: string | null }).tracePath = uploaded;
+      } catch (traceErr) {
+        logger.warn({ err: traceErr }, 'failure trace upload failed');
+      }
+    }
+
     throw err;
   } finally {
     await context?.close().catch(() => {});

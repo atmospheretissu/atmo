@@ -3,6 +3,7 @@ import { logger } from './logger.js';
 import { scrape } from './scraper.js';
 import { persistLeads } from './persist.js';
 import { supabase, getConfig, setConfigLastRun } from './supabase.js';
+import { notifyBreakerTripped } from './breaker-notify.js';
 
 type Trigger = 'cron' | 'manual' | 'startup';
 
@@ -63,6 +64,13 @@ export async function sweepStaleExecutions(reason: string): Promise<number> {
 }
 
 export async function runOnce(trigger: Trigger, jobId?: string): Promise<string | null> {
+  // Kill-switch immédiat via env var — court-circuite tout, y compris
+  // l'insertion du row d'exécution (évite de polluer la table).
+  if (env.killSwitch) {
+    logger.warn({ trigger }, 'kill-switch ATMOLEAD_KILL_SWITCH=1 → skip');
+    return null;
+  }
+
   // Defensive sweep: clean up any 'running' row left behind by a previous
   // process that crashed without flushing its status. Cheap query (indexed
   // status + started_at), runs in < 50ms most of the time.
@@ -120,7 +128,34 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
       return exec.id;
     }
 
-    const result = await withTimeout(scrape(config), RUN_TIMEOUT_MS, 'scrape');
+    // Circuit-breaker : si la config est en pause (paused_at non-null), on
+    // court-circuite immédiatement. Permet à un admin d'arrêter le scraping
+    // depuis la DB sans redéployer, et au breaker de pauser automatiquement
+    // après N échecs consécutifs. On enregistre un row "cancelled" pour
+    // garder la trace mais pas "failed" (évite de compter comme un échec
+    // qui pousserait le compteur plus loin).
+    const cfgAny = config as { paused_at?: string | null; paused_reason?: string | null };
+    if (cfgAny.paused_at) {
+      logger.warn({ pausedAt: cfgAny.paused_at, reason: cfgAny.paused_reason }, 'scraper paused — skip');
+      await supabase
+        .from('atmolead_executions')
+        .update({
+          status: 'failed',
+          finished_at: new Date().toISOString(),
+          duration_ms: Date.now() - t0,
+          error_message: `Scraper en pause depuis ${cfgAny.paused_at} — motif : ${cfgAny.paused_reason ?? 'n/a'}`,
+        })
+        .eq('id', exec.id);
+      if (jobId) {
+        await supabase
+          .from('atmolead_jobs')
+          .update({ status: 'cancelled', finished_at: new Date().toISOString() })
+          .eq('id', jobId);
+      }
+      return exec.id;
+    }
+
+    const result = await withTimeout(scrape(config, exec.id), RUN_TIMEOUT_MS, 'scrape');
     const persistT0 = Date.now();
     const { inserted, skipped } = await withTimeout(
       persistLeads(exec.id, result.leads),
@@ -145,6 +180,7 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
     // missing fields) are informational, not a failure. Only the catch branch
     // below marks 'failed'.
     const status = skipped > 0 && inserted > 0 ? 'partial' : 'success';
+    const resultAny = result as { tracePath?: string | null };
     await supabase
       .from('atmolead_executions')
       .update({
@@ -155,8 +191,15 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
         leads_inserted: inserted,
         leads_skipped: skipped,
         logs: steps,
+        trace_path: resultAny.tracePath ?? null,
       })
       .eq('id', exec.id);
+
+    // Reset le compteur d'échecs consécutifs — un succès efface l'ardoise
+    await supabase
+      .from('atmolead_config')
+      .update({ consecutive_failures: 0 })
+      .neq('consecutive_failures', 0);
 
     await setConfigLastRun();
 
@@ -171,9 +214,16 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
     return exec.id;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const partialSteps = (err as Error & { steps?: unknown }).steps;
-    timedOut = Boolean((err as Error & { isTimeout?: true }).isTimeout);
+    const errAny = err as Error & {
+      steps?: unknown;
+      isTimeout?: true;
+      screenshotPath?: string | null;
+      tracePath?: string | null;
+    };
+    const partialSteps = errAny.steps;
+    timedOut = Boolean(errAny.isTimeout);
     logger.error({ err: message, timedOut }, 'scraping failed');
+
     await supabase
       .from('atmolead_executions')
       .update({
@@ -182,8 +232,11 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
         duration_ms: Date.now() - t0,
         error_message: message,
         logs: partialSteps ?? null,
+        screenshot_path: errAny.screenshotPath ?? null,
+        trace_path: errAny.tracePath ?? null,
       })
       .eq('id', exec.id);
+
     if (jobId) {
       await supabase
         .from('atmolead_jobs')
@@ -194,6 +247,50 @@ export async function runOnce(trigger: Trigger, jobId?: string): Promise<string 
         })
         .eq('id', jobId);
     }
+
+    // Circuit-breaker : incrémente le compteur d'échecs consécutifs. Si on
+    // atteint le seuil → pause auto + email admin. Best-effort — un échec
+    // ici ne remonte pas au caller (le run reste "failed", peu importe).
+    try {
+      const { data: cfg } = await supabase
+        .from('atmolead_config')
+        .select('consecutive_failures, paused_at')
+        .maybeSingle();
+      const cfgAny = (cfg ?? {}) as {
+        consecutive_failures?: number | null;
+        paused_at?: string | null;
+      };
+      const newCount = (cfgAny.consecutive_failures ?? 0) + 1;
+      if (!cfgAny.paused_at && newCount >= env.breakerThreshold) {
+        const reason = `${newCount} échecs consécutifs — dernier : ${message.slice(0, 200)}`;
+        await supabase
+          .from('atmolead_config')
+          .update({
+            consecutive_failures: newCount,
+            paused_at: new Date().toISOString(),
+            paused_reason: reason,
+          })
+          .not('consecutive_failures', 'is', null);
+        logger.warn(
+          { newCount, threshold: env.breakerThreshold },
+          'circuit-breaker tripped — scraper paused',
+        );
+        await notifyBreakerTripped({
+          consecutiveFailures: newCount,
+          lastErrorMessage: message,
+          lastExecutionId: exec.id,
+          reason,
+        });
+      } else {
+        await supabase
+          .from('atmolead_config')
+          .update({ consecutive_failures: newCount })
+          .not('consecutive_failures', 'is', null);
+      }
+    } catch (breakerErr) {
+      logger.warn({ err: breakerErr }, 'breaker bookkeeping failed');
+    }
+
     return exec.id;
   } finally {
     isRunning = false;
