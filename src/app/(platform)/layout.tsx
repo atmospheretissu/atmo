@@ -1,6 +1,6 @@
 import { Sidebar } from "@/components/shell/sidebar";
 import { ImpersonationBanner } from "@/components/shell/impersonation-banner";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getEffectiveProfile } from "@/lib/db/impersonation";
 import type { UserRole } from "@/lib/db/profiles-shared";
 import { listStores, getCurrentStoreId } from "@/lib/db/stores";
@@ -48,30 +48,20 @@ export default async function PlatformLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-
-  const effective = await getEffectiveProfile();
-
-  let role: UserRole | null = null;
-  let userEmail: string | null = null;
-  let profileStoreId: string | null = null;
-  if (effective) {
-    role = effective.effectiveRole;
-    // Récupère l'email et store_id du profil effectif
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email, store_id")
-      .eq("id", effective.effectiveUserId)
-      .maybeSingle();
-    userEmail = profile?.email ?? null;
-    profileStoreId = (profile as { store_id?: string | null })?.store_id ?? null;
-  }
-
-  const [stores, cookieStoreId, atmoleadAlert] = await Promise.all([
+  // getEffectiveProfile est maintenant cache() par requête React → même
+  // s'il est appelé aussi côté page.tsx / middleware, un seul roundtrip
+  // Supabase par navigation. Ses champs email/store_id sont maintenant
+  // fournis directement, plus besoin d'une 2ᵉ query profiles ici.
+  const [effective, stores, cookieStoreId, atmoleadAlert] = await Promise.all([
+    getEffectiveProfile(),
     listStores({ activeOnly: false }),
     getCurrentStoreId(),
     getAtmoleadAlertState(),
   ]);
+
+  const role: UserRole | null = effective?.effectiveRole ?? null;
+  const userEmail = effective?.effectiveEmail ?? null;
+  const profileStoreId = effective?.effectiveStoreId ?? null;
 
   const currentStoreId =
     role === "resp_magasin" ? profileStoreId : cookieStoreId;

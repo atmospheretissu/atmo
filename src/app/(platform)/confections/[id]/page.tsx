@@ -33,6 +33,7 @@ import { RequestRatingButton } from "@/components/confections/request-rating-but
 import { StartProcurementButton } from "@/components/confections/start-procurement-button";
 import { getDossierDetail } from "@/lib/db/dossiers";
 import { listAteliers, getAtelier } from "@/lib/db/equipe";
+import { getEffectiveProfile } from "@/lib/db/impersonation";
 import { eur, shortDate } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
@@ -75,10 +76,18 @@ export default async function DossierDetailPage({
   if (!result) notFound();
   const { dossier, client, items } = result;
 
+  // Toutes les données auxiliaires en parallèle — avant : 5 awaits
+  // séquentiels = ~400 ms fixes de latence RSC.
+  const atelierId = (dossier as { atelier_id?: string | null }).atelier_id ?? null;
+  const [eff, ateliers, currentAtelier, notes] = await Promise.all([
+    getEffectiveProfile(),
+    listAteliers(),
+    atelierId ? getAtelier(atelierId) : Promise.resolve(null),
+    listDossierNotes(id),
+  ]);
+
   // Adapte le vocabulaire selon le rôle : un poseur voit « Fiche
   // d'intervention » là où l'équipe magasin voit « Suivi de commande ».
-  const { getEffectiveProfile } = await import("@/lib/db/impersonation");
-  const eff = await getEffectiveProfile();
   const isPoseur =
     eff?.effectiveRole === "poseur" || eff?.effectiveRole === "poseur_externe";
   const labels = isPoseur
@@ -92,16 +101,6 @@ export default async function DossierDetailPage({
         breadcrumbHref: "/confections",
         eyebrow: "Dossier",
       };
-
-  // Ateliers (liste pour sélection) + atelier déjà assigné (s'il y en a un)
-  const ateliers = await listAteliers();
-  const currentAtelier =
-    (dossier as { atelier_id?: string | null }).atelier_id
-      ? await getAtelier((dossier as { atelier_id: string }).atelier_id)
-      : null;
-
-  // Notes/commentaires
-  const notes = await listDossierNotes(id);
 
   const initial = client?.display_name?.[0] ?? "?";
   const itemsReceived = items.filter((i) => i.status === "recu").length;
