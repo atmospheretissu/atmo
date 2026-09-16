@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { Sidebar } from "@/components/shell/sidebar";
 import { ImpersonationBanner } from "@/components/shell/impersonation-banner";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -11,37 +12,42 @@ import { listStores, getCurrentStoreId } from "@/lib/db/stores";
  *   - config.paused_at non-null → circuit-breaker déclenché
  *   - dernier run "failed"      → dérive détectée mais breaker pas encore
  *
- * Best-effort silencieux : si les tables n'existent pas ou en cas d'erreur
- * la fonction renvoie false — on ne veut pas casser la sidebar de tout
- * l'app pour un badge.
+ * unstable_cache 30s : l'info n'a pas besoin d'être temps réel (le badge
+ * s'affiche avec au max 30s de retard). Avant : 2 queries Supabase à
+ * CHAQUE navigation pour un badge qui bouge une fois par jour au pire.
+ *
+ * Best-effort silencieux : si les tables n'existent pas ou en cas
+ * d'erreur la fonction renvoie false — on ne veut pas casser toute la
+ * sidebar pour un badge.
  */
-async function getAtmoleadAlertState(): Promise<{
-  paused: boolean;
-  lastFailed: boolean;
-}> {
-  try {
-    const sb = createServiceRoleClient();
-    const [{ data: cfg }, { data: lastRun }] = await Promise.all([
-      sb
-        .from("atmolead_config" as never)
-        .select("paused_at")
-        .maybeSingle(),
-      sb
-        .from("atmolead_executions" as never)
-        .select("status")
-        .order("started_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
-    return {
-      paused: Boolean((cfg as { paused_at?: string | null } | null)?.paused_at),
-      lastFailed:
-        (lastRun as { status?: string } | null)?.status === "failed",
-    };
-  } catch {
-    return { paused: false, lastFailed: false };
-  }
-}
+const getAtmoleadAlertState = unstable_cache(
+  async (): Promise<{ paused: boolean; lastFailed: boolean }> => {
+    try {
+      const sb = createServiceRoleClient();
+      const [{ data: cfg }, { data: lastRun }] = await Promise.all([
+        sb
+          .from("atmolead_config" as never)
+          .select("paused_at")
+          .maybeSingle(),
+        sb
+          .from("atmolead_executions" as never)
+          .select("status")
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      return {
+        paused: Boolean((cfg as { paused_at?: string | null } | null)?.paused_at),
+        lastFailed:
+          (lastRun as { status?: string } | null)?.status === "failed",
+      };
+    } catch {
+      return { paused: false, lastFailed: false };
+    }
+  },
+  ["atmolead-alert-state"],
+  { revalidate: 30, tags: ["atmolead"] },
+);
 
 export default async function PlatformLayout({
   children,
