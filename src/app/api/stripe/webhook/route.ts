@@ -113,6 +113,54 @@ export async function POST(request: NextRequest) {
   // Service role — bypass RLS pour les writes système
   const supabase = createServiceRoleClient();
 
+  // ── IDEMPOTENCE (critique) ─────────────────────────────────────────
+  // Stripe garantit une livraison "at-least-once" — le même event.id
+  // peut arriver plusieurs fois (retry sur timeout, redélivrage manuel
+  // depuis le dashboard, etc.). On vérifie qu'on ne l'a pas déjà
+  // traité avec succès pour éviter :
+  //   - Un 2e SMS/email "acompte reçu" au client
+  //   - Un 2e push Pennylane
+  //   - Une 2e facture PDF renvoyée
+  // La contrainte unique DB sur payments.stripe_payment_intent_id
+  // ne protégeait que la table payments, pas les side-effects.
+  const { data: prior } = await (
+    supabase as unknown as {
+      from: (t: string) => {
+        select: (s: string) => {
+          eq: (c: string, v: string) => {
+            lt: (c: string, v: number) => {
+              limit: (n: number) => {
+                maybeSingle: () => Promise<{
+                  data: { id: string } | null;
+                }>;
+              };
+            };
+          };
+        };
+      };
+    }
+  )
+    .from("stripe_webhook_log")
+    .select("id")
+    .eq("event_id", event.id)
+    .lt("response_status", 400)
+    .limit(1)
+    .maybeSingle();
+
+  if (prior) {
+    await logCall({
+      eventId: event.id,
+      eventType: event.type,
+      signatureValid: true,
+      responseStatus: 200,
+      responseBody: `duplicate event — déjà traité (log précédent ${prior.id}), side-effects skippés`,
+    });
+    return NextResponse.json({
+      received: true,
+      note: "duplicate event, already processed",
+    });
+  }
+
   // Événements ignorés : on log + 200 pour éviter les retries Stripe.
   if (event.type !== "checkout.session.completed") {
     await logCall({
@@ -194,15 +242,17 @@ export async function POST(request: NextRequest) {
       // ── SOLDE : encaissement final
       const amount = Number(session.amount_total ?? 0) / 100 || soldeTtc;
 
-      // 1. Insert payment kind=solde
-      const { data: solPay } = await (
+      // 1. Insert payment kind=solde — TOUS les side-effects observables
+      //    (SMS, email, facture, Pennylane) sont gatés derrière la réussite
+      //    de cet insert, pour éviter les doublons en cas de retry Stripe.
+      const { data: solPay, error: solErr } = await (
         supabase as unknown as {
           from: (t: string) => {
             insert: (v: unknown) => {
               select: (s: string) => {
                 single: () => Promise<{
                   data: { id: string } | null;
-                  error: unknown;
+                  error: { message?: string; code?: string } | null;
                 }>;
               };
             };
@@ -222,21 +272,53 @@ export async function POST(request: NextRequest) {
         .select("id")
         .single();
 
-      if (solPay) {
-        const { pushInvoiceForDevisPayment } = await import(
-          "@/lib/pennylane/push"
+      // Si l'insert échoue : distinguer un vrai doublon (unique_violation
+      // Postgres 23505 sur stripe_payment_intent_id) d'une vraie erreur.
+      // Doublon → 200 (idempotent, on skip TOUT le reste). Vraie erreur
+      // → throw → 500 → Stripe retry.
+      if (!solPay) {
+        const isDuplicate = solErr?.code === "23505";
+        if (isDuplicate) {
+          await logCall({
+            eventId: event.id,
+            eventType: event.type,
+            signatureValid: true,
+            devisId,
+            paymentKind: "solde",
+            sessionId,
+            paymentIntentId: piId,
+            amountTotal: amount,
+            responseStatus: 200,
+            responseBody: `duplicate payment_intent — solde déjà enregistré, side-effects skippés`,
+          });
+          return NextResponse.json({
+            received: true,
+            devisId,
+            paymentKind: "solde",
+            note: "duplicate payment, already recorded",
+          });
+        }
+        throw new Error(
+          `Insert payment (solde) échoué : ${solErr?.message ?? "?"}`,
         );
-        pushInvoiceForDevisPayment({
-          devisId,
-          paymentId: solPay.id,
-          kind: "solde",
-          amountTtc: amount,
-          paidAt: new Date().toISOString(),
-          paymentMethod: "stripe",
-        }).catch((e) => console.warn("[pennylane push stripe solde]", e));
       }
 
-      // 2. Update dossier.solde_paid
+      // À partir d'ici, le payment est nouveau et inséré → OK pour
+      // exécuter tous les side-effects observables.
+      const { pushInvoiceForDevisPayment } = await import(
+        "@/lib/pennylane/push"
+      );
+      pushInvoiceForDevisPayment({
+        devisId,
+        paymentId: solPay.id,
+        kind: "solde",
+        amountTtc: amount,
+        paidAt: new Date().toISOString(),
+        paymentMethod: "stripe",
+      }).catch((e) => console.warn("[pennylane push stripe solde]", e));
+
+      // 2. Update dossier.solde_paid (guard eq false pour ne pas écraser
+      //    solde_paid_at en cas d'un chemin exceptionnel qui repasserait ici)
       const { data: dossier } = await supabase
         .from("dossiers")
         .select("id")
@@ -246,7 +328,8 @@ export async function POST(request: NextRequest) {
         await supabase
           .from("dossiers")
           .update({ solde_paid: true, solde_paid_at: new Date().toISOString() })
-          .eq("id", dossier.id);
+          .eq("id", dossier.id)
+          .eq("solde_paid", false);
       }
 
       // 2b. Advance devis.status → solde_recu (progression linéaire)
@@ -263,7 +346,8 @@ export async function POST(request: NextRequest) {
         .update({ status: "solde_recu" })
         .eq("id", devisId);
 
-      // 3. Trigger event interne (alerte admin "solde encaissé")
+      // 3. Trigger event interne (SMS/email "solde encaissé"). Gaté par
+      //    la réussite de l'insert payment ci-dessus.
       try {
         const { data: client } = await supabase
           .from("clients")
@@ -289,8 +373,7 @@ export async function POST(request: NextRequest) {
         console.warn("[trigger stripe → solde_recu]", err);
       }
 
-      // F9 (PE 08/09) : envoi automatique de la facture de solde après
-      // encaissement Stripe. Best-effort (n'échoue jamais le webhook).
+      // F9 : facture solde par email — best-effort (n'échoue jamais le webhook)
       try {
         const { sendFactureEmailAction } = await import(
           "@/app/(platform)/devis/facture-email-actions"
@@ -319,26 +402,18 @@ export async function POST(request: NextRequest) {
     }
 
     // ── ACOMPTE : flow original
-    // 1. Update devis status
-    const { error: e1 } = await supabase
-      .from("devis")
-      .update({ status: "acompte_recu" })
-      .eq("id", devisId);
-
-    if (e1) {
-      console.error("Webhook: failed to update devis", e1);
-      return NextResponse.json({ error: e1.message }, { status: 500 });
-    }
-
-    // 2. Insert payment record
-    const { data: acoPay } = await (
+    // 1. Insert payment record EN PREMIER — même logique que solde :
+    //    tous les side-effects (SMS, email, Pennylane, facture) sont
+    //    gatés derrière la réussite de cet insert pour éviter les
+    //    doublons en cas de retry Stripe.
+    const { data: acoPay, error: acoErr } = await (
       supabase as unknown as {
         from: (t: string) => {
           insert: (v: unknown) => {
             select: (s: string) => {
               single: () => Promise<{
                 data: { id: string } | null;
-                error: unknown;
+                error: { message?: string; code?: string } | null;
               }>;
             };
           };
@@ -358,21 +433,55 @@ export async function POST(request: NextRequest) {
       .select("id")
       .single();
 
-    if (acoPay) {
-      const { pushInvoiceForDevisPayment } = await import(
-        "@/lib/pennylane/push"
+    if (!acoPay) {
+      const isDuplicate = acoErr?.code === "23505";
+      if (isDuplicate) {
+        await logCall({
+          eventId: event.id,
+          eventType: event.type,
+          signatureValid: true,
+          devisId,
+          paymentKind: "acompte",
+          sessionId,
+          paymentIntentId: piId,
+          amountTotal: acompteTtc,
+          responseStatus: 200,
+          responseBody: `duplicate payment_intent — acompte déjà enregistré, side-effects skippés`,
+        });
+        return NextResponse.json({
+          received: true,
+          devisId,
+          paymentKind: "acompte",
+          note: "duplicate payment, already recorded",
+        });
+      }
+      throw new Error(
+        `Insert payment (acompte) échoué : ${acoErr?.message ?? "?"}`,
       );
-      pushInvoiceForDevisPayment({
-        devisId,
-        paymentId: acoPay.id,
-        kind: "acompte",
-        amountTtc: acompteTtc,
-        paidAt: new Date().toISOString(),
-        paymentMethod: "stripe",
-      }).catch((e) => console.warn("[pennylane push stripe acompte]", e));
     }
 
-    // 2b. Trigger event "acompte_recu" (SMS et/ou email selon règle)
+    // Payment nouveau et inséré → OK pour tout ce qui suit.
+
+    // 2. Update devis status → acompte_recu
+    await supabase
+      .from("devis")
+      .update({ status: "acompte_recu" })
+      .eq("id", devisId);
+
+    // 3. Push Pennylane (best-effort, ne fait pas échouer le webhook)
+    const { pushInvoiceForDevisPayment } = await import(
+      "@/lib/pennylane/push"
+    );
+    pushInvoiceForDevisPayment({
+      devisId,
+      paymentId: acoPay.id,
+      kind: "acompte",
+      amountTtc: acompteTtc,
+      paidAt: new Date().toISOString(),
+      paymentMethod: "stripe",
+    }).catch((e) => console.warn("[pennylane push stripe acompte]", e));
+
+    // 4. Trigger event "acompte_recu" (SMS et/ou email selon règle)
     try {
       const { data: client } = await supabase
         .from("clients")
@@ -396,7 +505,7 @@ export async function POST(request: NextRequest) {
       console.warn("[trigger stripe → acompte_recu]", err);
     }
 
-    // F9 : envoi automatique de la facture d'acompte après paiement Stripe.
+    // 5. Facture d'acompte par email — best-effort
     try {
       const { sendFactureEmailAction } = await import(
         "@/app/(platform)/devis/facture-email-actions"
@@ -409,7 +518,7 @@ export async function POST(request: NextRequest) {
       console.warn("[stripe→auto facture acompte import]", err);
     }
 
-    // 3. Auto-création (ou récupération) du dossier — idempotent.
+    // 6. Auto-création (ou récupération) du dossier — idempotent.
     //    On passe le service-role client car le webhook n'a pas de session user
     //    et les RLS dossiers/items/bons_commande exigent un rôle 'staff'.
     const dossierResult = await createDossierFromDevis(devisId, supabase);
