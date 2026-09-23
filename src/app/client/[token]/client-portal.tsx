@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   CreditCard,
@@ -20,6 +21,7 @@ import {
   Banknote,
   CalendarCheck,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { createStripeCheckoutForToken } from "./actions";
 
 type DevisVM = {
@@ -101,6 +103,7 @@ const formatDateTime = (iso: string | null) =>
 export function ClientPortal({
   token,
   paidJustNow,
+  paidCancelled = false,
   devis,
   client,
   lines,
@@ -110,6 +113,7 @@ export function ClientPortal({
 }: {
   token: string;
   paidJustNow: boolean;
+  paidCancelled?: boolean;
   devis: DevisVM;
   client: ClientVM | null;
   lines: LineVM[];
@@ -194,7 +198,7 @@ export function ClientPortal({
           </p>
         </div>
 
-        {/* Bannière post-Stripe */}
+        {/* Bannière post-Stripe : paiement OK */}
         {paidJustNow && (
           <div className="rounded-xl bg-emerald-soft border border-emerald/30 p-4 flex items-start gap-3 animate-fade-up">
             <CheckCircle2
@@ -206,8 +210,33 @@ export function ClientPortal({
                 Paiement reçu — merci !
               </p>
               <p className="text-[12.5px] text-emerald/90 mt-0.5 leading-relaxed">
-                Si l'état ci-dessous n'est pas encore mis à jour, recharge la page d'ici
-                quelques secondes — notre système est en train de l'enregistrer.
+                Si l&apos;état ci-dessous n&apos;est pas encore mis à jour, recharge la page d&apos;ici
+                quelques secondes — notre système est en train de l&apos;enregistrer.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Bannière post-Stripe : paiement annulé (retour cancel_url).
+            Avant : le paramètre paid=cancel n'était pas lu, le client
+            atterrissait sur son portail comme si de rien n'était.  */}
+        {paidCancelled && !paidJustNow && (
+          <div className="rounded-xl bg-amber-soft border border-amber/30 p-4 flex items-start gap-3 animate-fade-up">
+            <div className="h-5 w-5 rounded-full bg-amber text-white shrink-0 mt-0.5 inline-flex items-center justify-center text-[12px] font-semibold">
+              !
+            </div>
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold text-amber">
+                Paiement non finalisé
+              </p>
+              <p className="text-[12.5px] text-amber/90 mt-0.5 leading-relaxed">
+                Aucun montant n&apos;a été prélevé. Vous pouvez retenter votre
+                paiement en cliquant à nouveau sur le bouton ci-dessous, ou
+                nous contacter au{" "}
+                <a href="tel:+33320724615" className="underline">
+                  03 20 72 46 15
+                </a>{" "}
+                si vous rencontrez un souci.
               </p>
             </div>
           </div>
@@ -249,11 +278,7 @@ export function ClientPortal({
                   bouton "Accepter et payer" pour éviter un double paiement.
                   La bannière verte au-dessus explique déjà l'état d'attente. */}
               {paidJustNow && !acomptePaye ? (
-                <div className="rounded-lg border border-amber/30 bg-amber-soft/40 px-4 py-3 text-[12.5px] text-ink-2 leading-relaxed">
-                  Paiement en cours d&apos;enregistrement dans notre système.
-                  Recharge cette page dans quelques secondes pour voir la mise
-                  à jour. Ne relance pas le paiement — Stripe l&apos;a bien reçu.
-                </div>
+                <PaymentAwaitingSync />
               ) : !acomptePaye ? (
                 <ButtonPay
                   onClick={() => handlePay("acompte")}
@@ -493,6 +518,71 @@ export function ClientPortal({
 }
 
 // ════════════════════════════ COMPOSANTS ════════════════════════════
+
+/**
+ * Encart affiché quand le client revient de Stripe avec ?paid=success
+ * mais que le webhook n'a pas encore mis à jour la DB. Auto-refresh
+ * toutes les 5 s pendant 90 s pour attraper l'update sans que le user
+ * ait à recharger. Au-delà, on affiche un CTA "Contactez-nous" — si
+ * le webhook est cassé pour de bon, le user ne reste pas coincé.
+ */
+function PaymentAwaitingSync() {
+  const router = useRouter();
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const s = Math.floor((Date.now() - started) / 1000);
+      setElapsed(s);
+      if (s < 90) router.refresh();
+      else clearInterval(tick);
+    }, 5000);
+    return () => clearInterval(tick);
+  }, [router]);
+
+  const stalled = elapsed >= 90;
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border px-4 py-3 text-[12.5px] leading-relaxed",
+        stalled
+          ? "border-pink/30 bg-pink-soft/40 text-ink-2"
+          : "border-amber/30 bg-amber-soft/40 text-ink-2",
+      )}
+    >
+      {stalled ? (
+        <>
+          <p className="font-semibold text-pink mb-1">
+            Traitement anormalement long
+          </p>
+          <p>
+            Votre paiement a bien été validé par Stripe, mais notre système
+            met plus de temps que prévu à le refléter. Ne relancez pas le
+            paiement — contactez-nous au{" "}
+            <a href="tel:+33320724615" className="underline font-semibold">
+              03 20 72 46 15
+            </a>{" "}
+            ou par email à{" "}
+            <a
+              href="mailto:contact@atmospheretissus.fr"
+              className="underline font-semibold"
+            >
+              contact@atmospheretissus.fr
+            </a>{" "}
+            avec la mention &laquo;&nbsp;paiement en attente&nbsp;&raquo;.
+          </p>
+        </>
+      ) : (
+        <>
+          Paiement en cours d&apos;enregistrement dans notre système. Cette
+          page se met à jour toute seule. Ne relancez pas le paiement —
+          Stripe l&apos;a bien reçu.
+        </>
+      )}
+    </div>
+  );
+}
 
 function StateBanner({
   acomptePaye,

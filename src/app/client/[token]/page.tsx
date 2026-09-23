@@ -115,6 +115,7 @@ export default async function ClientSpacePage({
     <ClientPortal
       token={token}
       paidJustNow={paid === "success"}
+      paidCancelled={paid === "cancel"}
       devis={{
         id: devis.id,
         number: devis.number,

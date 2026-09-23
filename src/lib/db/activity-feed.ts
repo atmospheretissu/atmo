@@ -18,6 +18,7 @@ export type FeedEventKind =
   | "devis_viewed_by_client"
   | "devis_validated"
   | "acompte_received"
+  | "solde_received"
   | "dossier_created"
   | "item_received"
   | "pose_scheduled"
@@ -158,13 +159,22 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
         .order("paid_at", { ascending: false })
         .limit(perTable)
         .then(({ data }) =>
-          (data ?? []).map(
-            (p): FeedEvent => ({
+          (data ?? []).map((p): FeedEvent => {
+            const isSolde = p.kind === "solde";
+            const isStripe = Boolean(p.stripe_payment_intent_id);
+            const methodLabel: Record<string, string> = {
+              stripe: "Stripe (CB en ligne)",
+              cb: "CB au comptoir",
+              especes: "Espèces",
+              cheque: "Chèque",
+              virement: "Virement bancaire",
+            };
+            return {
               id: `payment:${p.id}`,
-              kind: "acompte_received",
+              kind: isSolde ? "solde_received" : "acompte_received",
               category: "payment",
-              label: `${p.kind === "acompte" ? "Acompte" : "Solde"} encaissé — ${Math.round(Number(p.amount_ttc ?? 0))}€`,
-              description: `Mode : ${p.method}${p.stripe_payment_intent_id ? " (Stripe)" : ""}`,
+              label: `${isSolde ? "Solde" : "Acompte"} encaissé — ${Math.round(Number(p.amount_ttc ?? 0))} €`,
+              description: methodLabel[p.method] ?? `Mode : ${p.method}`,
               occurredAt: p.paid_at,
               severity: "ok",
               link: p.devis_id ? `/devis/${p.devis_id}` : null,
@@ -174,9 +184,10 @@ export async function listActivityFeed(opts: FeedOptions = {}): Promise<FeedEven
                 amount: p.amount_ttc,
                 stripe_id: p.stripe_payment_intent_id,
                 client_id: p.client_id,
+                source: isStripe ? "stripe-webhook" : "manuel",
               },
-            }),
-          ),
+            };
+          }),
         ),
     );
   }
