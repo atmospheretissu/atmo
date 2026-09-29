@@ -56,7 +56,7 @@ const TYPES: {
   },
   {
     key: "store",
-    label: "Store sur mesure",
+    label: "Store bateau sur mesure",
     description: "Bateau régulier / irrégulier — calcul temps réel",
     tone: "blue",
     icon: Layers,
@@ -153,7 +153,7 @@ export function AddArticleModal({
                 : selectedType === "rideau"
                 ? "Rideau sur mesure"
                 : selectedType === "store"
-                ? "Store sur mesure"
+                ? "Store bateau sur mesure"
                 : selectedType === "store_enrouleur"
                 ? "Store enrouleur / screen / lamelle"
                 : selectedType === "libre"
@@ -575,7 +575,7 @@ function PartTwoPlaceholder({
   onBack: () => void;
 }) {
   const labels = {
-    store: "Store sur mesure",
+    store: "Store bateau sur mesure",
     rideau_serie: "Rideau en série",
   };
   return (
