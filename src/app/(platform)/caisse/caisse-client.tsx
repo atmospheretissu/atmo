@@ -112,6 +112,11 @@ export default function CaisseClient({
   const [receiptEmail, setReceiptEmail] = useState<string>("");
   const [pending, startTransition] = useTransition();
   const [confirmed, setConfirmed] = useState<TicketCreated | null>(null);
+  // Erreur d'encaissement affichée EN INLINE sous le bouton "Encaisser".
+  // Avant : alert() natif — souvent invisible en démo (browser bloque
+  // les popups répétés) ou dismiss trop vite pour être compris. Le user
+  // pensait donc que "rien ne se passe" alors qu'un check métier échouait.
+  const [encaisseError, setEncaisseError] = useState<string | null>(null);
   const [closureOpen, setClosureOpen] = useState(false);
   const [client, setClient] = useState<ClientPick | null>(null);
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
@@ -127,6 +132,12 @@ export default function CaisseClient({
     () => cart.reduce((acc, c) => acc + c.unit * c.qty, 0),
     [cart]
   );
+
+  // L'erreur d'encaissement se dismiss dès qu'une donnée en amont bouge —
+  // le user voit immédiatement que ce qu'il a corrigé "reset" la validation.
+  useEffect(() => {
+    setEncaisseError(null);
+  }, [cart, payment, payment2, amount1Str, amount2Str, cashReceived, splitEnabled]);
   const totalHt = subtotal * (1 - discount / 100);
   const tva = totalHt * (TVA_RATE / 100);
   const totalTtc = totalHt + tva;
@@ -258,37 +269,44 @@ export default function CaisseClient({
   };
 
   const encaisser = () => {
+    setEncaisseError(null);
     if (blockedDay) {
-      alert(
+      setEncaisseError(
         `Impossible d'encaisser tant que la clôture du ${blockedDay} n'est pas faite.`,
       );
       return;
     }
     if (cart.length === 0) {
-      alert("Panier vide");
+      setEncaisseError("Panier vide — ajoute au moins un article.");
       return;
     }
     if (!splitEnabled && payment === "especes") {
       const cr = Number(cashReceived);
       if (!Number.isFinite(cr) || cr < totalTtc - 0.01) {
-        alert(`Encaissement espèces : entrez un montant >= ${eur(totalTtc)}`);
+        setEncaisseError(
+          `Encaissement espèces : entrez un montant remis ≥ ${eur(totalTtc)}.`,
+        );
         return;
       }
     }
     if (splitEnabled) {
       if (payment === payment2) {
-        alert("Paiement mixte : choisis deux modes de règlement différents.");
+        setEncaisseError(
+          "Paiement mixte : choisis deux modes de règlement différents.",
+        );
         return;
       }
       const a1 = Number(amount1Str);
       const a2 = Number(amount2Str);
       if (!Number.isFinite(a1) || !Number.isFinite(a2) || a1 <= 0 || a2 <= 0) {
-        alert("Paiement mixte : renseigne les deux montants (> 0).");
+        setEncaisseError(
+          "Paiement mixte : renseigne les deux montants (> 0).",
+        );
         return;
       }
       if (Math.abs(a1 + a2 - totalTtc) > 0.02) {
-        alert(
-          `Paiement mixte : la somme (${(a1 + a2).toFixed(2)}€) doit égaler le total (${totalTtc.toFixed(2)}€).`,
+        setEncaisseError(
+          `Paiement mixte : la somme (${(a1 + a2).toFixed(2)} €) doit égaler le total ${totalTtc.toFixed(2)} € (écart ${(a1 + a2 - totalTtc).toFixed(2)} €).`,
         );
         return;
       }
@@ -316,7 +334,8 @@ export default function CaisseClient({
         tva_rate: TVA_RATE,
       });
       if (!r.ok) {
-        alert(`Erreur : ${r.message}`);
+        console.error("[caisse encaisser] server error:", r.message);
+        setEncaisseError(`Erreur d'encaissement : ${r.message}`);
         return;
       }
       setConfirmed(r.ticket);
@@ -894,18 +913,33 @@ export default function CaisseClient({
                 </div>
               </div>
 
-              <div className="p-4 border-t border-line">
-                <Button variant="primary" size="lg" className="w-full" onClick={encaisser} disabled={pending || cart.length === 0}>
+              <div className="p-4 border-t border-line space-y-2">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  onClick={encaisser}
+                  disabled={pending || cart.length === 0}
+                >
                   {pending ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" /> …
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} /> Encaisser {eur(totalTtc, true)}
+                      <CheckCircle2 className="h-4 w-4" strokeWidth={2.4} />{" "}
+                      Encaisser {eur(totalTtc, true)}
                     </>
                   )}
                 </Button>
+                {encaisseError && (
+                  <div className="rounded-md border border-pink/40 bg-pink-soft/50 px-3 py-2 text-[12px] text-ink-2 leading-relaxed">
+                    <p className="font-semibold text-pink mb-0.5">
+                      Impossible d&apos;encaisser
+                    </p>
+                    <p>{encaisseError}</p>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
