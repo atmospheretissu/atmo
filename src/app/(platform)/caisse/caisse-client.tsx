@@ -580,7 +580,12 @@ export default function CaisseClient({
             )}
           </div>
 
-          <Card className="sticky top-20 overflow-hidden flex flex-col" style={{ maxHeight: "calc(100vh - 6rem)" }}>
+          {/* Card ticket : sticky mais SANS overflow-hidden — quand le
+              contenu (panier + split UI très haute) dépasse la viewport,
+              le user scroll naturellement au lieu que le bouton "Encaisser"
+              soit masqué. On retire aussi maxHeight pour que la Card
+              puisse s'étendre verticalement au besoin. */}
+          <Card className="sticky top-20 flex flex-col">
             <div className="p-4 border-b border-line">
               <p className="text-[11.5px] font-semibold tracking-wider uppercase text-muted-2">
                 Ticket en cours
@@ -615,7 +620,16 @@ export default function CaisseClient({
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            {/* Liste articles panier : cap à 30vh (au lieu de flex-1) pour
+                LIBÉRER de la place au footer bas de la Card (Remise, Total,
+                Mode de règlement, split UI très haute, bouton "Encaisser").
+                Avant : quand le split était activé sur un panier chargé, le
+                bouton "Encaisser" sortait de la Card et devenait invisible
+                (à cause du overflow-hidden du Card sticky + maxHeight). */}
+            <div
+              className="overflow-y-auto"
+              style={{ maxHeight: "30vh", flexShrink: 1 }}
+            >
               {cart.length === 0 ? (
                 <div className="p-8 text-center text-muted-2 text-[13px]">Panier vide</div>
               ) : (
