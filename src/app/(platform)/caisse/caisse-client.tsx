@@ -580,12 +580,11 @@ export default function CaisseClient({
             )}
           </div>
 
-          {/* Card ticket : sticky mais SANS overflow-hidden — quand le
-              contenu (panier + split UI très haute) dépasse la viewport,
-              le user scroll naturellement au lieu que le bouton "Encaisser"
-              soit masqué. On retire aussi maxHeight pour que la Card
-              puisse s'étendre verticalement au besoin. */}
-          <Card className="sticky top-20 flex flex-col">
+          {/* Card ticket : sans sticky ni overflow-hidden — le bouton
+              "Encaisser" doit être TOUJOURS accessible même quand le mode
+              paiement mixte ajoute beaucoup d'UI verticale. Le user
+              scroll naturellement la page pour atteindre le bouton en bas. */}
+          <Card className="flex flex-col">
             <div className="p-4 border-b border-line">
               <p className="text-[11.5px] font-semibold tracking-wider uppercase text-muted-2">
                 Ticket en cours
@@ -927,7 +926,11 @@ export default function CaisseClient({
                 </div>
               </div>
 
-              <div className="p-4 border-t border-line space-y-2">
+              {/* Bouton "Encaisser" collé en bas de la viewport :
+                  sticky bottom-0 + bg-white ombré pour rester visible même
+                  quand le split ouvert allonge beaucoup la Card. Avant : le
+                  bouton disparaissait sous le fold en mode mixte. */}
+              <div className="p-4 border-t border-line space-y-2 sticky bottom-0 bg-white z-10 shadow-[0_-4px_12px_rgba(15,23,42,0.05)]">
                 <Button
                   variant="primary"
                   size="lg"
