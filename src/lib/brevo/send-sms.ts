@@ -58,10 +58,14 @@ export async function sendSmsForTemplate(args: {
 
   const normalizedPhone = normalizePhone(args.toPhone) ?? args.toPhone;
   const body = interpolate(template.body, args.vars ?? {});
+  // Sender : priorité overrideSender (rare, tests admin) → template.sender
+  // (DB, ex. "LEROYMERLIN" pour Atmolead, "ATMOSPHERE" pour le reste) →
+  // DEFAULT_SENDER ("ATMOSPHERE"). Le fallback env var BREVO_SMS_SENDER
+  // a été retiré (29/09) : trop de risques de mauvaise config Railway
+  // envoyant tous les SMS clients en "LEROYMERLIN".
   const sender =
     args.overrideSender ??
     template.sender ??
-    process.env.BREVO_SMS_SENDER ??
     DEFAULT_SENDER;
 
   // Dédup strict pour les events ancrés au lead (= ancrés au numéro)

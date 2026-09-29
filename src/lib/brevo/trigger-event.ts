@@ -86,7 +86,11 @@ async function dispatchAlert(
                 .eq("id", logRow.id);
             continue;
           }
-          const sender = process.env.BREVO_SMS_SENDER ?? DEFAULT_SENDER;
+          // Alerte SMS interne (non lié à un template client) : sender
+          // fixe DEFAULT_SENDER ("ATMOSPHERE"). Le fallback env var
+          // BREVO_SMS_SENDER a été retiré le 29/09 pour éviter les
+          // envois clients en "LEROYMERLIN" par mauvaise config.
+          const sender = DEFAULT_SENDER;
           const r = await sendBrevoSms({
             recipient: phone,
             content: body,

@@ -123,7 +123,12 @@ export async function sendBrevoSms(
       body: JSON.stringify({
         recipient: normalized,
         content: payload.content,
-        sender: payload.sender ?? process.env.BREVO_SMS_SENDER ?? "ATMOSPHERE",
+        // Sender : priorité au payload (fourni par le template DB, ex.
+        // "LEROYMERLIN" pour Atmolead), fallback ULTIME "ATMOSPHERE". Le
+        // fallback env var BREVO_SMS_SENDER a été retiré le 29/09 car il
+        // polluait tous les SMS clients Atmo en "LEROYMERLIN" quand mal
+        // configuré côté Railway.
+        sender: payload.sender ?? "ATMOSPHERE",
         type: "transactional",
         tag: payload.tag,
       }),
