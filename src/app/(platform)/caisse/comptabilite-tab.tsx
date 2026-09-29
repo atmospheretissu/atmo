@@ -101,7 +101,13 @@ export function ComptabiliteTab({ payments }: { payments: UnifiedPayment[] }) {
       if (statusFilter === "exported" && !isExported) return false;
       if (statusFilter === "pending" && isExported) return false;
       if (query) {
-        const hay = `${p.ref} ${p.client_name ?? ""} ${p.kind}`.toLowerCase();
+        // Inclut les 2 modes de règlement pour qu'un ticket mixte soit
+        // trouvable en cherchant "especes" ou "cb" indifféremment.
+        const methods = p.split
+          ? `${p.method} ${p.split.method2} mixte`
+          : p.method;
+        const hay =
+          `${p.ref} ${p.client_name ?? ""} ${p.kind} ${methods}`.toLowerCase();
         if (!hay.includes(query)) return false;
       }
       return true;
@@ -381,9 +387,21 @@ export function ComptabiliteTab({ payments }: { payments: UnifiedPayment[] }) {
                         >
                           <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
                         </div>
-                        <span className="text-[12.5px] text-ink-2 font-medium">
-                          {meta.label}
-                        </span>
+                        <div className="text-[12.5px] text-ink-2 font-medium">
+                          {p.split ? (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-violet-strong bg-violet-soft/60 rounded px-1 py-0.5 mr-1.5">
+                                Mixte
+                              </span>
+                              {meta.label} {p.split.amount1.toFixed(2)} €
+                              <span className="text-muted mx-1">+</span>
+                              {(METHOD_META[p.split.method2]?.label ?? p.split.method2)}{" "}
+                              {p.split.amount2.toFixed(2)} €
+                            </>
+                          ) : (
+                            meta.label
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-3 text-ink-2 truncate max-w-[200px]">
@@ -493,10 +511,15 @@ export function ComptabiliteTab({ payments }: { payments: UnifiedPayment[] }) {
                           <span
                             className={`h-5 w-5 rounded inline-flex items-center justify-center text-[10px] ${meta.bg}`}
                           >
-                            {meta.label[0]}
+                            {p.split ? "±" : meta.label[0]}
                           </span>
                           <span className="truncate text-ink-2">
                             {p.client_name ?? p.ref}
+                            {p.split && (
+                              <span className="text-muted-2 ml-1 text-[11px]">
+                                (mixte {meta.label} + {METHOD_META[p.split.method2]?.label ?? p.split.method2})
+                              </span>
+                            )}
                           </span>
                         </div>
                         <span className="tabular-nums font-semibold text-ink shrink-0">
