@@ -29,10 +29,13 @@ const FIXATION_LABELS: Record<Fixation, string> = {
   plafond: "Plafond",
   sur_ouvrant: "Sur ouvrant",
 };
-// Type de toile : enrouleur classique (opaque / occultant / tamisant) OU
-// screen (voir à travers, tamise la chaleur). Même mécanisme, tarification
-// tissu au m² identique — c'est juste le choix produit.
-type TypeToile = "enrouleur" | "screen";
+// Type de produit :
+//   - enrouleur : enrouleur classique (opaque / occultant / tamisant)
+//   - screen    : voir à travers, tamise la chaleur (même mécanisme, prix tissu au m² identique)
+//   - lamelle   : store à lamelles verticales, acheté clé en main à un
+//                 fournisseur extérieur (Vedelux, Copahome…). Pas de calcul
+//                 tissu/mécanisme — on saisit un prix produit unique.
+type TypeToile = "enrouleur" | "screen" | "lamelle";
 type Coloris = "" | string;
 
 type Inputs = {
@@ -118,30 +121,44 @@ export function StoreEnrouleurForm({
   const [v, setV] = useState<Inputs>(initial);
   const update = (patch: Partial<Inputs>) => setV((s) => ({ ...s, ...patch }));
 
+  const isLamelle = v.typeToile === "lamelle";
+
   const validationError = useMemo(() => {
     if (!v.largeurFinie || v.largeurFinie <= 0) return "Largeur requise.";
     if (!v.hauteurFinie || v.hauteurFinie <= 0) return "Hauteur requise.";
-    if (v.prixTissu < 0) return "Prix tissu invalide.";
+    if (isLamelle) {
+      // Pour un store à lamelles, on ne saisit pas de tissu — seulement
+      // le prix produit fournisseur (via le champ prixMecanisme réutilisé).
+      if (v.prixMecanisme <= 0)
+        return "Prix produit fournisseur requis.";
+    } else {
+      if (v.prixTissu < 0) return "Prix tissu invalide.";
+    }
     return null;
-  }, [v]);
+  }, [v, isLamelle]);
 
   const calc = useMemo(() => {
     if (validationError) return null;
     const surface = (v.largeurFinie * v.hauteurFinie) / 10_000;
-    // Prix tissu : soit saisi au m² (multiplier par surface), soit saisi
-    // en total HT (utilisé tel quel). On expose aussi le prix au m²
-    // équivalent pour affichage / meta.
-    const prixTissu =
-      v.prixMode === "total"
+    // Store à lamelles : pas de calcul tissu, on utilise uniquement
+    // prixMecanisme (renommé "Prix produit fournisseur" dans l'UI).
+    const prixTissu = isLamelle
+      ? 0
+      : v.prixMode === "total"
         ? Math.round(v.prixTotalTissu * 100) / 100
         : Math.round(surface * v.prixTissu * 100) / 100;
-    const prixTissuMetreCarre =
-      v.prixMode === "total" && surface > 0
+    const prixTissuMetreCarre = isLamelle
+      ? 0
+      : v.prixMode === "total" && surface > 0
         ? Math.round((v.prixTotalTissu / surface) * 100) / 100
         : v.prixTissu;
     const prixMecanisme = v.prixMecanisme;
-    // Grille tarifaire — non modifiable par l'équipe.
-    const category = v.typeToile === "screen" ? "store_screen" : "store_enrouleur";
+    // Grille tarifaire — non modifiable par l'équipe. Pour lamelle, on
+    // réutilise la grille "store_enrouleur" en attendant une grille dédiée.
+    const category =
+      v.typeToile === "screen"
+        ? "store_screen"
+        : "store_enrouleur";
     const posePriceFromGrid = v.avecPose
       ? lookupPosePrice(category, v.largeurFinie, v.hauteurFinie)
       : null;
@@ -157,7 +174,7 @@ export function StoreEnrouleurForm({
       poseHorsGrille,
       total,
     };
-  }, [v, validationError]);
+  }, [v, validationError, isLamelle]);
 
   const handleAdd = () => {
     if (!calc) return;
@@ -171,70 +188,113 @@ export function StoreEnrouleurForm({
       : "";
     const colorisLabel = v.coloris ? ` · coloris ${v.coloris}` : "";
 
-    const toileLabel = v.typeToile === "screen" ? "Store screen" : "Store enrouleur";
-    // 1. Tissu + mécanisme groupés (1 article tissu, 1 article mécanisme)
-    articles.push({
-      type: "store",
-      designation: `${toileLabel} — Tissu`,
-      ref: v.referenceTissu || undefined,
-      detail:
-        `${v.largeurFinie}×${v.hauteurFinie}cm ` +
-        `(largeur ${v.largeurMode === "toile" ? "toile" : "mécanisme"}) ` +
-        `· surface ${calc.surface.toFixed(2)}m² · ${enroulementLabel}` +
-        (v.referenceTissu ? ` · ${v.referenceTissu}` : "") +
-        colorisLabel,
-      qty: 1,
-      unitLabel: "u",
-      unitPriceHt: calc.prixTissu,
-      meta: {
-        typeArticle:
-          v.typeToile === "screen"
-            ? "store_screen_tissu"
-            : "store_enrouleur_tissu",
-        typeToile: v.typeToile,
-        referenceTissu: v.referenceTissu,
-        coloris: v.coloris || null,
-        largeurFinie: v.largeurFinie,
-        largeurMode: v.largeurMode,
-        hauteurFinie: v.hauteurFinie,
-        surface: calc.surface,
-        enroulement: v.enroulement,
-        prixTissuMetreCarre: calc.prixTissuMetreCarre,
-        prixMode: v.prixMode,
-      },
-    });
+    const toileLabel =
+      v.typeToile === "screen"
+        ? "Store screen"
+        : v.typeToile === "lamelle"
+          ? "Store à lamelles"
+          : "Store enrouleur";
 
-    articles.push({
-      type: "store",
-      designation: `Mécanisme ${toileLabel.toLowerCase()}`,
-      ref: v.typeToile === "screen" ? "MECA-SCREEN" : "MECA-ENROUL",
-      detail:
-        `largeur ${v.largeurFinie}cm · couleur ${v.couleurMecanisme}` +
-        ` · chaînette ${v.chainetteCouleur} ${coteLabel} · L. ${v.chainetteLongueur}cm` +
-        ` · fixation ${fixationLabel}` +
-        casquetteLabel,
-      qty: 1,
-      unitLabel: "u",
-      unitPriceHt: calc.prixMecanisme,
-      meta: {
-        typeArticle: "store_enrouleur_mecanisme",
-        chainetteCouleur: v.chainetteCouleur,
-        chainetteCote: v.chainetteCote,
-        chainetteLongueur: v.chainetteLongueur,
-        couleurMecanisme: v.couleurMecanisme,
-        enroulement: v.enroulement,
-        fixation: v.fixation,
-        avecCasquette: v.avecCasquette,
-        casquetteHauteur: v.avecCasquette ? v.casquetteHauteur : null,
-        prixMecanisme: calc.prixMecanisme,
-      },
-    });
+    if (v.typeToile === "lamelle") {
+      // 1 seul article "Store à lamelles" — pas de découpage tissu/mécanisme.
+      // Le prix fournisseur (saisi dans prixMecanisme) contient tout.
+      articles.push({
+        type: "store",
+        designation: toileLabel,
+        ref: v.referenceTissu || undefined,
+        detail:
+          `${v.largeurFinie}×${v.hauteurFinie}cm · fixation ${fixationLabel}` +
+          (v.referenceTissu ? ` · ${v.referenceTissu}` : "") +
+          colorisLabel,
+        qty: 1,
+        unitLabel: "u",
+        unitPriceHt: calc.prixMecanisme,
+        meta: {
+          typeArticle: "store_lamelle",
+          typeToile: v.typeToile,
+          largeurFinie: v.largeurFinie,
+          hauteurFinie: v.hauteurFinie,
+          fixation: v.fixation,
+          referenceFournisseur: v.referenceTissu || null,
+          coloris: v.coloris || null,
+          prixFournisseur: calc.prixMecanisme,
+        },
+      });
+    } else {
+      // Enrouleur / Screen : découpage historique tissu + mécanisme.
+      articles.push({
+        type: "store",
+        designation: `${toileLabel} — Tissu`,
+        ref: v.referenceTissu || undefined,
+        detail:
+          `${v.largeurFinie}×${v.hauteurFinie}cm ` +
+          `(largeur ${v.largeurMode === "toile" ? "toile" : "mécanisme"}) ` +
+          `· surface ${calc.surface.toFixed(2)}m² · ${enroulementLabel}` +
+          (v.referenceTissu ? ` · ${v.referenceTissu}` : "") +
+          colorisLabel,
+        qty: 1,
+        unitLabel: "u",
+        unitPriceHt: calc.prixTissu,
+        meta: {
+          typeArticle:
+            v.typeToile === "screen"
+              ? "store_screen_tissu"
+              : "store_enrouleur_tissu",
+          typeToile: v.typeToile,
+          referenceTissu: v.referenceTissu,
+          coloris: v.coloris || null,
+          largeurFinie: v.largeurFinie,
+          largeurMode: v.largeurMode,
+          hauteurFinie: v.hauteurFinie,
+          surface: calc.surface,
+          enroulement: v.enroulement,
+          prixTissuMetreCarre: calc.prixTissuMetreCarre,
+          prixMode: v.prixMode,
+        },
+      });
+
+      articles.push({
+        type: "store",
+        designation: `Mécanisme ${toileLabel.toLowerCase()}`,
+        ref: v.typeToile === "screen" ? "MECA-SCREEN" : "MECA-ENROUL",
+        detail:
+          `largeur ${v.largeurFinie}cm · couleur ${v.couleurMecanisme}` +
+          ` · chaînette ${v.chainetteCouleur} ${coteLabel} · L. ${v.chainetteLongueur}cm` +
+          ` · fixation ${fixationLabel}` +
+          casquetteLabel,
+        qty: 1,
+        unitLabel: "u",
+        unitPriceHt: calc.prixMecanisme,
+        meta: {
+          typeArticle: "store_enrouleur_mecanisme",
+          chainetteCouleur: v.chainetteCouleur,
+          chainetteCote: v.chainetteCote,
+          chainetteLongueur: v.chainetteLongueur,
+          couleurMecanisme: v.couleurMecanisme,
+          enroulement: v.enroulement,
+          fixation: v.fixation,
+          avecCasquette: v.avecCasquette,
+          casquetteHauteur: v.avecCasquette ? v.casquetteHauteur : null,
+          prixMecanisme: calc.prixMecanisme,
+        },
+      });
+    }
 
     if (v.avecPose && calc.prixPose > 0) {
       articles.push({
         type: "pose",
-        designation: "Pose store enrouleur",
-        ref: "POSE-ENROUL",
+        designation:
+          v.typeToile === "lamelle"
+            ? "Pose store à lamelles"
+            : v.typeToile === "screen"
+              ? "Pose store screen"
+              : "Pose store enrouleur",
+        ref:
+          v.typeToile === "lamelle"
+            ? "POSE-LAMELLE"
+            : v.typeToile === "screen"
+              ? "POSE-SCREEN"
+              : "POSE-ENROUL",
         detail: `${v.largeurFinie}×${v.hauteurFinie}cm · tarif grille`,
         qty: 1,
         unitLabel: "forfait",
@@ -267,11 +327,12 @@ export function StoreEnrouleurForm({
         {/* Type de toile */}
         <section>
           <p className="eyebrow mb-2">Type de store</p>
-          <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+          <div className="grid grid-cols-3 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
             {(
               [
                 { v: "enrouleur", label: "Enrouleur" },
                 { v: "screen", label: "Screen" },
+                { v: "lamelle", label: "Lamelle" },
               ] as { v: TypeToile; label: string }[]
             ).map((t) => (
               <button
@@ -412,7 +473,9 @@ export function StoreEnrouleurForm({
           </div>
         </section>
 
-        {/* Tissu */}
+        {/* Tissu — masqué pour un store à lamelles (prix produit
+            fournisseur global saisi dans la section Mécanisme) */}
+        {!isLamelle && (
         <section>
           <p className="eyebrow mb-2">Tissu</p>
           <div className="space-y-3">
@@ -476,71 +539,84 @@ export function StoreEnrouleurForm({
             </div>
           </div>
         </section>
+        )}
 
-        {/* Mécanisme */}
+        {/* Mécanisme — pour lamelle, on ne garde que le champ Prix
+            (renommé "Prix produit fournisseur"). Les options chaînette,
+            couleur mécanisme et casquette ne s'appliquent pas. */}
         <section>
-          <p className="eyebrow mb-2">Mécanisme</p>
+          <p className="eyebrow mb-2">
+            {isLamelle ? "Produit fournisseur" : "Mécanisme"}
+          </p>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Couleur mécanisme</Label>
-              <Select
-                value={v.couleurMecanisme}
-                onChange={(e) => update({ couleurMecanisme: e.target.value })}
-              >
-                {MECANISME_COULEURS.map((c) => (
-                  <option key={c} value={c}>
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>Couleur chaînette</Label>
-              <Select
-                value={v.chainetteCouleur}
-                onChange={(e) => update({ chainetteCouleur: e.target.value })}
-              >
-                <option value="blanc">Blanc</option>
-                <option value="alu">Aluminium</option>
-                <option value="noir">Noir</option>
-                <option value="laiton">Laiton</option>
-              </Select>
-            </div>
-            <div>
-              <Label>Longueur chaînette (cm)</Label>
-              <Select
-                value={String(v.chainetteLongueur)}
-                onChange={(e) => update({ chainetteLongueur: Number(e.target.value) })}
-              >
-                {CHAINETTE_LONGUEURS.map((l) => (
-                  <option key={l} value={l}>
-                    {l} cm
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>Côté chaînette</Label>
-              <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
-                {(["gauche", "droite"] as ChainetteCote[]).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => update({ chainetteCote: c })}
-                    className={
-                      "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
-                      (v.chainetteCote === c
-                        ? "bg-ink text-white"
-                        : "text-muted hover:text-ink")
-                    }
+            {!isLamelle && (
+              <>
+                <div>
+                  <Label>Couleur mécanisme</Label>
+                  <Select
+                    value={v.couleurMecanisme}
+                    onChange={(e) => update({ couleurMecanisme: e.target.value })}
                   >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
+                    {MECANISME_COULEURS.map((c) => (
+                      <option key={c} value={c}>
+                        {c.charAt(0).toUpperCase() + c.slice(1)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label>Couleur chaînette</Label>
+                  <Select
+                    value={v.chainetteCouleur}
+                    onChange={(e) => update({ chainetteCouleur: e.target.value })}
+                  >
+                    <option value="blanc">Blanc</option>
+                    <option value="alu">Aluminium</option>
+                    <option value="noir">Noir</option>
+                    <option value="laiton">Laiton</option>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Longueur chaînette (cm)</Label>
+                  <Select
+                    value={String(v.chainetteLongueur)}
+                    onChange={(e) => update({ chainetteLongueur: Number(e.target.value) })}
+                  >
+                    {CHAINETTE_LONGUEURS.map((l) => (
+                      <option key={l} value={l}>
+                        {l} cm
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label>Côté chaînette</Label>
+                  <div className="grid grid-cols-2 gap-1 rounded-md border border-line p-0.5 bg-white h-9">
+                    {(["gauche", "droite"] as ChainetteCote[]).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => update({ chainetteCote: c })}
+                        className={
+                          "text-[12px] font-semibold rounded-[5px] transition-colors capitalize " +
+                          (v.chainetteCote === c
+                            ? "bg-ink text-white"
+                            : "text-muted hover:text-ink")
+                        }
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
             <div className="col-span-2">
-              <Label>Prix mécanisme (€)</Label>
+              <Label>
+                {isLamelle
+                  ? "Prix produit fournisseur (HT, tout inclus)"
+                  : "Prix mécanisme (€)"}
+              </Label>
               <Input
                 type="number"
                 step="1"
@@ -549,8 +625,15 @@ export function StoreEnrouleurForm({
                 onChange={(e) => update({ prixMecanisme: Number(e.target.value) || 0 })}
               />
               <Hint>
+                {isLamelle
+                  ? "Prix HT total du store à lamelles fourni clé en main par ton fournisseur extérieur (Vedelux, Copahome…). Ce montant remplace le calcul tissu + mécanisme."
+                  : ""}
+              </Hint>
+              {!isLamelle && (
+              <Hint>
                 Forfait paramétrable selon le mécanisme fournisseur (Vedelux / Copa).
               </Hint>
+              )}
             </div>
           </div>
         </section>

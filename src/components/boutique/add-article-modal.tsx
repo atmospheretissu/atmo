@@ -64,7 +64,7 @@ const TYPES: {
   },
   {
     key: "store_enrouleur",
-    label: "Store enrouleur / screen",
+    label: "Store enrouleur / screen / lamelle",
     description:
       "Enrouleur ou screen — même mécanisme, toile différente",
     tone: "blue",
@@ -155,7 +155,7 @@ export function AddArticleModal({
                 : selectedType === "store"
                 ? "Store sur mesure"
                 : selectedType === "store_enrouleur"
-                ? "Store enrouleur / screen"
+                ? "Store enrouleur / screen / lamelle"
                 : selectedType === "libre"
                 ? "Autre produit (champ libre)"
                 : selectedType === "new_collection"
