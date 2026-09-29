@@ -37,6 +37,14 @@ export type UnifiedPayment = {
   /** ISO date d'export Pennylane (null si pas encore exporté) */
   pennylane_exported_at: string | null;
   pennylane_invoice_id: string | null;
+  /** Ticket caisse payé en 2 modes — présent uniquement pour un ticket
+   *  mixte, sinon null. Permet d'afficher "Espèces 45,50 € + CB 45,50 €"
+   *  dans les vues compta au lieu de tout affecter au 1er mode. */
+  split: {
+    method2: UnifiedPaymentMethod;
+    amount1: number;
+    amount2: number;
+  } | null;
 };
 
 /** Liste consolidée des paiements récents (toutes sources). */
@@ -61,6 +69,9 @@ export async function listAllPayments(opts?: {
     id: string; number: string; total_ttc: number | string; payment_method: string;
     created_at: string; client_id: string | null; receipt_email: string | null;
     pennylane_exported_at?: string | null; pennylane_invoice_id?: string | null;
+    payment_method_2?: string | null;
+    amount_1?: number | string | null;
+    amount_2?: number | string | null;
   };
 
   const storeFilter = await getEffectiveStoreFilter();
@@ -132,10 +143,13 @@ export async function listAllPayments(opts?: {
       notes: p.notes ?? null,
       pennylane_exported_at: p.pennylane_exported_at ?? null,
       pennylane_invoice_id: p.pennylane_invoice_id ?? null,
+      split: null,
     });
   }
 
   for (const t of ticketsData) {
+    const isSplit =
+      t.payment_method_2 != null && t.amount_1 != null && t.amount_2 != null;
     all.push({
       id: `t:${t.id}`,
       source: "caisse",
@@ -150,6 +164,13 @@ export async function listAllPayments(opts?: {
       notes: t.receipt_email ? `Ticket envoyé à ${t.receipt_email}` : null,
       pennylane_exported_at: t.pennylane_exported_at ?? null,
       pennylane_invoice_id: t.pennylane_invoice_id ?? null,
+      split: isSplit
+        ? {
+            method2: (t.payment_method_2 as UnifiedPaymentMethod) ?? "autre",
+            amount1: Number(t.amount_1),
+            amount2: Number(t.amount_2),
+          }
+        : null,
     });
   }
 

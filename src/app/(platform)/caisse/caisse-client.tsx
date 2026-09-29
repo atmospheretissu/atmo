@@ -29,6 +29,7 @@ import {
   searchClientsForCaisseAction,
   listCaisseCatalogFacetsAction,
 } from "./actions";
+import { sendCaisseReceiptAction } from "./receipt-email-actions";
 import { createClientQuickAction } from "@/app/(platform)/clients/actions";
 import { UserPlus2 } from "lucide-react";
 import { CloseAllPastButton } from "@/components/caisse/close-all-past-button";
@@ -982,14 +983,11 @@ export default function CaisseClient({
                 </span>
               </p>
             )}
-            <div className="flex items-center gap-2 mt-6">
-              <Button variant="ghost" size="sm" className="flex-1" onClick={() => alert("Email reçu : nécessite la clé Brevo.")}>
-                <Mail className="h-3.5 w-3.5" /> Email reçu
-              </Button>
-              <Button variant="primary" size="sm" className="flex-1" onClick={() => setConfirmed(null)}>
-                Nouveau ticket
-              </Button>
-            </div>
+            <ReceiptEmailInline
+              ticketId={confirmed.id}
+              defaultEmail={receiptEmail}
+              onClose={() => setConfirmed(null)}
+            />
           </div>
         </Modal>
       )}
@@ -1731,6 +1729,87 @@ function DenomRow({
       <span className="text-[11.5px] font-medium tabular-nums text-muted-2 text-right pr-1">
         {amount > 0 ? eur(amount) : "—"}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Envoi du reçu ticket par email — appelle sendCaisseReceiptAction.
+ * Pré-rempli avec l'email saisi pendant la création du ticket si présent.
+ * Une fois envoyé, on affiche un état "Envoyé ✓" puis le user peut
+ * passer au ticket suivant.
+ */
+function ReceiptEmailInline({
+  ticketId,
+  defaultEmail,
+  onClose,
+}: {
+  ticketId: string;
+  defaultEmail: string;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState(defaultEmail ?? "");
+  const [pending, start] = useTransition();
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const send = () => {
+    setErr(null);
+    start(async () => {
+      const r = await sendCaisseReceiptAction(ticketId, email);
+      if (r.ok) setSent(true);
+      else setErr(r.message);
+    });
+  };
+
+  return (
+    <div className="mt-6 space-y-3">
+      {!sent && (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="email"
+              placeholder="email@exemple.fr"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={pending}
+              className="flex-1 h-9 text-[13px]"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={send}
+              disabled={pending || !email.trim() || !email.includes("@")}
+              className="shrink-0"
+            >
+              {pending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Mail className="h-3.5 w-3.5" />
+              )}{" "}
+              Envoyer
+            </Button>
+          </div>
+          {err && (
+            <p className="text-[12px] text-pink text-left leading-relaxed">
+              {err}
+            </p>
+          )}
+        </>
+      )}
+      {sent && (
+        <p className="text-[12.5px] text-emerald font-medium">
+          Reçu envoyé à {email} ✓
+        </p>
+      )}
+      <Button
+        variant="primary"
+        size="sm"
+        className="w-full"
+        onClick={onClose}
+      >
+        Nouveau ticket
+      </Button>
     </div>
   );
 }

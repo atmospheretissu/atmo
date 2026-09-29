@@ -84,7 +84,12 @@ export function PaymentsTab({
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return payments.filter((p) => {
-      if (methodFilter !== "all" && p.method !== methodFilter) return false;
+      if (methodFilter !== "all") {
+        // Un ticket mixte matche si l'un des deux modes correspond au filtre
+        const matchMain = p.method === methodFilter;
+        const matchSplit = p.split?.method2 === methodFilter;
+        if (!matchMain && !matchSplit) return false;
+      }
       if (sourceFilter !== "all" && p.source !== sourceFilter) return false;
       if (query) {
         const hay = `${p.ref} ${p.client_name ?? ""} ${p.kind}`.toLowerCase();
@@ -94,7 +99,9 @@ export function PaymentsTab({
     });
   }, [payments, methodFilter, sourceFilter, q]);
 
-  // Stats sur la sélection filtrée
+  // Stats sur la sélection filtrée — pour un ticket mixte on ventile
+  // amount1 sur method + amount2 sur split.method2 (au lieu de tout
+  // affecter au 1er mode, ce qui faussait la ventilation par méthode).
   const stats = useMemo(() => {
     const byMethod: Partial<
       Record<UnifiedPaymentMethod, { count: number; total: number }>
@@ -102,10 +109,21 @@ export function PaymentsTab({
     let total = 0;
     for (const p of filtered) {
       total += p.amount_ttc;
-      const cur = byMethod[p.method] ?? { count: 0, total: 0 };
-      cur.count += 1;
-      cur.total += p.amount_ttc;
-      byMethod[p.method] = cur;
+      if (p.split) {
+        const c1 = byMethod[p.method] ?? { count: 0, total: 0 };
+        c1.count += 1;
+        c1.total += p.split.amount1;
+        byMethod[p.method] = c1;
+        const c2 = byMethod[p.split.method2] ?? { count: 0, total: 0 };
+        c2.count += 1;
+        c2.total += p.split.amount2;
+        byMethod[p.split.method2] = c2;
+      } else {
+        const cur = byMethod[p.method] ?? { count: 0, total: 0 };
+        cur.count += 1;
+        cur.total += p.amount_ttc;
+        byMethod[p.method] = cur;
+      }
     }
     return { total, count: filtered.length, byMethod };
   }, [filtered]);
@@ -237,9 +255,21 @@ export function PaymentsTab({
                         >
                           <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
                         </div>
-                        <span className="text-[12.5px] text-ink-2 font-medium">
-                          {meta.label}
-                        </span>
+                        <div className="text-[12.5px] text-ink-2 font-medium">
+                          {p.split ? (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-[10.5px] uppercase tracking-wider font-semibold text-violet-strong bg-violet-soft/60 rounded px-1 py-0.5 mr-1.5">
+                                Mixte
+                              </span>
+                              {meta.label} {p.split.amount1.toFixed(2)} €
+                              <span className="text-muted mx-1">+</span>
+                              {(METHOD_META[p.split.method2]?.label ?? p.split.method2)}{" "}
+                              {p.split.amount2.toFixed(2)} €
+                            </>
+                          ) : (
+                            meta.label
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-3 text-ink-2 truncate max-w-[200px]">

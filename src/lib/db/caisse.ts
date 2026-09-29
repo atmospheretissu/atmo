@@ -34,9 +34,13 @@ export type TodayStats = {
 export async function getTodayStats(): Promise<TodayStats> {
   const supabase = await createClient();
   const { from, to } = todayBounds();
+  // Pour un ticket en paiement mixte, on décompose le total sur les DEUX
+  // modes (amount_1 sur payment_method + amount_2 sur payment_method_2).
+  // Sans ça, un ticket 91 € réglé 45,50 espèces + 45,50 CB comptait
+  // 91 € en espèces (ou CB) — fausse la compta et la clôture caisse.
   const { data } = await supabase
     .from("caisse_tickets")
-    .select("total_ttc, payment_method")
+    .select("total_ttc, payment_method, payment_method_2, amount_1, amount_2")
     .gte("created_at", from)
     .lt("created_at", to);
 
@@ -57,9 +61,21 @@ export async function getTodayStats(): Promise<TodayStats> {
     const amt = Number(t.total_ttc ?? 0);
     stats.totalTtc += amt;
     stats.ticketCount += 1;
-    const m = t.payment_method as PaymentMethod;
-    stats.byMethod[m].amount += amt;
-    stats.byMethod[m].count += 1;
+    const method2 = (t as { payment_method_2?: string | null }).payment_method_2 as PaymentMethod | null;
+    const a1 = (t as { amount_1?: number | string | null }).amount_1;
+    const a2 = (t as { amount_2?: number | string | null }).amount_2;
+    if (method2 && a1 != null && a2 != null) {
+      // Ticket mixte : décomposer sur les 2 modes
+      const m1 = t.payment_method as PaymentMethod;
+      stats.byMethod[m1].amount += Number(a1);
+      stats.byMethod[m1].count += 1;
+      stats.byMethod[method2].amount += Number(a2);
+      stats.byMethod[method2].count += 1;
+    } else {
+      const m = t.payment_method as PaymentMethod;
+      stats.byMethod[m].amount += amt;
+      stats.byMethod[m].count += 1;
+    }
   }
   return stats;
 }
