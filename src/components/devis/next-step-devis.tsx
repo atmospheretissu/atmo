@@ -83,7 +83,7 @@ function pickNextStep(p: Props): Step | null {
         description:
           "Le client a signé électroniquement. Encaisse l'acompte (Stripe, CB, virement, chèque, espèces) pour démarrer la commande.",
         ctaLabel: "Marquer acompte reçu",
-        ctaHref: `/devis/${p.devisId}`,
+        ctaHref: `/devis/${p.devisId}#mark-acompte-anchor`,
         variant: "primary",
       };
 
@@ -96,7 +96,7 @@ function pickNextStep(p: Props): Step | null {
         description:
           "Le client a signé. Encaisse l'acompte (Stripe, CB, virement, chèque, espèces) pour démarrer la production.",
         ctaLabel: "Marquer acompte reçu",
-        ctaHref: `/devis/${p.devisId}`,
+        ctaHref: `/devis/${p.devisId}#mark-acompte-anchor`,
         variant: "accent",
       };
 

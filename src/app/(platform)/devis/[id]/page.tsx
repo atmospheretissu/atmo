@@ -151,7 +151,9 @@ export default async function DevisDetailPage({
                 </Button>
               </Link>
               {status !== "acompte_recu" && status !== "refuse" && status !== "expire" && (
-                <MarkAcompteButton devisId={devis.id} />
+                <span id="mark-acompte-anchor" className="scroll-mt-24">
+                  <MarkAcompteButton devisId={devis.id} />
+                </span>
               )}
               {status === "acompte_recu" && dossier && !dossier.solde_paid && (
                 <MarkSoldeButton devisId={devis.id} />
@@ -510,16 +512,16 @@ function StripeSeal({
               <Zap className="h-3.5 w-3.5" strokeWidth={2.4} />
             </span>
             <span className="text-[11px] font-semibold tracking-wider uppercase opacity-70">
-              Règle métier · 50% · Stripe
+              Encaissement acompte · 50 %
             </span>
           </div>
           <h2 className="text-[24px] font-bold tracking-tight leading-tight text-white mb-2">
             Acompte de validation
           </h2>
           <p className="text-[13px] text-white/65 leading-relaxed max-w-md mb-5">
-            Aucun bon de commande, aucune fiche confection ne part avant encaissement.
-            Une session Stripe est créée à la demande, le webhook met à jour automatiquement
-            le statut et lance la création du dossier de confection.
+            Aucun bon de commande, aucune fiche confection ne part avant
+            encaissement. Dès que l&apos;acompte est reçu, le dossier de
+            confection est créé automatiquement.
           </p>
           <div className="flex flex-wrap gap-2">
             <StripeCheckoutButton devisId={devisId} />
