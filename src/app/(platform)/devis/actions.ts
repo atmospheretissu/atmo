@@ -363,6 +363,11 @@ export async function markAcompteRecuAction(
   revalidatePath("/devis");
   revalidatePath(`/devis/${devisId}`);
   revalidatePath("/confections");
+  if (dossierResult.ok && dossierResult.dossierId) {
+    // La fiche confection existe désormais — la revalider pour que son
+    // NextStepBanner reflète l'acompte encaissé sans reload manuel.
+    revalidatePath(`/confections/${dossierResult.dossierId}`);
+  }
   revalidatePath("/dashboard");
 
   return {
@@ -441,17 +446,18 @@ export async function markSoldeRecuAction(
     }).catch((e) => console.warn("[pennylane push solde]", e));
   }
 
-  // Update dossier.solde_paid
+  // Update dossier.solde_paid + capture l'id pour revalidation ciblée
   const { data: dossier } = await supabase
     .from("dossiers")
     .select("id")
     .eq("devis_id", devisId)
     .maybeSingle();
-  if (dossier?.id) {
+  const dossierId = dossier?.id ?? null;
+  if (dossierId) {
     await supabase
       .from("dossiers")
       .update({ solde_paid: true, solde_paid_at: new Date().toISOString() })
-      .eq("id", dossier.id);
+      .eq("id", dossierId);
   }
 
   // Advance devis.status → solde_recu (progression linéaire : acompte_recu
@@ -485,6 +491,13 @@ export async function markSoldeRecuAction(
 
   revalidatePath(`/devis/${devisId}`);
   revalidatePath("/devis");
+  // Revalider aussi la fiche confection : le NextStepBanner du dossier
+  // consulte dossier.solde_paid pour afficher "Solde à encaisser" ou
+  // "Planifier la pose / Ouvrir l'agenda". Sans ces revalidations, le
+  // banner reste sur l'ancien état jusqu'au reload manuel de la fiche.
+  revalidatePath("/confections");
+  if (dossierId) revalidatePath(`/confections/${dossierId}`);
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

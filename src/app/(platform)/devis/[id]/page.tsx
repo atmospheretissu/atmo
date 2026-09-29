@@ -238,7 +238,7 @@ export default async function DevisDetailPage({
               ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
               : "https://atmospheretissus.fr");
           return (
-            <section className="px-8 pb-6">
+            <section id="signature" className="px-8 pb-6 scroll-mt-24">
               <SignatureCard
                 signatureToken={d.signature_token ?? null}
                 signedAt={d.signed_at ?? null}
