@@ -258,7 +258,14 @@ export default async function DevisDetailPage({
                 pour tester ou envoyer un lien avant l'envoi du PDF). Masqué
                 seulement pour les devis fermés (refusé / expiré / solde reçu). */}
             {status !== "refuse" && status !== "expire" && status !== "solde_recu" && (
-              <StripeSeal acompte={acompte} totalTTC={totalTTC} solde={solde} devisId={devis.id} />
+              <StripeSeal
+                acompte={acompte}
+                totalTTC={totalTTC}
+                solde={solde}
+                devisId={devis.id}
+                acomptePaid={Boolean(dossier?.acompte_paid)}
+                soldePaid={Boolean(dossier?.solde_paid)}
+              />
             )}
 
             {/* Lines */}
@@ -497,12 +504,23 @@ function StripeSeal({
   totalTTC,
   solde,
   devisId,
+  acomptePaid,
+  soldePaid,
 }: {
   acompte: number;
   totalTTC: number;
   solde: number;
   devisId: string;
+  acomptePaid: boolean;
+  soldePaid: boolean;
 }) {
+  // Trois modes d'affichage selon la progression :
+  //   1. Rien de payé (défaut)                → bloc "Acompte à encaisser" à gauche
+  //   2. Acompte payé, solde restant          → bloc "Solde à encaisser" à gauche
+  //   3. Acompte + solde payés (jamais rendu) → la page.tsx filtre déjà
+  const showAcompteBlock = !acomptePaid;
+  const showSoldeBlock = acomptePaid && !soldePaid && solde > 0;
+
   return (
     <div className="rounded-xl bg-ink text-white overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr]">
@@ -512,50 +530,66 @@ function StripeSeal({
               <Zap className="h-3.5 w-3.5" strokeWidth={2.4} />
             </span>
             <span className="text-[11px] font-semibold tracking-wider uppercase opacity-70">
-              Encaissement acompte · 50 %
+              {showSoldeBlock
+                ? "Encaissement solde · avant pose"
+                : "Encaissement acompte · 50 %"}
             </span>
           </div>
           <h2 className="text-[24px] font-bold tracking-tight leading-tight text-white mb-2">
-            Acompte de validation
+            {showSoldeBlock ? "Solde avant pose" : "Acompte de validation"}
           </h2>
           <p className="text-[13px] text-white/65 leading-relaxed max-w-md mb-5">
-            Aucun bon de commande, aucune fiche confection ne part avant
-            encaissement. Dès que l&apos;acompte est reçu, le dossier de
-            confection est créé automatiquement.
+            {showSoldeBlock
+              ? "L'acompte est encaissé, la production est lancée. Le solde doit être réglé avant la pose pour débloquer la planification de créneau."
+              : "Aucun bon de commande, aucune fiche confection ne part avant encaissement. Dès que l'acompte est reçu, le dossier de confection est créé automatiquement."}
           </p>
           <div className="flex flex-wrap gap-2">
-            <StripeCheckoutButton devisId={devisId} />
+            {showAcompteBlock ? (
+              <StripeCheckoutButton devisId={devisId} />
+            ) : showSoldeBlock ? (
+              <StripeSoldeCheckoutButton devisId={devisId} />
+            ) : null}
           </div>
         </div>
 
         <div className="p-6 md:p-7 flex flex-col justify-between gap-6">
           <div>
             <p className="text-[10.5px] font-semibold tracking-wider uppercase opacity-70 mb-2">
-              Acompte (50 %)
+              {showSoldeBlock ? "Solde (avant pose)" : "Acompte (50 %)"}
             </p>
             <p className="text-[40px] font-bold leading-none text-white tabular-nums tracking-tight">
-              {eur(acompte, true)}
+              {eur(showSoldeBlock ? solde : acompte, true)}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
-            <div>
-              <p className="text-[10px] font-semibold tracking-wider uppercase opacity-60 mb-1">
-                Solde avant pose
-              </p>
-              <p className="text-[14px] font-semibold tabular-nums">{eur(solde, true)}</p>
-            </div>
+            {showSoldeBlock ? (
+              <div>
+                <p className="text-[10px] font-semibold tracking-wider uppercase opacity-60 mb-1">
+                  Acompte reçu ✓
+                </p>
+                <p className="text-[14px] font-semibold tabular-nums">
+                  {eur(acompte, true)}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-[10px] font-semibold tracking-wider uppercase opacity-60 mb-1">
+                  Solde avant pose
+                </p>
+                <p className="text-[14px] font-semibold tabular-nums">
+                  {eur(solde, true)}
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-[10px] font-semibold tracking-wider uppercase opacity-60 mb-1">
                 Total TTC
               </p>
-              <p className="text-[14px] font-semibold tabular-nums">{eur(totalTTC, true)}</p>
+              <p className="text-[14px] font-semibold tabular-nums">
+                {eur(totalTTC, true)}
+              </p>
             </div>
           </div>
-          {solde > 0 && (
-            <div className="pt-4 border-t border-white/10">
-              <StripeSoldeCheckoutButton devisId={devisId} />
-            </div>
-          )}
         </div>
       </div>
     </div>
