@@ -22,6 +22,7 @@ import {
 import { Topbar } from "@/components/shell/topbar";
 import { SuppliersTab } from "@/components/parametres/suppliers-tab";
 import { UsersTab } from "@/components/parametres/users-tab";
+import type { AuthUserRow } from "@/lib/db/profiles";
 import { RolesTab } from "@/components/parametres/roles-tab";
 import { IntegrationsTab } from "@/components/parametres/integrations-tab";
 import { TestTab } from "@/components/parametres/test-tab";
@@ -67,6 +68,7 @@ type TabKey =
 type Props = {
   suppliers: Supplier[];
   profiles: Profile[];
+  authUsers?: AuthUserRow[];
   smsTemplates: SmsTemplate[];
   emailTemplates: EmailTemplate[];
   roleCounts: Record<UserRole, number>;
@@ -127,6 +129,7 @@ const SECTIONS: {
 export default function ParametresClient({
   suppliers,
   profiles,
+  authUsers = [],
   smsTemplates,
   emailTemplates,
   roleCounts,
@@ -362,7 +365,9 @@ export default function ParametresClient({
             <EquipeTab initialPoseurs={poseurs} initialAteliers={ateliers} />
           )}
           {tab === "fournisseurs" && <SuppliersTab suppliers={suppliers} />}
-          {tab === "utilisateurs" && <UsersTab profiles={profiles} />}
+          {tab === "utilisateurs" && (
+            <UsersTab profiles={profiles} authUsers={authUsers} />
+          )}
           {tab === "roles" && <RolesTab counts={roleCounts} />}
 
           {/* Données */}

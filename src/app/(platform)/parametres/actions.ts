@@ -843,3 +843,192 @@ export async function sendPasswordResetAction(
   if (error) return { ok: false, message: error.message };
   return { ok: true };
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Gestion utilisateurs — refonte 02/10/2026
+//
+// Contexte : l'onglet Utilisateurs ne proposait que `inviteUserByEmail`,
+// qui dépend du SMTP Supabase (3 mails/h en offre gratuite) et dont le
+// lien tombait sur /?error=auth à cause d'un callback incomplet.
+// On ajoute donc : création avec mot de passe direct, réinitialisation
+// directe par l'admin, et génération d'un lien copiable sans email.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Base URL publique de l'app, utilisée pour les redirections auth. */
+function publicAppUrl(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : "https://atmo-production.up.railway.app");
+  return raw.startsWith("http")
+    ? raw.replace(/\/+$/, "")
+    : `https://${raw.replace(/\/+$/, "")}`;
+}
+
+/** Garde-fou : seul un admin réel peut gérer les comptes. */
+async function assertAdmin(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { getEffectiveProfile } = await import("@/lib/db/impersonation");
+  const profile = await getEffectiveProfile();
+  if (!profile) return { ok: false, message: "Session expirée." };
+  if (profile.actualRole !== "admin") {
+    return { ok: false, message: "Réservé aux administrateurs." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Crée un utilisateur avec un mot de passe défini par l'admin.
+ * Le compte est immédiatement utilisable (email auto-confirmé) — pas
+ * d'email envoyé, l'admin communique le mot de passe de vive voix.
+ */
+export async function createUserWithPasswordAction(input: {
+  email: string;
+  full_name: string;
+  role: RoleEnum;
+  phone?: string;
+  password: string;
+}): Promise<{ ok: true; userId: string } | { ok: false; message: string }> {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+
+  const email = (input.email ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, message: "Email invalide." };
+  }
+  if (!input.full_name?.trim()) return { ok: false, message: "Nom complet requis." };
+  if (!input.role) return { ok: false, message: "Rôle requis." };
+  if (!input.password || input.password.length < 8) {
+    return { ok: false, message: "Mot de passe : 8 caractères minimum." };
+  }
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true,
+  });
+  if (createErr) {
+    const already = /already registered|already been registered/i.test(
+      createErr.message,
+    );
+    return {
+      ok: false,
+      message: already
+        ? "Un compte existe déjà avec cet email. Utilise « Réinitialiser le mot de passe » à la place."
+        : createErr.message,
+    };
+  }
+  if (!created?.user) return { ok: false, message: "Création échouée." };
+
+  const { error: profileErr } = await admin.from("profiles").upsert(
+    {
+      id: created.user.id,
+      email,
+      full_name: input.full_name.trim(),
+      role: input.role,
+      phone: input.phone?.trim() || null,
+      active: true,
+    },
+    { onConflict: "id" },
+  );
+  if (profileErr) {
+    return {
+      ok: false,
+      message: `Compte créé mais profil en échec : ${profileErr.message}`,
+    };
+  }
+
+  revalidatePath("/parametres");
+  return { ok: true, userId: created.user.id };
+}
+
+/**
+ * Réinitialise directement le mot de passe d'un utilisateur, sans email.
+ * L'admin communique ensuite le nouveau mot de passe à l'intéressé.
+ */
+export async function adminSetPasswordAction(input: {
+  userId: string;
+  password: string;
+}): Promise<Result> {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+  if (!input.password || input.password.length < 8) {
+    return { ok: false, message: "Mot de passe : 8 caractères minimum." };
+  }
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+  const { error } = await admin.auth.admin.updateUserById(input.userId, {
+    password: input.password,
+  });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true };
+}
+
+/**
+ * Génère un lien d'invitation ou de réinitialisation SANS passer par le
+ * SMTP Supabase (contourne la limite de 3 mails/heure). L'admin copie le
+ * lien et le transmet par le canal de son choix.
+ */
+export async function generateAuthLinkAction(input: {
+  email: string;
+  kind: "invite" | "recovery";
+}): Promise<{ ok: true; link: string } | { ok: false; message: string }> {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+
+  const email = (input.email ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, message: "Email invalide." };
+  }
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+  const redirectTo = `${publicAppUrl()}/auth/callback?next=${encodeURIComponent(
+    "/auth/definir-mot-de-passe",
+  )}`;
+
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: input.kind,
+    email,
+    options: { redirectTo },
+  });
+  if (error) return { ok: false, message: error.message };
+
+  const link = data?.properties?.action_link;
+  if (!link) return { ok: false, message: "Lien non généré par Supabase." };
+  return { ok: true, link };
+}
+
+/**
+ * Crée le profil manquant d'un utilisateur qui existe dans auth.users
+ * mais pas dans public.profiles (compte orphelin, invisible dans l'UI).
+ */
+export async function createMissingProfileAction(input: {
+  userId: string;
+  email: string;
+  full_name: string;
+  role: RoleEnum;
+}): Promise<Result> {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+  const { error } = await admin.from("profiles").upsert(
+    {
+      id: input.userId,
+      email: input.email.trim().toLowerCase(),
+      full_name: input.full_name.trim() || input.email,
+      role: input.role,
+      active: true,
+    },
+    { onConflict: "id" },
+  );
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/parametres");
+  return { ok: true };
+}

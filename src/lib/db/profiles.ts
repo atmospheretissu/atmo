@@ -34,3 +34,45 @@ export async function getRoleCounts(): Promise<Record<UserRole, number>> {
   }
   return counts;
 }
+
+/**
+ * Métadonnées d'authentification d'un utilisateur, jointes au profil.
+ * Permet à l'onglet Utilisateurs d'afficher l'état réel du compte :
+ * email confirmé, dernière connexion, et surtout les comptes
+ * « orphelins » présents dans auth.users mais sans ligne profiles —
+ * jusqu'ici totalement invisibles dans l'UI.
+ */
+export type AuthUserRow = {
+  id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+  /** false = compte auth sans profil (à rattacher) */
+  has_profile: boolean;
+};
+
+export async function listAuthUsers(): Promise<AuthUserRow[]> {
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+
+  // L'API admin pagine à 50 par défaut — on monte à 200, largement
+  // au-dessus de la taille d'équipe actuelle (~18 comptes).
+  const { data, error } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 200,
+  });
+  if (error) throw error;
+
+  const { data: profileRows } = await admin.from("profiles").select("id");
+  const withProfile = new Set((profileRows ?? []).map((p) => p.id));
+
+  return (data?.users ?? []).map((u) => ({
+    id: u.id,
+    email: u.email ?? "",
+    created_at: u.created_at,
+    last_sign_in_at: u.last_sign_in_at ?? null,
+    email_confirmed_at: u.email_confirmed_at ?? null,
+    has_profile: withProfile.has(u.id),
+  }));
+}

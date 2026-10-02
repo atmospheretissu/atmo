@@ -1,5 +1,5 @@
 import { listSuppliers } from "@/lib/db/suppliers";
-import { listProfiles } from "@/lib/db/profiles";
+import { listProfiles, listAuthUsers } from "@/lib/db/profiles";
 import { listSmsTemplates } from "@/lib/db/sms-templates";
 import { listEmailTemplates } from "@/lib/db/email-templates";
 import { listPoseurs, listAteliers } from "@/lib/db/equipe";
@@ -17,6 +17,7 @@ export default async function ParametresPage() {
   const [
     suppliers,
     profiles,
+    authUsers,
     smsTemplates,
     emailTemplates,
     poseurs,
@@ -29,6 +30,7 @@ export default async function ParametresPage() {
   ] = await Promise.all([
     listSuppliers(),
     listProfiles(),
+    listAuthUsers().catch(() => []),
     listSmsTemplates(),
     listEmailTemplates(),
     listPoseurs(),
@@ -67,6 +69,7 @@ export default async function ParametresPage() {
     <ParametresClient
       suppliers={suppliers}
       profiles={profiles}
+      authUsers={authUsers}
       smsTemplates={smsTemplates}
       emailTemplates={emailTemplates}
       roleCounts={roleCounts}
