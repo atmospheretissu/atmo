@@ -17,6 +17,9 @@ export type ReceiveResult =
         clientName: string;
         wasAlreadyReceived: boolean;
         dossierComplete: boolean;
+        /** true = ligne « Tissu & Confection » : la matière vient
+         *  d'arriver, l'article part maintenant à l'atelier. */
+        wentToConfection: boolean;
       };
     }
   | { ok: false; message: string };
@@ -44,20 +47,38 @@ export async function receiveByQrAction(qrCode: string): Promise<ReceiveResult> 
   if (e1) return { ok: false, message: e1.message };
   if (!item) return { ok: false, message: `QR inconnu : ${code}` };
 
-  const wasAlreadyReceived = item.status === "recu";
+  const needsConfection = Boolean(
+    (item as { needs_confection?: boolean }).needs_confection,
+  );
+  // Une ligne « Tissu & Confection » n'est pas terminée quand sa matière
+  // arrive : elle part ensuite à l'atelier. Le scan la place donc en
+  // `confection`, et c'est un second geste (bouton « Confection
+  // terminée ») qui la passera en `recu`. Les lignes matière seule vont
+  // directement en `recu`, comme avant.
+  const targetStatus: "recu" | "confection" = needsConfection
+    ? "confection"
+    : "recu";
 
-  // 2. Marque comme reçu (si pas déjà)
-  if (!wasAlreadyReceived) {
+  // Déjà au bon stade (ou au-delà) : on ne régresse pas.
+  const alreadyDone =
+    item.status === "recu" ||
+    (needsConfection && item.status === "confection");
+
+  if (!alreadyDone) {
     const { error: e2 } = await supabase
       .from("dossier_items")
       .update({
-        status: "recu",
+        status: targetStatus,
+        // received_at horodate l'arrivée PHYSIQUE de la marchandise,
+        // dans les deux cas — c'est bien le moment du scan.
         received_at: new Date().toISOString(),
         received_by: user.id,
       })
       .eq("id", item.id);
     if (e2) return { ok: false, message: e2.message };
   }
+
+  const wasAlreadyReceived = alreadyDone;
 
   // 3. Récupère dossier + client pour feedback
   const { data: dossier } = await supabase
@@ -134,6 +155,9 @@ export async function receiveByQrAction(qrCode: string): Promise<ReceiveResult> 
       clientName: client?.display_name ?? "—",
       wasAlreadyReceived,
       dossierComplete: dossier?.status === "pret_pose",
+      // Permet à l'UI d'annoncer « Tissu reçu — passe en confection »
+      // plutôt qu'un « Reçu » qui laisserait croire que c'est terminé.
+      wentToConfection: needsConfection,
     },
   };
 }

@@ -249,7 +249,11 @@ export function QrScanner() {
                       (feedback.item.wasAlreadyReceived ? "text-amber" : "text-emerald")
                     }
                   >
-                    {feedback.item.wasAlreadyReceived ? "Déjà reçu" : "Élément reçu ✓"}
+                    {feedback.item.wasAlreadyReceived
+                      ? "Déjà reçu"
+                      : feedback.item.wentToConfection
+                        ? "Tissu reçu — part en confection"
+                        : "Élément reçu ✓"}
                   </p>
                   <p className="text-[12.5px] text-ink-2 mt-1">{feedback.item.label}</p>
                   <p className="text-[11px] text-muted mt-0.5 font-mono">

@@ -322,6 +322,10 @@ export default async function DossierDetailPage({
                           <ItemReceptionMenu
                             itemId={item.id}
                             initialStatus={item.status}
+                            needsConfection={Boolean(
+                              (item as { needs_confection?: boolean })
+                                .needs_confection,
+                            )}
                             qrCode={item.qr_code}
                             ateliers={ateliers
                               .filter((a) => a.active !== false)

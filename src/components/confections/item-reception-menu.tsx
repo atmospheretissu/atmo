@@ -22,6 +22,7 @@ export function ItemReceptionMenu({
   ateliers = [],
   defaultAtelierId,
   currentAtelierName,
+  needsConfection = false,
 }: {
   itemId: string;
   initialStatus: Status;
@@ -32,6 +33,10 @@ export function ItemReceptionMenu({
   defaultAtelierId?: string | null;
   /** Nom lisible de l'atelier courant de la ligne (déjà envoyée). */
   currentAtelierName?: string | null;
+  /** true = ligne « Tissu & Confection » : réceptionner la matière ne
+   *  termine PAS la ligne, elle part ensuite à l'atelier. Le vocabulaire
+   *  et la cible du bouton changent en conséquence. */
+  needsConfection?: boolean;
 }) {
   const [status, setStatus] = useState<Status>(initialStatus);
   // useState au lieu de useTransition : sinon le `pending` reste true tant
@@ -73,7 +78,7 @@ export function ItemReceptionMenu({
       <div className="inline-flex items-center gap-2">
         <span className="h-8 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[11.5px] font-semibold bg-emerald-soft border border-emerald/30 text-emerald">
           <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.4} />
-          Réceptionné
+          {needsConfection ? "Confection terminée" : "Réceptionné"}
         </span>
         <button
           onClick={() =>
@@ -111,11 +116,12 @@ export function ItemReceptionMenu({
         <button
           onClick={() =>
             apply("recu", {
-              confirmMsg: "Marquer l'article comme reçu de l'atelier ?",
+              confirmMsg:
+                "Marquer la confection comme terminée ? L'article sera compté comme prêt.",
             })
           }
           disabled={pending}
-          title="Marquer reçu (retour atelier)"
+          title="La confection est finie, l'article est prêt à poser"
           className="h-9 px-3 rounded-md inline-flex items-center gap-1.5 text-[12.5px] font-semibold border border-emerald bg-emerald text-white hover:bg-emerald/90 transition-colors disabled:opacity-50 shadow-sm"
         >
           {pending ? (
@@ -123,7 +129,7 @@ export function ItemReceptionMenu({
           ) : (
             <PackageCheck className="h-4 w-4" strokeWidth={2.4} />
           )}
-          Marquer reçu
+          Confection terminée
         </button>
         {error && <span className="text-[11px] text-pink">{error}</span>}
       </div>
@@ -134,17 +140,21 @@ export function ItemReceptionMenu({
   return (
     <div className="inline-flex items-center gap-2 flex-wrap">
       <button
-        onClick={() => apply("recu")}
+        onClick={() => apply(needsConfection ? "confection" : "recu")}
         disabled={pending}
-        title="Marquer comme reçu (magasin / entrée matière)"
+        title={
+          needsConfection
+            ? "La matière est arrivée — l'article passe en confection"
+            : "Marquer comme reçu (magasin / entrée matière)"
+        }
         className="h-8 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[11.5px] font-semibold border border-emerald/30 bg-emerald-soft/40 text-emerald hover:bg-emerald-soft/70 transition-colors disabled:opacity-50"
       >
-        {pending && busy === "recu" ? (
+        {pending && busy === (needsConfection ? "confection" : "recu") ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.4} />
         ) : (
           <PackageCheck className="h-3.5 w-3.5" strokeWidth={2.4} />
         )}
-        Réceptionné
+        {needsConfection ? "Tissu reçu" : "Réceptionné"}
       </button>
       <button
         onClick={() => {
