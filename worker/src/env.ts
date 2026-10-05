@@ -38,12 +38,14 @@ export const env = {
   // Le worker ping l'endpoint /api/cron/pennylane-pull de l'app Next.js.
   // Sans PENNYLANE_CRON_SECRET, le cron ne démarre pas du tout.
   pennylaneCronSecret: process.env.PENNYLANE_CRON_SECRET,
-  // Par défaut : tous les jours à 6h00 (heure de Paris), avant l'ouverture.
+  // Par défaut : toutes les heures à la minute 5. Pennylane n'expose
+  // aucun webhook sur les transactions bancaires (seul dms_file.created
+  // existe, en beta), le polling est donc la méthode officielle.
   pennylaneCronExpression:
-    process.env.PENNYLANE_CRON_EXPRESSION ?? '0 6 * * *',
-  // Fenêtre de rattrapage : on rescanne les N derniers jours à chaque
-  // passage, ce qui rattrape automatiquement un jour manqué.
-  pennylanePullDays: Number(process.env.PENNYLANE_PULL_DAYS ?? 30),
+    process.env.PENNYLANE_CRON_EXPRESSION ?? '5 * * * *',
+  // Fenêtre de rattrapage. Avec un passage horaire, 7 jours suffisent
+  // largement à absorber une panne, sans rescanner 30 jours à chaque fois.
+  pennylanePullDays: Number(process.env.PENNYLANE_PULL_DAYS ?? 7),
   // URL publique de l'app Next.js à appeler.
   atmoBaseUrl: (
     process.env.ATMO_BASE_URL ??

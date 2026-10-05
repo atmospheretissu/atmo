@@ -76,6 +76,21 @@ function inferItemType(meta: Record<string, unknown> | null | undefined): Dossie
 }
 
 /**
+ * Une ligne de devis couvre-t-elle à la fois la matière et sa confection ?
+ * Seuls les rideaux et stores bateau sur mesure sont dans ce cas : leur
+ * meta porte `prixTissu` ET `prixConfection` séparément. Le store
+ * enrouleur, lui, a déjà une ligne mécanisme distincte et n'est donc pas
+ * concerné.
+ */
+function isTissuConfectionLine(
+  meta: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!meta) return false;
+  const ta = String(meta["typeArticle"] ?? meta["type"] ?? "");
+  return ta === "rideau_tissu_confection" || ta === "store_tissu_confection";
+}
+
+/**
  * Convertit un devis (validé / acompte reçu) en dossier de confection.
  * Idempotent : si un dossier existe déjà pour ce devis, retourne le dossier existant.
  *
@@ -161,7 +176,7 @@ export async function createDossierFromDevis(
         ta !== "pose_store_enrouleur"
       );
     })
-    .map((l, idx) => {
+    .flatMap((l, idx) => {
       const meta = (l.meta ?? {}) as Record<string, unknown>;
       const itemType = inferItemType(meta);
       const isCollection =
@@ -169,20 +184,53 @@ export async function createDossierFromDevis(
         String(meta["typeArticle"]) === "collection_atmosphere";
       const matiere =
         typeof meta["matiere"] === "string" ? (meta["matiere"] as string) : null;
-      return {
+
+      const base = {
         dossier_id: dossier.id,
-        type: itemType,
-        label: l.label,
         ref: l.ref ?? null,
         status: "en_attente" as const,
-        qr_code: generateQrCode(),
         qty: l.qty,
         unit_label: l.unit_label,
         notes: l.detail ?? null,
-        position: idx,
         collection: isCollection,
         matiere: isCollection ? matiere : null,
-      } as DossierItemInsert;
+      };
+
+      // Une ligne « Tissu & Confection » recouvre DEUX étapes distinctes :
+      // on commande puis réceptionne la matière, PUIS on confectionne.
+      // Elle ne générait qu'un item `tissu` : réceptionner le tissu
+      // suffisait donc à basculer le dossier en « prêt pose », sautant
+      // l'atelier (retour PE du 05/10). On la scinde en deux items, ce que
+      // la meta permet déjà puisqu'elle porte prixTissu ET prixConfection.
+      if (isTissuConfectionLine(meta)) {
+        const baseLabel = l.label.replace(/\s*—\s*Tissu\s*&\s*Confection\s*$/i, "");
+        return [
+          {
+            ...base,
+            type: "tissu" as const,
+            label: `${baseLabel} — Tissu`,
+            qr_code: generateQrCode(),
+            position: idx * 2,
+          },
+          {
+            ...base,
+            type: "confection" as const,
+            label: `${baseLabel} — Confection`,
+            qr_code: generateQrCode(),
+            position: idx * 2 + 1,
+          },
+        ] as DossierItemInsert[];
+      }
+
+      return [
+        {
+          ...base,
+          type: itemType,
+          label: l.label,
+          qr_code: generateQrCode(),
+          position: idx * 2,
+        } as DossierItemInsert,
+      ];
     });
 
   if (items.length > 0) {

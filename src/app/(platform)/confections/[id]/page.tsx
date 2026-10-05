@@ -284,10 +284,24 @@ export default async function DossierDetailPage({
                         </ColorChip>
 
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13.5px] font-semibold text-ink leading-tight truncate">{item.label}</p>
-                          <p className="text-[11.5px] text-muted mt-0.5 truncate">
+                          {/* `truncate` coupait label ET détail sur une seule
+                              ligne : avec des notes de 150+ caractères
+                              (métrage, laize, dimensions), l'article était
+                              illisible au moment de l'envoi en confection
+                              — retour PE du 05/10. On passe en 2 lignes. */}
+                          <p className="text-[13.5px] font-semibold text-ink leading-tight">{item.label}</p>
+                          {item.notes && (
+                            <p className="text-[11.5px] text-ink-2 mt-0.5 line-clamp-2">
+                              {item.notes}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-muted-2 mt-0.5 truncate">
                             {item.ref && <span className="font-mono">{item.ref}</span>}
-                            {item.notes && <span className="text-muted-2 ml-1">{item.notes}</span>}
+                            {Number(item.qty) > 0 && (
+                              <span className="ml-1">
+                                · {Number(item.qty)} {item.unit_label}
+                              </span>
+                            )}
                           </p>
                         </div>
 

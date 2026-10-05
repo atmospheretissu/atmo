@@ -145,7 +145,13 @@ export async function getPendingReceptionItems() {
   const supabase = await createClient();
   const { data: items, error } = await supabase
     .from("dossier_items")
-    .select("id, label, ref, qr_code, type, status, dossier_id")
+    // notes/qty/unit_label remontés pour que l'opérateur sache QUOI
+    // chercher dans le carton : métrage, laize, dimensions, coloris.
+    // Sans eux l'écran n'affichait que « salon · Rideau Plis simples —
+    // Tissu & Confection », inexploitable en réception (retour PE 05/10).
+    .select(
+      "id, label, ref, qr_code, type, status, dossier_id, notes, qty, unit_label",
+    )
     .in("status", ["en_attente", "commande", "expedie"])
     .order("position", { ascending: true });
   if (error) return [];

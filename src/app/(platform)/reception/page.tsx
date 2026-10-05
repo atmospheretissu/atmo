@@ -114,9 +114,21 @@ export default async function ReceptionPage() {
                           <p className="text-[13px] font-semibold text-ink leading-tight truncate">
                             {p.label}
                           </p>
+                          {/* Détail produit : c'est CE qu'il faut chercher
+                              dans le carton (métrage, laize, dimensions,
+                              coloris). Sans lui, l'opérateur ne pouvait pas
+                              identifier l'article — retour PE du 05/10. */}
+                          {p.notes && (
+                            <p className="text-[11.5px] text-ink-2 mt-0.5 line-clamp-2">
+                              {p.notes}
+                            </p>
+                          )}
                           <p className="text-[11px] text-muted-2 font-mono mt-0.5 truncate">
                             {p.qr_code}
                             {p.ref && <> · {p.ref}</>}
+                            {Number(p.qty) > 0 && (
+                              <> · {Number(p.qty)} {p.unit_label}</>
+                            )}
                           </p>
                         </div>
                         <div className="hidden md:flex items-center gap-2 shrink-0">
