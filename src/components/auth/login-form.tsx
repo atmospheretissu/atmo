@@ -44,7 +44,10 @@ export function LoginForm({ initialError }: { initialError?: string }) {
           <Label htmlFor="password" className="mb-0">
             Mot de passe
           </Label>
-          <Link href="#" className="text-[12px] text-violet hover:underline font-medium">
+          <Link
+            href="/auth/mot-de-passe-oublie"
+            className="text-[12px] text-violet hover:underline font-medium"
+          >
             Oublié&nbsp;?
           </Link>
         </div>

@@ -15,6 +15,8 @@ import {
   Link2,
   AlertTriangle,
   UserPlus,
+  Trash2,
+  ShieldAlert,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,8 @@ import {
   adminSetPasswordAction,
   generateAuthLinkAction,
   createMissingProfileAction,
+  deleteUserAction,
+  countUserReferencesAction,
 } from "@/app/(platform)/parametres/actions";
 import type { AuthUserRow } from "@/lib/db/profiles";
 import type { Profile, UserRole } from "@/lib/db/profiles-shared";
@@ -102,6 +106,15 @@ export function UsersTab({
   /** Reset de mot de passe en cours pour cet utilisateur. */
   const [resetFor, setResetFor] = useState<Profile | null>(null);
   const [resetPwd, setResetPwd] = useState("");
+  /** Suppression en cours : on exige la saisie de l'email pour éviter
+   *  le clic réflexe sur un compte voisin dans la liste. */
+  const [deleteFor, setDeleteFor] = useState<Profile | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteRefs, setDeleteRefs] = useState<{
+    counts: Record<string, number>;
+    total: number;
+  } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [draft, setDraft] = useState<{
     full_name: string;
     phone: string;
@@ -261,6 +274,35 @@ export function UsersTab({
     });
   };
 
+  /** Ouvre la confirmation et charge en parallèle ce que le compte a
+   *  produit, pour que l'admin décide en connaissance de cause. */
+  const openDelete = (u: Profile) => {
+    setDeleteFor(u);
+    setDeleteConfirmText("");
+    setDeleteError(null);
+    setDeleteRefs(null);
+    startTransition(async () => {
+      const r = await countUserReferencesAction(u.id);
+      if (r.ok) setDeleteRefs({ counts: r.counts, total: r.total });
+    });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteFor) return;
+    setDeleteError(null);
+    startTransition(async () => {
+      const r = await deleteUserAction(deleteFor.id);
+      if (!r.ok) {
+        setDeleteError(r.message);
+        return;
+      }
+      setDeleteFor(null);
+      setDeleteConfirmText("");
+      setDeleteRefs(null);
+      router.refresh();
+    });
+  };
+
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -320,6 +362,8 @@ export function UsersTab({
   };
 
   const toggle = (p: Profile) => {
+    // Pas de confirm() : la désactivation est réversible d'un clic, et
+    // la suppression — elle irréversible — a sa propre modale.
     startTransition(async () => {
       const r = await toggleProfileActiveAction(p.id, !p.active);
       if (!r.ok) {
@@ -382,6 +426,120 @@ export function UsersTab({
                   </>
                 )}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation de suppression définitive */}
+      {deleteFor && (
+        <div
+          className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => !pending && setDeleteFor(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="h-9 w-9 rounded-md bg-pink text-white inline-flex items-center justify-center shrink-0">
+                <ShieldAlert className="h-4 w-4" strokeWidth={2.4} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold text-ink">
+                  Supprimer définitivement ce compte
+                </p>
+                <p className="text-[12.5px] text-muted mt-0.5 truncate">
+                  {deleteFor.full_name} · {deleteFor.email}
+                </p>
+              </div>
+            </div>
+
+            {/* Ce que le compte laisse derrière lui */}
+            {deleteRefs === null ? (
+              <div className="rounded-md border border-line bg-canvas-2/40 px-3 py-2.5 mb-3 text-[12.5px] text-muted inline-flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Analyse de son activité…
+              </div>
+            ) : deleteRefs.total === 0 ? (
+              <div className="rounded-md border border-emerald/30 bg-emerald-soft/40 px-3 py-2.5 mb-3 text-[12.5px] text-ink-2">
+                Ce compte n&apos;a produit aucune donnée. Sa suppression
+                est sans conséquence.
+              </div>
+            ) : (
+              <div className="rounded-md border border-amber/40 bg-amber-soft/40 px-3 py-2.5 mb-3">
+                <p className="text-[12.5px] font-semibold text-ink mb-1.5">
+                  Son activité restera, mais ne lui sera plus attribuée :
+                </p>
+                <ul className="text-[12px] text-ink-2 space-y-0.5">
+                  {Object.entries(deleteRefs.counts).map(([label, n]) => (
+                    <li key={label}>
+                      {n} {label}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11.5px] text-muted mt-2 leading-relaxed">
+                  Rien n&apos;est effacé : devis, paiements et tickets sont
+                  conservés, mais afficheront « — » à la place de son nom.
+                  Pour garder la traçabilité, préfère désactiver le compte.
+                </p>
+              </div>
+            )}
+
+            <label className="block text-[11.5px] text-muted-2 font-semibold uppercase tracking-wider mb-1">
+              Tape son email pour confirmer
+            </label>
+            <input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={deleteFor.email}
+              disabled={pending}
+              className={INPUT_CLASS + " font-mono"}
+            />
+
+            {deleteError && (
+              <p className="mt-2 text-[12.5px] text-pink bg-pink-soft/40 border border-pink/30 rounded px-3 py-2">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteFor(null)}
+                disabled={pending}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const u = deleteFor;
+                  setDeleteFor(null);
+                  if (u) toggle(u);
+                }}
+                disabled={pending || !deleteFor.active}
+              >
+                <Power className="h-3.5 w-3.5" /> Désactiver plutôt
+              </Button>
+              <button
+                onClick={confirmDelete}
+                disabled={
+                  pending ||
+                  deleteConfirmText.trim().toLowerCase() !==
+                    deleteFor.email.toLowerCase()
+                }
+                className="h-8 px-3 rounded-md bg-pink text-white text-[12.5px] font-semibold inline-flex items-center gap-1.5 hover:bg-pink/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {pending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                Supprimer
+              </button>
             </div>
           </div>
         </div>
@@ -731,16 +889,25 @@ export function UsersTab({
               <StatusPill tone={u.active ? "emerald" : "muted"} dot={false}>
                 {u.active ? "Actif" : "Inactif"}
               </StatusPill>
-              <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                 <Button variant="ghost" size="icon-sm" aria-label="Réinitialiser le mot de passe" title="Réinitialiser le mot de passe" disabled={pending} onClick={() => { setResetFor(u); setResetPwd(suggestPassword()); }}>
                   <KeyRound className="h-3.5 w-3.5" />
                 </Button>
                 <Button variant="ghost" size="icon-sm" aria-label={u.active ? "Désactiver" : "Réactiver"} disabled={pending} onClick={() => toggle(u)}>
                   <Power className="h-3.5 w-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Modifier" disabled={pending} onClick={() => openEdit(u)}>
+                <Button variant="ghost" size="icon-sm" aria-label="Modifier" title="Modifier" disabled={pending} onClick={() => openEdit(u)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
+                <button
+                  aria-label="Supprimer le compte"
+                  title="Supprimer définitivement"
+                  disabled={pending}
+                  onClick={() => openDelete(u)}
+                  className="h-7 w-7 rounded-md inline-flex items-center justify-center text-muted-2 hover:text-pink hover:bg-pink-soft/40 transition-colors disabled:opacity-40"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           );

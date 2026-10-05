@@ -1032,3 +1032,157 @@ export async function createMissingProfileAction(input: {
   revalidatePath("/parametres");
   return { ok: true };
 }
+
+/**
+ * Compte ce qu'un utilisateur a produit dans l'application, pour que
+ * l'admin sache ce qu'il perd avant de supprimer le compte.
+ *
+ * Toutes les clés étrangères pointant vers `profiles` sont en SET NULL
+ * (sauf `notifications`, en CASCADE) : aucune donnée métier n'est donc
+ * détruite par la suppression. En revanche l'attribution disparaît —
+ * « encaissé par Marie » devient « encaissé par — ». C'est précisément
+ * ce que ce décompte sert à rendre visible.
+ */
+export async function countUserReferencesAction(userId: string): Promise<
+  | { ok: true; counts: Record<string, number>; total: number }
+  | { ok: false; message: string }
+> {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+
+  const refs: Array<[string, string, string]> = [
+    ["devis", "commercial_id", "devis créés"],
+    ["devis", "decoratrice_id", "devis suivis"],
+    ["clients", "created_by", "clients créés"],
+    ["payments", "recorded_by", "paiements enregistrés"],
+    ["caisse_tickets", "cashier_id", "tickets de caisse"],
+    ["caisse_closures", "closed_by", "clôtures de caisse"],
+    ["dossier_items", "received_by", "réceptions"],
+    ["dossiers", "poseur_id", "poses assignées"],
+    ["bons_commande", "created_by", "bons de commande"],
+    ["sav_tickets", "created_by", "tickets SAV"],
+  ];
+
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const [table, column, label] of refs) {
+    try {
+      const { count } = await (
+        admin as unknown as {
+          from: (t: string) => {
+            select: (
+              s: string,
+              o: { count: "exact"; head: true },
+            ) => {
+              eq: (
+                c: string,
+                v: string,
+              ) => Promise<{ count: number | null }>;
+            };
+          };
+        }
+      )
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq(column, userId);
+      const n = count ?? 0;
+      if (n > 0) {
+        counts[label] = (counts[label] ?? 0) + n;
+        total += n;
+      }
+    } catch {
+      // Table absente ou colonne renommée : on l'ignore plutôt que de
+      // bloquer tout le décompte.
+    }
+  }
+
+  return { ok: true, counts, total };
+}
+
+/**
+ * Supprime définitivement un compte : la ligne auth.users ET son profil.
+ * Il n'existe aucune cascade entre les deux, les deux suppressions sont
+ * donc explicites — sans quoi on laisserait un profil orphelin.
+ *
+ * Trois garde-fous : réservé aux admins, interdiction de se supprimer
+ * soi-même, et refus de supprimer le dernier administrateur actif (ce
+ * qui rendrait la plateforme inadministrable).
+ */
+export async function deleteUserAction(
+  userId: string,
+): Promise<Result> {
+  const guard = await assertAdmin();
+  if (!guard.ok) return guard;
+
+  const { getEffectiveProfile } = await import("@/lib/db/impersonation");
+  const me = await getEffectiveProfile();
+  if (me?.actualUserId === userId) {
+    return {
+      ok: false,
+      message: "Tu ne peux pas supprimer ton propre compte.",
+    };
+  }
+
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const admin = createServiceRoleClient();
+
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role, email, active")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (target?.role === "admin") {
+    const { count } = await (
+      admin as unknown as {
+        from: (t: string) => {
+          select: (
+            s: string,
+            o: { count: "exact"; head: true },
+          ) => {
+            eq: (
+              c: string,
+              v: string,
+            ) => { eq: (c: string, v: boolean) => Promise<{ count: number | null }> };
+          };
+        };
+      }
+    )
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin")
+      .eq("active", true);
+    if ((count ?? 0) <= 1) {
+      return {
+        ok: false,
+        message:
+          "Impossible : c'est le dernier administrateur actif. Nomme d'abord un autre admin.",
+      };
+    }
+  }
+
+  // 1. Compte d'authentification. Un compte absent côté auth (profil
+  //    orphelin) n'est pas une erreur : on poursuit avec le profil.
+  const { error: authErr } = await admin.auth.admin.deleteUser(userId);
+  if (authErr && !/not found|does not exist/i.test(authErr.message)) {
+    return { ok: false, message: `Suppression auth : ${authErr.message}` };
+  }
+
+  // 2. Profil applicatif (aucune cascade depuis auth.users).
+  const { error: profErr } = await admin
+    .from("profiles")
+    .delete()
+    .eq("id", userId);
+  if (profErr) {
+    return {
+      ok: false,
+      message: `Compte auth supprimé mais profil restant : ${profErr.message}`,
+    };
+  }
+
+  revalidatePath("/parametres");
+  return { ok: true };
+}
