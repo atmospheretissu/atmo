@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { publicOrigin } from "@/lib/http/public-origin";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 /**
@@ -17,9 +18,17 @@ import type { EmailOtpType } from "@supabase/supabase-js";
  * de réinitialisation de mot de passe arrivent en cas 2 ou 3 — ils
  * tombaient donc systématiquement sur `redirect('/?error=auth')`, d'où le
  * « le lien ne donne sur rien » rapporté par David.
+ *
+ * Bug 06/10 : la validation du jeton réussissait, mais la redirection qui
+ * suit était construite sur `new URL(request.url).origin`. Derrière le
+ * proxy Railway cette valeur vaut l'adresse interne du conteneur, et le
+ * visiteur se retrouvait sur `https://localhost:8080/auth/
+ * definir-mot-de-passe`. On passe donc par `publicOrigin`, qui part des
+ * variables d'environnement et des en-têtes du proxy.
  */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = publicOrigin(request);
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
