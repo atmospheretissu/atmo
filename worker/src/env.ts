@@ -34,6 +34,23 @@ export const env = {
   // API Brevo côté worker pour envoyer l'alerte (le worker n'a pas accès
   // à la stack Next.js, donc on tape Brevo directement)
   brevoApiKey: process.env.BREVO_API_KEY,
+  // ── Cron Pennylane (quotidien) ──────────────────────────────────────
+  // Le worker ping l'endpoint /api/cron/pennylane-pull de l'app Next.js.
+  // Sans PENNYLANE_CRON_SECRET, le cron ne démarre pas du tout.
+  pennylaneCronSecret: process.env.PENNYLANE_CRON_SECRET,
+  // Par défaut : tous les jours à 6h00 (heure de Paris), avant l'ouverture.
+  pennylaneCronExpression:
+    process.env.PENNYLANE_CRON_EXPRESSION ?? '0 6 * * *',
+  // Fenêtre de rattrapage : on rescanne les N derniers jours à chaque
+  // passage, ce qui rattrape automatiquement un jour manqué.
+  pennylanePullDays: Number(process.env.PENNYLANE_PULL_DAYS ?? 30),
+  // URL publique de l'app Next.js à appeler.
+  atmoBaseUrl: (
+    process.env.ATMO_BASE_URL ??
+    process.env.ATMO_WEBHOOK_URL?.replace(/\/api\/webhooks\/.*$/, '') ??
+    'https://atmo-production.up.railway.app'
+  ).replace(/\/+$/, ''),
+
   brevoSenderEmail:
     process.env.BREVO_SENDER_EMAIL ?? 'contact@atmospheretissus.fr',
   workerVersion: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? 'dev',

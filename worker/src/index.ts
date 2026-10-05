@@ -1,6 +1,7 @@
 import { logger } from './logger.js';
 import { startHealthServer } from './health.js';
 import { startScheduler } from './scheduler.js';
+import { startPennylaneCron } from './pennylane-cron.js';
 import { startQueuePoller } from './queue.js';
 import { sweepStaleExecutions } from './run.js';
 
@@ -15,6 +16,7 @@ async function main(): Promise<void> {
   );
   await startScheduler();
   startQueuePoller();
+  startPennylaneCron();
   logger.info('atmolead-worker ready');
 }
 
