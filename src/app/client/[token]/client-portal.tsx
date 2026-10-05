@@ -271,6 +271,28 @@ export function ClientPortal({
               />
             </div>
 
+            {/* Référence de virement : affichée tant qu'il reste quelque
+                chose à régler. Sans elle dans le libellé bancaire, le
+                rapprochement automatique ne peut pas se faire. */}
+            {(!acomptePaye || peutPayerSolde) && (
+              <div className="mt-3 rounded-lg border border-line bg-canvas-2/40 p-3">
+                <p className="text-[11px] uppercase tracking-widest font-semibold text-muted-2 mb-1">
+                  Vous préférez payer par virement ?
+                </p>
+                <p className="text-[12.5px] text-ink-2 leading-relaxed mb-2">
+                  Indiquez cette référence dans le libellé :
+                </p>
+                <p className="font-mono text-[17px] font-bold text-ink tracking-wide select-all">
+                  {devis.number}
+                </p>
+                <p className="text-[11.5px] text-muted mt-2 leading-relaxed">
+                  I.B.A.N FR76 1350 7000 1431 4825 3216 404 · B.I.C
+                  CCBPFRPPLIL. Sans cette référence, votre règlement ne pourra
+                  pas être rattaché automatiquement à votre commande.
+                </p>
+              </div>
+            )}
+
             {/* CTA contextuel */}
             <div className="pt-1">
               {/* Si le client vient de payer (retour Stripe ?paid=success) mais

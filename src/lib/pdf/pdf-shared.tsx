@@ -167,10 +167,15 @@ export function ModalitesReglementBlock({
   acomptePct,
   acompteTtc,
   eur,
+  devisNumber,
 }: {
   acomptePct: number;
   acompteTtc: number;
   eur: (n: number) => string;
+  /** Numéro de devis à recopier en libellé de virement. Format
+   *  DEV-AAAA-NNNN : c'est exactement ce que le rapprochement
+   *  automatique Pennylane recherche dans le libellé bancaire. */
+  devisNumber?: string;
 }) {
   return (
     <View
@@ -209,18 +214,66 @@ export function ModalitesReglementBlock({
       <Text style={{ fontSize: FONT_SIZE.body, color: COLORS.text, lineHeight: 1.5 }}>
         Code I.B.A.N : {COMPANY.iban}
       </Text>
-      <Text
-        style={{
-          fontSize: FONT_SIZE.small,
-          fontFamily: "Helvetica-Bold",
-          color: COLORS.ink,
-          marginTop: SPACING.sm,
-          lineHeight: 1.4,
-        }}
-      >
-        MERCI D&apos;INDIQUER LE NUMÉRO DE DEVIS DANS LE LIBELLÉ DE L&apos;ORDRE
-        DE VIREMENT DE L&apos;ACOMPTE.
-      </Text>
+      {/* On affiche le numéro EN CLAIR : la mention seule obligeait le
+          client à aller le chercher ailleurs dans le document, et sans
+          lui dans le libellé le rapprochement bancaire automatique ne
+          peut pas fonctionner. */}
+      {devisNumber ? (
+        <View
+          style={{
+            marginTop: SPACING.sm,
+            padding: SPACING.sm,
+            border: `1px solid ${COLORS.ink}`,
+            borderRadius: 3,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: FONT_SIZE.small,
+              fontFamily: "Helvetica-Bold",
+              color: COLORS.ink,
+              lineHeight: 1.4,
+            }}
+          >
+            LIBELLÉ DU VIREMENT À RECOPIER :
+          </Text>
+          <Text
+            style={{
+              fontSize: FONT_SIZE.h2,
+              fontFamily: "Helvetica-Bold",
+              color: COLORS.ink,
+              marginTop: 2,
+              letterSpacing: 1,
+            }}
+          >
+            {devisNumber}
+          </Text>
+          <Text
+            style={{
+              fontSize: FONT_SIZE.small,
+              color: COLORS.textMuted,
+              marginTop: 2,
+              lineHeight: 1.4,
+            }}
+          >
+            Sans cette référence, votre règlement ne pourra pas être
+            rattaché automatiquement à votre commande.
+          </Text>
+        </View>
+      ) : (
+        <Text
+          style={{
+            fontSize: FONT_SIZE.small,
+            fontFamily: "Helvetica-Bold",
+            color: COLORS.ink,
+            marginTop: SPACING.sm,
+            lineHeight: 1.4,
+          }}
+        >
+          MERCI D&apos;INDIQUER LE NUMÉRO DE DEVIS DANS LE LIBELLÉ DE
+          L&apos;ORDRE DE VIREMENT DE L&apos;ACOMPTE.
+        </Text>
+      )}
       <Text
         style={{
           fontSize: FONT_SIZE.small,

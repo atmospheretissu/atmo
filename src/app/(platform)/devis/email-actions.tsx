@@ -171,6 +171,25 @@ export async function sendDevisEmailAction(
         à la commande, le solde est dû avant la pose.
       </p>
       ${ctaHtml}
+      <!-- Référence de virement affichée en clair : sans elle dans le
+           libellé bancaire, le règlement ne peut pas être rattaché
+           automatiquement à la commande. -->
+      <div style="border:2px solid #111111;border-radius:8px;padding:14px;margin:16px 0;background:#fafafa">
+        <div style="font-size:10.5px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">
+          Si vous réglez par virement
+        </div>
+        <div style="font-size:12.5px;color:#374151;line-height:1.5;margin-bottom:8px">
+          Indiquez cette référence dans le libellé :
+        </div>
+        <div style="font-family:monospace;font-size:20px;font-weight:bold;color:#111111;letter-spacing:1px">
+          ${devis.number}
+        </div>
+        <div style="font-size:11.5px;color:#6b7280;line-height:1.5;margin-top:8px">
+          I.B.A.N FR76 1350 7000 1431 4825 3216 404 — B.I.C CCBPFRPPLIL<br/>
+          Sans cette référence, votre règlement ne pourra pas être rattaché
+          automatiquement et sa validation prendra plus de temps.
+        </div>
+      </div>
       <p style="margin:16px 0">
         <a href="${pdfLink}" style="display:inline-block;padding:10px 16px;background:#111111;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Télécharger le PDF du devis</a>
       </p>
@@ -193,7 +212,12 @@ Voici votre devis ${devis.number} pour ${devis.product_summary}.
 Total TTC : ${eur(totalTtc)}
 Acompte 50% à la validation : ${eur(acompte)}
 
-${signatureLink ? `Signer et payer l'acompte en ligne :\n${signatureLink}\n\n` : portalLink ? `Voir mon devis et payer en ligne :\n${portalLink}\n\n` : stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}PDF détaillé en pièce jointe.
+${signatureLink ? `Signer et payer l'acompte en ligne :\n${signatureLink}\n\n` : portalLink ? `Voir mon devis et payer en ligne :\n${portalLink}\n\n` : stripeUrl ? `Accepter et payer l'acompte en ligne :\n${stripeUrl}\n\n` : ""}SI VOUS RÉGLEZ PAR VIREMENT
+Libellé à indiquer : ${devis.number}
+I.B.A.N FR76 1350 7000 1431 4825 3216 404 — B.I.C CCBPFRPPLIL
+Sans cette référence, votre règlement ne pourra pas être rattaché automatiquement.
+
+PDF détaillé en pièce jointe.
 
 L'équipe Atmosphère Tissus`;
 

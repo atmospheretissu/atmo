@@ -128,6 +128,7 @@ export default async function SignDevisPage({
               car la page basculait vers la vue "déjà signé", démontant SignForm. */}
           <SignForm
             token={token}
+            devisNumber={devis.number}
             initialSignedAt={signed.signed_at ?? null}
             initialSignedByName={signed.signed_by_name ?? null}
             devisPaid={devis.status === "acompte_recu" || devis.status === "solde_recu"}

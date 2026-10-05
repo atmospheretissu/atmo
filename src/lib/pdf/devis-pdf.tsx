@@ -661,6 +661,7 @@ export function DevisPDF({
           acomptePct={acomptePct}
           acompteTtc={acompte}
           eur={eur}
+          devisNumber={devis.number}
         />
 
         {/* Preuve de signature électronique (si signé) */}

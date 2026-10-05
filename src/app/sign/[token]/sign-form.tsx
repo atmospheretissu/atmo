@@ -20,11 +20,16 @@ const CHOICE_LABEL: Record<Exclude<PaymentChoice, "cb">, string> = {
 
 export function SignForm({
   token,
+  devisNumber,
   initialSignedAt = null,
   initialSignedByName = null,
   devisPaid = false,
 }: {
   token: string;
+  /** Numéro du devis (DEV-AAAA-NNNN) à recopier en libellé de virement :
+   *  c'est la référence que le rapprochement bancaire automatique
+   *  recherche. Sans elle, le règlement doit être pointé à la main. */
+  devisNumber: string;
   initialSignedAt?: string | null;
   initialSignedByName?: string | null;
   devisPaid?: boolean;
@@ -110,25 +115,40 @@ export function SignForm({
           </p>
         </div>
         {method === "virement" && (
-          <p className="text-[12.5px] text-muted leading-relaxed">
-            <strong>RIB à utiliser :</strong> Code B.I.C CCBPFRPPLIL — Code
-            I.B.A.N FR76 1350 7000 1431 4825 3216 404. Merci d&apos;indiquer le
-            numéro de devis dans le libellé du virement.
-          </p>
+          <div className="space-y-2.5">
+            <p className="text-[12.5px] text-muted leading-relaxed">
+              <strong>RIB à utiliser :</strong> Code B.I.C CCBPFRPPLIL — Code
+              I.B.A.N FR76 1350 7000 1431 4825 3216 404.
+            </p>
+            <div className="rounded-lg border-2 border-ink bg-canvas-2/50 p-3">
+              <p className="text-[10.5px] uppercase tracking-widest font-semibold text-muted-2 mb-1">
+                Libellé du virement à recopier
+              </p>
+              <p className="font-mono text-[18px] font-bold text-ink tracking-wide select-all">
+                {devisNumber}
+              </p>
+              <p className="text-[11.5px] text-muted mt-1.5 leading-relaxed">
+                Recopiez cette référence exactement. Sans elle, votre
+                règlement ne pourra pas être rattaché automatiquement à
+                votre commande et sa validation prendra plus de temps.
+              </p>
+            </div>
+          </div>
         )}
         {method === "cheque" && (
           <p className="text-[12.5px] text-muted leading-relaxed">
             <strong>Chèque à l&apos;ordre de :</strong> Atmosphère Tissus — à
             remettre au magasin ou à envoyer au 1 rue de l&apos;Union, Village
-            des Voiles, 59520 Marquette-lez-Lille. Indiquez le numéro de devis
-            au dos.
+            des Voiles, 59520 Marquette-lez-Lille. Indiquez la référence{" "}
+            <strong className="font-mono">{devisNumber}</strong> au dos.
           </p>
         )}
         {method === "especes" && (
           <p className="text-[12.5px] text-muted leading-relaxed">
             <strong>Paiement en espèces :</strong> présentez-vous au magasin (1
-            rue de l&apos;Union, Marquette-lez-Lille) muni du numéro de devis.
-            Horaires : mardi-samedi 10h-19h.
+            rue de l&apos;Union, Marquette-lez-Lille) en indiquant la référence{" "}
+            <strong className="font-mono">{devisNumber}</strong>. Horaires :
+            mardi-samedi 10h-19h.
           </p>
         )}
       </div>
