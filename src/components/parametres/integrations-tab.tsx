@@ -79,7 +79,8 @@ export function IntegrationsTab({
       env: envFlags.pennylane ? "Production" : "Non configuré",
       icon: "🏛",
       iconBg: "from-yellow to-orange",
-      envVarHint: "PENNYLANE_API_KEY",
+      envVarHint:
+        "PENNYLANE_TOKEN_CUSTOMERS, PENNYLANE_TOKEN_INVOICES, PENNYLANE_TOKEN_TRANSACTIONS",
       docUrl: "https://pennylane.com",
     },
     {

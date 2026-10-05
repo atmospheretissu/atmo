@@ -62,7 +62,13 @@ export default async function ParametresPage() {
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
     brevoEmail: Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL),
     brevoSms: Boolean(process.env.BREVO_API_KEY),
-    pennylane: Boolean(process.env.PENNYLANE_API_KEY),
+    // Le client Pennylane (lib/pennylane/client.ts) lit UN TOKEN PAR SCOPE,
+    // jamais PENNYLANE_API_KEY. S'appuyer sur cette dernière faisait
+    // afficher « Connecté » alors qu'aucun appel ne pouvait aboutir.
+    pennylane: Boolean(
+      process.env.PENNYLANE_TOKEN_CUSTOMERS &&
+        process.env.PENNYLANE_TOKEN_INVOICES,
+    ),
   };
 
   return (
