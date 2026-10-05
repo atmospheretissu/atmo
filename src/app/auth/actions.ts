@@ -49,11 +49,15 @@ export async function sendMagicLink(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { error: "Email requis.", email };
 
+  // appBaseUrl garantit une URL absolue : `NEXT_PUBLIC_APP_URL ?? ""`
+  // produisait sinon un redirect relatif « /auth/callback », que Supabase
+  // remplace par son Site URL.
+  const { appBaseUrl } = await import("@/lib/auth/action-link");
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/auth/callback`,
+      emailRedirectTo: `${appBaseUrl()}/auth/callback`,
       shouldCreateUser: false, // admin-only invites
     },
   });
@@ -78,25 +82,32 @@ export async function requestPasswordResetAction(
     return { ok: false, message: "Adresse email invalide." };
   }
 
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.RAILWAY_PUBLIC_DOMAIN
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : "https://atmo-production.up.railway.app");
-  const appUrl = raw.startsWith("http")
-    ? raw.replace(/\/+$/, "")
-    : `https://${raw.replace(/\/+$/, "")}`;
-
   try {
-    const supabase = await createClient();
-    await supabase.auth.resetPasswordForEmail(trimmed, {
-      redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(
-        "/auth/definir-mot-de-passe",
-      )}`,
-    });
-  } catch {
+    // `resetPasswordForEmail` déléguait la construction du lien à
+    // Supabase, qui remplace le redirectTo demandé par le « Site URL » du
+    // projet quand il n'est pas dans sa liste blanche. Celui-ci valait
+    // encore https://localhost:8080 : les mails de réinitialisation
+    // envoyaient donc les utilisateurs sur une adresse locale. On
+    // fabrique le lien nous-mêmes et on l'envoie par Brevo.
+    const { buildAuthActionLink, sendAuthActionLinkEmail } = await import(
+      "@/lib/auth/action-link"
+    );
+    const built = await buildAuthActionLink({ email: trimmed, kind: "recovery" });
+    if (built.ok) {
+      await sendAuthActionLinkEmail({
+        email: trimmed,
+        link: built.link,
+        kind: "recovery",
+      });
+    } else {
+      // Adresse inconnue, le plus souvent. On le trace côté serveur sans
+      // rien en dire au visiteur.
+      console.info("[reset] demande sans effet", trimmed, built.message);
+    }
+  } catch (err) {
     // On avale aussi les erreurs techniques : les signaler reviendrait à
-    // distinguer « compte inexistant » de « quota SMTP atteint ».
+    // distinguer « compte inexistant » de « panne d'envoi ».
+    console.warn("[reset] échec technique", err);
   }
   return { ok: true };
 }

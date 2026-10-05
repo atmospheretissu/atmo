@@ -785,20 +785,20 @@ export async function inviteUserAction(input: {
   const { createServiceRoleClient } = await import("@/lib/supabase/server");
   const supabaseAdmin = createServiceRoleClient();
 
-  const redirectTo =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.RAILWAY_PUBLIC_DOMAIN
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : "https://atmospheretissus.fr");
-
-  // 1. Invite via email (crée user + envoie magic link)
-  const { data: invited, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-    email,
-    { redirectTo: `${redirectTo}/auth/callback` },
+  // 1. Crée le compte et fabrique le lien d'invitation.
+  //
+  // `inviteUserByEmail` faisait les deux d'un coup, mais confiait l'envoi
+  // au SMTP Supabase (3 mails/heure en offre gratuite) et construisait le
+  // lien depuis le « Site URL » du projet — resté sur sa valeur par défaut
+  // https://localhost:8080, d'où des invitations inexploitables. On passe
+  // par notre helper et par Brevo.
+  const { buildAuthActionLink, sendAuthActionLinkEmail } = await import(
+    "@/lib/auth/action-link"
   );
-
-  if (inviteErr) return { ok: false, message: inviteErr.message };
-  if (!invited?.user) return { ok: false, message: "Échec de l'invitation" };
+  const built = await buildAuthActionLink({ email, kind: "invite" });
+  if (!built.ok) return { ok: false, message: built.message };
+  if (!built.userId) return { ok: false, message: "Échec de l'invitation" };
+  const invited = { user: { id: built.userId } };
 
   // 2. Crée le profil (ou met à jour si l'user existait déjà)
   const { error: profileErr } = await supabaseAdmin.from("profiles").upsert(
@@ -817,6 +817,24 @@ export async function inviteUserAction(input: {
     return { ok: false, message: `User créé mais profil échec : ${profileErr.message}` };
   }
 
+  // 3. Envoie l'invitation. Un échec d'envoi ne doit pas annuler la
+  // création du compte : l'admin pourra toujours recopier un lien depuis
+  // l'onglet Utilisateurs.
+  const sent = await sendAuthActionLinkEmail({
+    email,
+    link: built.link,
+    kind: "invite",
+    fullName: input.full_name.trim(),
+  });
+  if (!sent.ok) {
+    console.warn("[invite] compte créé mais mail non envoyé", sent.message);
+    revalidatePath("/parametres");
+    return {
+      ok: false,
+      message: `Compte créé, mais l'email n'a pas pu partir (${sent.message}). Utilise « Copier le lien » pour le transmettre.`,
+    };
+  }
+
   revalidatePath("/parametres");
   return { ok: true, userId: invited.user.id };
 }
@@ -830,17 +848,24 @@ export async function sendPasswordResetAction(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
     return { ok: false, message: "Email invalide" };
   }
-  const redirectTo =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.RAILWAY_PUBLIC_DOMAIN
-      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-      : "https://atmospheretissus.fr");
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-    redirectTo: `${redirectTo}/auth/callback?reset=1`,
+  // Lien fabriqué et envoyé par nous (voir @/lib/auth/action-link) : ni le
+  // Site URL de Supabase ni son quota SMTP de 3 mails/heure n'entrent plus
+  // en jeu.
+  const { buildAuthActionLink, sendAuthActionLinkEmail } = await import(
+    "@/lib/auth/action-link"
+  );
+  const built = await buildAuthActionLink({
+    email: email.trim().toLowerCase(),
+    kind: "recovery",
   });
-  if (error) return { ok: false, message: error.message };
+  if (!built.ok) return built;
+
+  const sent = await sendAuthActionLinkEmail({
+    email: email.trim().toLowerCase(),
+    link: built.link,
+    kind: "recovery",
+  });
+  if (!sent.ok) return sent;
   return { ok: true };
 }
 
@@ -985,22 +1010,15 @@ export async function generateAuthLinkAction(input: {
     return { ok: false, message: "Email invalide." };
   }
 
-  const { createServiceRoleClient } = await import("@/lib/supabase/server");
-  const admin = createServiceRoleClient();
-  const redirectTo = `${publicAppUrl()}/auth/callback?next=${encodeURIComponent(
-    "/auth/definir-mot-de-passe",
-  )}`;
-
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: input.kind,
-    email,
-    options: { redirectTo },
-  });
-  if (error) return { ok: false, message: error.message };
-
-  const link = data?.properties?.action_link;
-  if (!link) return { ok: false, message: "Lien non généré par Supabase." };
-  return { ok: true, link };
+  // On n'utilise plus `properties.action_link` : Supabase le construit à
+  // partir du « Site URL » du projet quand le redirectTo demandé n'est pas
+  // dans sa liste blanche, et renvoyait donc des liens vers
+  // https://localhost:8080 (constaté en prod le 06/10). Le helper
+  // reconstruit l'URL depuis le hashed_token, sur notre domaine.
+  const { buildAuthActionLink } = await import("@/lib/auth/action-link");
+  const built = await buildAuthActionLink({ email, kind: input.kind });
+  if (!built.ok) return built;
+  return { ok: true, link: built.link };
 }
 
 /**

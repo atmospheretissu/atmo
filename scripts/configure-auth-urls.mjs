@@ -7,7 +7,8 @@
  * Usage:
  *   SUPABASE_ACCESS_TOKEN=sbp_xxx \
  *   SUPABASE_PROJECT_REF=mryvgigwmbuusbxzgoym \
- *   PROD_URL=https://atmo.up.railway.app \
+ *   PROD_URL=https://atmo-production.up.railway.app \
+ *   DEV_URL=https://atmo-dev.up.railway.app \
  *   node scripts/configure-auth-urls.mjs
  *
  * Le SUPABASE_ACCESS_TOKEN (PAT) se génère sur:
@@ -16,10 +17,11 @@
  * ⚠ Alternative: tu peux faire cette config manuellement dans le dashboard :
  *   Project Settings → Authentication → URL Configuration
  *     - Site URL: <PROD_URL>
- *     - Redirect URLs:
- *         http://localhost:3000/auth/callback
- *         http://localhost:3001/auth/callback
- *         <PROD_URL>/auth/callback
+ *     - Redirect URLs (jokers indispensables, voir plus bas) :
+ *         http://localhost:3000/**
+ *         http://localhost:3001/**
+ *         <PROD_URL>/**
+ *         <DEV_URL>/**
  */
 
 const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -35,14 +37,23 @@ if (!token) bail("Manque SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/a
 if (!ref) bail("Manque SUPABASE_PROJECT_REF (ex: mryvgigwmbuusbxzgoym)");
 if (!prodUrl) bail("Manque PROD_URL (ex: https://atmo-production.up.railway.app)");
 
+// Supabase compare l'URL COMPLÈTE à cette liste. Nos liens portent un
+// query param (`/auth/callback?next=/auth/definir-mot-de-passe`), un
+// motif exact sur `/auth/callback` ne suffit donc pas : il faut un
+// joker. Sans correspondance, Supabase ignore le redirectTo demandé et
+// renvoie sur le Site URL — d'où les liens vers localhost:8080 observés
+// le 06/10 sur les emails de réinitialisation.
+const devUrl = process.env.DEV_URL ?? null;
 const redirectUrls = [
-  "http://localhost:3000/auth/callback",
-  "http://localhost:3001/auth/callback",
-  `${prodUrl}/auth/callback`,
+  "http://localhost:3000/**",
+  "http://localhost:3001/**",
+  `${prodUrl}/**`,
+  ...(devUrl ? [`${devUrl}/**`] : []),
 ];
 
 console.log(`→ Configuration Supabase Auth pour le projet ${ref}…`);
 console.log(`  Site URL    : ${prodUrl}`);
+console.log(`  (le Site URL sert de repli quand aucun motif ne correspond)`);
 console.log(`  Redirect URLs:`);
 for (const u of redirectUrls) console.log(`    - ${u}`);
 console.log("");
