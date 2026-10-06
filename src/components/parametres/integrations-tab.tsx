@@ -81,7 +81,10 @@ export function IntegrationsTab({
       iconBg: "from-yellow to-orange",
       envVarHint:
         "PENNYLANE_TOKEN_CUSTOMERS, PENNYLANE_TOKEN_INVOICES, PENNYLANE_TOKEN_TRANSACTIONS",
-      docUrl: "https://pennylane.com",
+      // pennylane.com est le site commercial, pas l'application : le lien
+      // « Dashboard » y envoyait l'utilisateur sur une page de vente.
+      // Signalé par Pierre-Edouard le 06/10.
+      docUrl: "https://app.pennylane.com",
     },
     {
       name: "Leroy Merlin · API leads",

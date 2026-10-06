@@ -73,6 +73,72 @@ export function ItemReceptionMenu({
   const isReceived = status === "recu";
   const isAtelier = status === "confection";
 
+  // La modale de choix d'atelier sert dans deux états : avant l'envoi
+  // (choix initial) et pendant la confection (transfert vers un autre
+  // atelier). Elle est donc définie une fois et rendue dans les deux.
+  const atelierModal = atelierModalOpen ? (
+  
+      <div
+        className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={() => setAtelierModalOpen(false)}
+      >
+        <div
+          className="bg-white rounded-lg shadow-xl max-w-md w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-4 border-b border-line flex items-center justify-between">
+            <div>
+              <p className="text-[14px] font-semibold text-ink">
+                {isAtelier ? "Changer l'atelier" : "Choisir l'atelier"}
+              </p>
+              <p className="text-[11.5px] text-muted mt-0.5">
+                {isAtelier
+                  ? "La ligne sera transférée dans l'atelier sélectionné."
+                  : "Cette ligne partira dans l'atelier sélectionné."}
+              </p>
+            </div>
+            <button
+              onClick={() => setAtelierModalOpen(false)}
+              className="h-7 w-7 rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2 inline-flex items-center justify-center"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="p-2 max-h-[50vh] overflow-y-auto">
+            {ateliers.map((a) => {
+              const isDefault = a.id === defaultAtelierId;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() =>
+                    apply("confection", { atelierId: a.id })
+                  }
+                  disabled={pending}
+                  className="w-full text-left px-3 py-2.5 rounded-md hover:bg-violet-soft/40 transition-colors inline-flex items-center justify-between disabled:opacity-50"
+                >
+                  <span className="text-[13px] font-medium text-ink">
+                    {a.name}
+                  </span>
+                  {isDefault && (
+                    <span className="text-[10.5px] text-muted-2 uppercase tracking-wider">
+                      défaut dossier
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => apply("confection", { atelierId: null })}
+              disabled={pending}
+              className="w-full text-left px-3 py-2.5 rounded-md hover:bg-canvas-2 transition-colors text-[13px] text-muted italic disabled:opacity-50"
+            >
+              Envoyer sans préciser d'atelier
+            </button>
+          </div>
+        </div>
+      </div>
+  ) : null;
+
   if (isReceived) {
     return (
       <div className="inline-flex items-center gap-2">
@@ -113,6 +179,17 @@ export function ItemReceptionMenu({
             </span>
           )}
         </span>
+        {ateliers.length > 0 && (
+          <button
+            onClick={() => setAtelierModalOpen(true)}
+            disabled={pending}
+            title="Changer l'atelier de cette ligne"
+            className="h-8 px-2.5 rounded-md inline-flex items-center gap-1.5 text-[11.5px] font-semibold border border-violet/30 bg-violet-soft/40 text-violet-strong hover:bg-violet-soft/70 transition-colors disabled:opacity-50"
+          >
+            <Scissors className="h-3.5 w-3.5" strokeWidth={2.4} />
+            {currentAtelierName ? "Changer d'atelier" : "Choisir l'atelier"}
+          </button>
+        )}
         <button
           onClick={() =>
             apply("recu", {
@@ -132,6 +209,7 @@ export function ItemReceptionMenu({
           Confection terminée
         </button>
         {error && <span className="text-[11px] text-pink">{error}</span>}
+        {atelierModal}
       </div>
     );
   }
@@ -140,7 +218,19 @@ export function ItemReceptionMenu({
   return (
     <div className="inline-flex items-center gap-2 flex-wrap">
       <button
-        onClick={() => apply(needsConfection ? "confection" : "recu")}
+        onClick={() => {
+          // Régression signalée par Pierre-Edouard (06/10) : depuis que ces
+          // lignes passent par l'atelier, « Tissu reçu » basculait
+          // directement en confection SANS demander l'atelier, alors que
+          // l'ancien parcours (« Envoyer en confection ») l'ouvrait. On ne
+          // pouvait donc plus choisir l'atelier à la ligne, seulement au
+          // dossier. Le choix est rendu ici.
+          if (needsConfection && ateliers.length > 0) {
+            setAtelierModalOpen(true);
+            return;
+          }
+          apply(needsConfection ? "confection" : "recu");
+        }}
         disabled={pending}
         title={
           needsConfection
@@ -184,64 +274,8 @@ export function ItemReceptionMenu({
           ou scanne {qrCode}
         </span>
       )}
+      {atelierModal}
 
-      {atelierModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setAtelierModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-4 border-b border-line flex items-center justify-between">
-              <div>
-                <p className="text-[14px] font-semibold text-ink">Choisir l'atelier</p>
-                <p className="text-[11.5px] text-muted mt-0.5">
-                  Cette ligne partira dans l'atelier sélectionné.
-                </p>
-              </div>
-              <button
-                onClick={() => setAtelierModalOpen(false)}
-                className="h-7 w-7 rounded-md text-muted-2 hover:text-ink hover:bg-canvas-2 inline-flex items-center justify-center"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-2 max-h-[50vh] overflow-y-auto">
-              {ateliers.map((a) => {
-                const isDefault = a.id === defaultAtelierId;
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() =>
-                      apply("confection", { atelierId: a.id })
-                    }
-                    disabled={pending}
-                    className="w-full text-left px-3 py-2.5 rounded-md hover:bg-violet-soft/40 transition-colors inline-flex items-center justify-between disabled:opacity-50"
-                  >
-                    <span className="text-[13px] font-medium text-ink">
-                      {a.name}
-                    </span>
-                    {isDefault && (
-                      <span className="text-[10.5px] text-muted-2 uppercase tracking-wider">
-                        défaut dossier
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => apply("confection", { atelierId: null })}
-                disabled={pending}
-                className="w-full text-left px-3 py-2.5 rounded-md hover:bg-canvas-2 transition-colors text-[13px] text-muted italic disabled:opacity-50"
-              >
-                Envoyer sans préciser d'atelier
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
