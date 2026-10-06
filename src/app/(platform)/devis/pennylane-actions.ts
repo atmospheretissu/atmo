@@ -48,11 +48,18 @@ export async function verifyDevisOnPennylaneAction(
     !settings.push_invoice_enabled &&
     !settings.pull_reconciliation_enabled
   ) {
+    // « Aucun flux actif » était faux et c'est ce qui a dérouté
+    // Pierre-Edouard : la lecture des virements bancaires, elle, tourne
+    // toutes les heures. Ce bouton ne regarde que les deux flux liés aux
+    // factures. On dit donc lequel marche et lesquels dorment, plutôt que
+    // de laisser croire que Pennylane est hors service.
+    const wireOn = settings.auto_reconcile_by_wire_label;
     return {
       ok: true,
       disabled: true,
-      message:
-        "La synchronisation avec Pennylane est désactivée : aucune facture n'est envoyée ni relue pour le moment. Rien d'anormal — il n'y a donc rien à vérifier pour ce devis.",
+      message: wireOn
+        ? "Les factures ne sont pas encore synchronisées avec Pennylane : elles n'y sont ni envoyées ni relues. Il n'y a donc rien à vérifier pour ce devis. En revanche la lecture des virements bancaires, elle, fonctionne : les paiements portant un numéro de devis en libellé sont rapprochés automatiquement chaque heure."
+        : "La synchronisation avec Pennylane est entièrement désactivée : aucune facture n'est envoyée ni relue, et les virements bancaires ne sont pas lus.",
       settingsHint: true,
     };
   }
