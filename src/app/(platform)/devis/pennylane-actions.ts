@@ -18,7 +18,7 @@ export type VerifyResult =
         method?: string;
       }>;
     }
-  | { ok: true; disabled: true; message: string }
+  | { ok: true; disabled: true; message: string; settingsHint?: boolean }
   | { ok: false; message: string };
 
 /**
@@ -31,11 +31,17 @@ export async function verifyDevisOnPennylaneAction(
 ): Promise<VerifyResult> {
   const cfg = isPennylaneConfigured();
   const settings = await getPennylaneSettings();
+  // Ces deux messages s'affichent tels quels dans une fenêtre, à des gens
+  // qui ne connaissent ni nos noms de variables ni nos noms de bascules.
+  // Pierre-Edouard est tombé dessus le 06/10 et a demandé « c'est
+  // normal ? » — la réponse était oui, mais rien dans le message ne le
+  // disait ni n'indiquait quoi faire.
   if (!cfg.invoices) {
     return {
       ok: true,
       disabled: true,
-      message: "Pennylane non configuré (token invoices absent)",
+      message:
+        "La connexion à Pennylane n'est pas encore en place sur ce serveur. Rien à faire depuis l'outil : c'est une clé d'accès à installer.",
     };
   }
   if (
@@ -46,7 +52,8 @@ export async function verifyDevisOnPennylaneAction(
       ok: true,
       disabled: true,
       message:
-        "Aucun flux Pennylane actif (active push_invoice OU pull dans les paramètres)",
+        "La synchronisation avec Pennylane est désactivée : aucune facture n'est envoyée ni relue pour le moment. Rien d'anormal — il n'y a donc rien à vérifier pour ce devis.",
+      settingsHint: true,
     };
   }
 

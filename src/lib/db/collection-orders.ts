@@ -1,175 +1,166 @@
 /**
- * Suivi des commandes Collection Atmosphère.
+ * Lecture du suivi des commandes Collection Atmosphère.
  *
- * L'onglet Collection montrait le catalogue des produits semi-finis. Ce
- * que David veut y voir (06/10/2026), c'est le suivi des commandes :
- * dès qu'un client accepte un devis, les articles issus de la Collection
- * doivent apparaître dans un tableau partagé avec l'usine.
- *
- * Aucune table nouvelle : l'acceptation d'un devis crée déjà un dossier
- * et ses `dossier_items`, dont ceux marqués `collection = true`. On lit
- * donc ces lignes, enrichies de leur dossier (client, échéance, atelier)
- * et de leur fournisseur de tissu.
- *
- * Les dates propres à l'usine (arrivée du tissu, départ des confections)
- * et le commentaire SAV sont portés par la ligne — migration
- * 20261006140000.
+ * La table `collection_orders` réunit deux origines : le suivi repris de
+ * l'existant (185 commandes, Pologne et Ukraine) et les commandes créées
+ * automatiquement quand un client accepte un devis portant un article
+ * Collection. Voir la migration 20261006180000.
  */
 
-import { createClient } from "@/lib/supabase/server";
-import {
-  type CollectionOrder,
-  type CollectionStatut,
-  joursDeRetard,
-  toStatut,
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import type {
+  CollectionOrder,
+  CollectionSource,
+  CollectionStatut,
 } from "@/lib/collection/order-model";
 
-export type { CollectionOrder, CollectionStatut };
-export { joursDeRetard };
+export type {
+  CollectionOrder,
+  CollectionSource,
+  CollectionStatut,
+} from "@/lib/collection/order-model";
 
 type Row = {
   id: string;
-  dossier_id: string;
-  label: string;
+  source: string;
+  statut: string;
   ref: string | null;
-  status: string;
-  qty: number;
-  unit_label: string;
-  notes: string | null;
-  matiere: string | null;
-  atelier_id: string | null;
-  atelier_sent_at: string | null;
-  expected_at: string | null;
-  received_at: string | null;
-  collection_tissu_recu_at: string | null;
-  collection_expedie_at: string | null;
-  sav_comment: string | null;
-  supplier_id: string | null;
-  dossiers: {
-    id: string;
-    number: string;
-    devis_id: string | null;
-    client_id: string;
-    created_at: string;
-    atelier_id: string | null;
-    atelier_deadline_at: string | null;
-    clients: { display_name: string } | null;
-    ateliers: { name: string } | null;
-  } | null;
-  suppliers: { name: string } | null;
-  ateliers: { name: string } | null;
+  client_name: string;
+  client_id: string | null;
+  devis_id: string | null;
+  dossier_id: string | null;
+  date_commande: string | null;
+  atelier: string | null;
+  description: string | null;
+  fournisseur: string | null;
+  date_envoi: string | null;
+  date_prevue: string | null;
+  date_butoir: string | null;
+  retard_source: string | null;
+  date_reception: string | null;
+  date_reception_tissu: string | null;
+  date_expedition_usine: string | null;
+  commentaire: string | null;
+  commentaire_sav: string | null;
 };
 
-/** Ne garde que la date (YYYY-MM-DD) d'un timestamp ou d'une date. */
-function dateOnly(v: string | null): string | null {
-  return v ? v.slice(0, 10) : null;
+function toOrder(r: Row): CollectionOrder {
+  return {
+    id: r.id,
+    source: (r.source as CollectionSource) ?? "manuel",
+    statut: (r.statut as CollectionStatut) ?? "En cours",
+    ref: r.ref,
+    clientName: r.client_name,
+    clientId: r.client_id,
+    devisId: r.devis_id,
+    dossierId: r.dossier_id,
+    dateCommande: r.date_commande,
+    atelier: r.atelier,
+    description: r.description,
+    fournisseur: r.fournisseur,
+    dateEnvoi: r.date_envoi,
+    datePrevue: r.date_prevue,
+    dateButoir: r.date_butoir,
+    retardSource: r.retard_source,
+    dateReception: r.date_reception,
+    dateReceptionTissu: r.date_reception_tissu,
+    dateExpeditionUsine: r.date_expedition_usine,
+    commentaire: r.commentaire,
+    commentaireSav: r.commentaire_sav,
+  };
 }
+
+const SELECT =
+  "id, source, statut, ref, client_name, client_id, devis_id, dossier_id, " +
+  "date_commande, atelier, description, fournisseur, date_envoi, date_prevue, " +
+  "date_butoir, retard_source, date_reception, date_reception_tissu, " +
+  "date_expedition_usine, commentaire, commentaire_sav";
 
 export async function listCollectionOrders(): Promise<CollectionOrder[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("dossier_items")
-    .select(
-      `id, dossier_id, label, ref, status, qty, unit_label, notes, matiere,
-       atelier_id, atelier_sent_at, expected_at, received_at,
-       collection_tissu_recu_at, collection_expedie_at, sav_comment, supplier_id,
-       dossiers!inner ( id, number, devis_id, client_id, created_at, atelier_id,
-                        atelier_deadline_at, clients ( display_name ),
-                        ateliers ( name ) ),
-       suppliers ( name ),
-       ateliers ( name )`,
-    )
-    .eq("collection", true)
-    .order("created_at", { ascending: false });
-
+    .from("collection_orders")
+    .select(SELECT)
+    // Les plus récentes d'abord ; celles sans date de commande en queue
+    // plutôt qu'en tête, pour ne pas polluer le haut du tableau.
+    .order("date_commande", { ascending: false, nullsFirst: false })
+    .order("client_name", { ascending: true });
   if (error) throw error;
-
-  return ((data ?? []) as unknown as Row[]).map((r) => {
-    const dossier = r.dossiers;
-    const dateReception = dateOnly(r.received_at);
-    const rawStatus = r.status;
-    return {
-      itemId: r.id,
-      dossierId: r.dossier_id,
-      dossierNumber: dossier?.number ?? "—",
-      devisId: dossier?.devis_id ?? null,
-      ref: r.ref?.trim() || dossier?.number || "—",
-      clientId: dossier?.client_id ?? "",
-      clientName: dossier?.clients?.display_name ?? "—",
-      rawStatus,
-      statut: toStatut(rawStatus, dateReception),
-      label: r.label,
-      notes: r.notes,
-      matiere: r.matiere,
-      qty: r.qty,
-      unitLabel: r.unit_label,
-      // L'atelier de la ligne prime sur celui du dossier : une ligne peut
-      // partir chez un atelier différent (choix par ligne en confection).
-      atelierId: r.atelier_id ?? dossier?.atelier_id ?? null,
-      // Même repli que pour l'identifiant : l'atelier de la ligne d'abord,
-      // celui du dossier ensuite.
-      atelierName: r.ateliers?.name ?? dossier?.ateliers?.name ?? null,
-      supplierName: r.suppliers?.name ?? null,
-      dateCommande: dateOnly(dossier?.created_at ?? null),
-      dateEnvoiAtelier: dateOnly(r.atelier_sent_at),
-      datePrevue: dateOnly(r.expected_at),
-      dateButoir: dateOnly(dossier?.atelier_deadline_at ?? null),
-      dateReception,
-      dateReceptionTissu: r.collection_tissu_recu_at,
-      dateExpeditionUsine: r.collection_expedie_at,
-      savComment: r.sav_comment,
-    };
-  });
+  return ((data ?? []) as unknown as Row[]).map(toOrder);
 }
 
-export type CollectionOrderStats = {
-  enAttente: number;
-  enConfection: number;
-  enRetard: number;
-  terminees: number;
-  archivees: number;
-  sav: number;
-  total: number;
-};
+/**
+ * Crée les lignes de suivi pour les articles Collection d'un dossier.
+ *
+ * Appelée à l'acceptation du devis, juste après la création du dossier.
+ * Idempotente : `dossier_item_id` est unique, un second passage ne crée
+ * pas de doublon. Ne lève jamais — un échec ici ne doit pas empêcher
+ * l'encaissement d'un acompte.
+ */
+export async function createCollectionOrdersForDossier(
+  dossierId: string,
+  client?: ReturnType<typeof createServiceRoleClient>,
+): Promise<{ created: number }> {
+  const supabase = client ?? createServiceRoleClient();
 
-export function collectionOrderStats(
-  orders: CollectionOrder[],
-): CollectionOrderStats {
-  const s: CollectionOrderStats = {
-    enAttente: 0,
-    enConfection: 0,
-    enRetard: 0,
-    terminees: 0,
-    archivees: 0,
-    sav: 0,
-    total: orders.length,
-  };
-  for (const o of orders) {
-    if (joursDeRetard(o)) s.enRetard++;
-    switch (o.statut) {
-      case "En attente":
-        s.enAttente++;
-        break;
-      case "En confection":
-        s.enConfection++;
-        break;
-      case "Terminée":
-        s.terminees++;
-        break;
-      case "Archivée":
-        s.archivees++;
-        break;
-      case "SAV":
-        s.sav++;
-        break;
+  try {
+    const { data: items } = await supabase
+      .from("dossier_items")
+      .select(
+        "id, label, ref, notes, matiere, expected_at, " +
+          "dossiers!inner ( id, devis_id, client_id, created_at, atelier_deadline_at, " +
+          "clients ( display_name ), ateliers ( name ) )",
+      )
+      .eq("dossier_id", dossierId)
+      .eq("collection", true);
+
+    if (!items || items.length === 0) return { created: 0 };
+
+    const rows = (items as unknown as Array<{
+      id: string;
+      label: string;
+      ref: string | null;
+      notes: string | null;
+      matiere: string | null;
+      expected_at: string | null;
+      dossiers: {
+        id: string;
+        devis_id: string | null;
+        client_id: string;
+        created_at: string;
+        atelier_deadline_at: string | null;
+        clients: { display_name: string } | null;
+        ateliers: { name: string } | null;
+      } | null;
+    }>).map((it) => ({
+      dossier_item_id: it.id,
+      dossier_id: it.dossiers?.id ?? dossierId,
+      devis_id: it.dossiers?.devis_id ?? null,
+      client_id: it.dossiers?.client_id ?? null,
+      source: "devis",
+      statut: "En cours",
+      ref: it.ref,
+      client_name: it.dossiers?.clients?.display_name ?? "—",
+      date_commande: it.dossiers?.created_at?.slice(0, 10) ?? null,
+      atelier: it.dossiers?.ateliers?.name ?? null,
+      description: it.notes ?? it.label,
+      fournisseur: it.matiere ? `Collection Atmosphère · ${it.matiere}` : "Collection Atmosphère",
+      date_prevue: it.expected_at?.slice(0, 10) ?? null,
+      date_butoir: it.dossiers?.atelier_deadline_at?.slice(0, 10) ?? null,
+    }));
+
+    // onConflict sur dossier_item_id : rejouer ne duplique pas, et une
+    // ligne déjà suivie (dates saisies par l'usine, SAV) n'est pas écrasée.
+    const { error } = await supabase
+      .from("collection_orders")
+      .upsert(rows, { onConflict: "dossier_item_id", ignoreDuplicates: true });
+    if (error) {
+      console.warn("[collection_orders] création depuis dossier", error.message);
+      return { created: 0 };
     }
+    return { created: rows.length };
+  } catch (err) {
+    console.warn("[collection_orders] création depuis dossier", err);
+    return { created: 0 };
   }
-  return s;
-}
-
-/** Ateliers distincts présents dans les commandes, pour le filtre. */
-export function collectionAteliers(orders: CollectionOrder[]): string[] {
-  const set = new Set<string>();
-  for (const o of orders) if (o.atelierName) set.add(o.atelierName);
-  return Array.from(set).sort();
 }

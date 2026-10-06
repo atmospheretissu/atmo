@@ -6,26 +6,7 @@ import type { CollectionStatut } from "@/lib/collection/order-model";
 
 type Result = { ok: true } | { ok: false; message: string };
 
-/**
- * Le tableau de suivi affiche cinq statuts métier, la base en porte six
- * techniques. Cette table est la seule traduction entre les deux — elle
- * évite de disperser des chaînes magiques dans l'interface.
- *
- * « Archivée » n'a pas de statut propre : c'est la présence d'une date de
- * réception constatée par Atmosphère qui archive la ligne. On la traite
- * donc à part.
- */
-const STATUT_TO_STATUS: Record<
-  Exclude<CollectionStatut, "Archivée">,
-  "en_attente" | "confection" | "recu" | "probleme"
-> = {
-  "En attente": "en_attente",
-  "En confection": "confection",
-  Terminée: "recu",
-  SAV: "probleme",
-};
-
-/** Garde-fou : seul le staff touche au suivi de production. */
+/** Garde-fou : le suivi de production est réservé au staff connecté. */
 async function assertStaff(): Promise<Result> {
   const { getEffectiveProfile } = await import("@/lib/db/impersonation");
   const profile = await getEffectiveProfile();
@@ -33,158 +14,182 @@ async function assertStaff(): Promise<Result> {
   return { ok: true };
 }
 
-function revalidate() {
-  revalidatePath("/collection");
-  revalidatePath("/confections");
-}
+const revalidate = () => revalidatePath("/collection");
 
-/** Change le statut d'une ligne Collection. */
-export async function setCollectionStatutAction(
-  itemId: string,
-  statut: CollectionStatut,
+/**
+ * Met à jour un champ du suivi.
+ *
+ * Une seule action plutôt qu'une par colonne : le tableau en modifie une
+ * dizaine, et chacune se résume au même geste. La liste blanche empêche
+ * d'écrire ailleurs que dans les champs destinés à l'édition — ni `source`,
+ * ni les rattachements au devis, qui ne sont pas à la main de l'utilisateur.
+ */
+const EDITABLE = {
+  statut: "statut",
+  ref: "ref",
+  client_name: "client_name",
+  atelier: "atelier",
+  description: "description",
+  fournisseur: "fournisseur",
+  date_commande: "date_commande",
+  date_envoi: "date_envoi",
+  date_prevue: "date_prevue",
+  date_butoir: "date_butoir",
+  date_reception: "date_reception",
+  date_reception_tissu: "date_reception_tissu",
+  date_expedition_usine: "date_expedition_usine",
+  commentaire: "commentaire",
+  commentaire_sav: "commentaire_sav",
+} as const;
+
+export type EditableField = keyof typeof EDITABLE;
+
+export async function updateCollectionOrderAction(
+  id: string,
+  field: EditableField,
+  value: string | null,
 ): Promise<Result> {
   const guard = await assertStaff();
   if (!guard.ok) return guard;
+  if (!(field in EDITABLE)) return { ok: false, message: "Champ non modifiable." };
 
   const supabase = await createClient();
+  const patch: Record<string, string | null> = {
+    [EDITABLE[field]]: value === "" ? null : value,
+  };
 
-  if (statut === "Archivée") {
-    // Archiver = constater la réception. La ligne est forcément terminée.
-    const { error } = await supabase
-      .from("dossier_items")
-      .update({
-        status: "recu",
-        received_at: new Date().toISOString(),
-      })
-      .eq("id", itemId);
-    if (error) return { ok: false, message: error.message };
-    revalidate();
-    return { ok: true };
+  // Renseigner une date de réception archive la commande : le statut
+  // affiché le reflète déjà, mais on aligne aussi le statut stocké pour
+  // que l'export et les filtres côté base disent la même chose.
+  if (field === "date_reception" && value) {
+    patch.statut = "Archivée";
   }
 
-  const patch: { status: "en_attente" | "confection" | "recu" | "probleme"; received_at?: null } =
-    { status: STATUT_TO_STATUS[statut] };
-  // Sortir d'« Archivée » doit effacer la réception, sinon la ligne y
-  // retombe immédiatement au prochain calcul de statut.
-  if (statut !== "Terminée") patch.received_at = null;
-
-
-  const { error } = await supabase
-    .from("dossier_items")
+  const { error } = await (supabase as unknown as {
+    from: (t: string) => {
+      update: (v: unknown) => {
+        eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+  })
+    .from("collection_orders")
     .update(patch)
-    .eq("id", itemId);
+    .eq("id", id);
+
   if (error) return { ok: false, message: error.message };
   revalidate();
   return { ok: true };
 }
 
-/**
- * Date de réception constatée par Atmosphère. La renseigner archive la
- * ligne, l'effacer la fait repasser en « Terminée ».
- */
-export async function setCollectionReceptionAction(
-  itemId: string,
-  date: string | null,
-): Promise<Result> {
-  const guard = await assertStaff();
-  if (!guard.ok) return guard;
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("dossier_items")
-    .update({
-      received_at: date ? new Date(`${date}T12:00:00Z`).toISOString() : null,
-      ...(date ? { status: "recu" as const } : {}),
-    })
-    .eq("id", itemId);
-  if (error) return { ok: false, message: error.message };
-  revalidate();
-  return { ok: true };
-}
-
-/**
- * Les deux dates que l'usine renseigne elle-même : arrivée du tissu
- * d'éditeur chez elle, et départ des confections.
- */
-export async function setCollectionUsineDateAction(
-  itemId: string,
-  field: "tissu_recu" | "expedie",
-  date: string | null,
-): Promise<Result> {
-  const guard = await assertStaff();
-  if (!guard.ok) return guard;
-
-  const supabase = await createClient();
-  const patch =
-    field === "tissu_recu"
-      ? { collection_tissu_recu_at: date || null }
-      : { collection_expedie_at: date || null };
-  const { error } = await supabase
-    .from("dossier_items")
-    .update(patch)
-    .eq("id", itemId);
-  if (error) return { ok: false, message: error.message };
-  revalidate();
-  return { ok: true };
-}
-
-/**
- * Bascule SAV. Repasser une ligne en production doit la remettre là où
- * elle en était : si l'usine a déjà expédié, c'est « Terminée », sinon
- * « En confection ».
- */
+/** Bascule SAV, avec le statut de retour. */
 export async function toggleCollectionSavAction(
-  itemId: string,
+  id: string,
   enable: boolean,
+  statutDeRetour: CollectionStatut = "En cours",
 ): Promise<Result> {
-  const guard = await assertStaff();
-  if (!guard.ok) return guard;
-
-  const supabase = await createClient();
-
-  if (enable) {
-    const { error } = await supabase
-      .from("dossier_items")
-      .update({ status: "probleme" })
-      .eq("id", itemId);
-    if (error) return { ok: false, message: error.message };
-    revalidate();
-    return { ok: true };
-  }
-
-  const { data: row, error: readErr } = await supabase
-    .from("dossier_items")
-    .select("collection_expedie_at, received_at")
-    .eq("id", itemId)
-    .maybeSingle();
-  if (readErr) return { ok: false, message: readErr.message };
-
-  const expedie = (row as { collection_expedie_at?: string | null } | null)
-    ?.collection_expedie_at;
-  const recu = (row as { received_at?: string | null } | null)?.received_at;
-
-  const { error } = await supabase
-    .from("dossier_items")
-    .update({ status: recu || expedie ? "recu" : "confection" })
-    .eq("id", itemId);
-  if (error) return { ok: false, message: error.message };
-  revalidate();
-  return { ok: true };
+  return updateCollectionOrderAction(
+    id,
+    "statut",
+    enable ? "SAV" : statutDeRetour,
+  );
 }
 
-/** Commentaire SAV d'Atmosphère, destiné à être lu par l'usine. */
-export async function setCollectionSavCommentAction(
-  itemId: string,
-  comment: string,
-): Promise<Result> {
+/** Création manuelle depuis l'onglet (bouton « Nouvelle commande »). */
+export async function createCollectionOrderAction(input: {
+  client_name: string;
+  ref?: string;
+  atelier?: string;
+  description?: string;
+  fournisseur?: string;
+  date_commande?: string;
+  date_butoir?: string;
+  commentaire?: string;
+}): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  const guard = await assertStaff();
+  if (!guard.ok) return guard;
+
+  const clientName = (input.client_name ?? "").trim();
+  if (!clientName) return { ok: false, message: "Le nom du client est requis." };
+
+  const supabase = await createClient();
+  const { data, error } = await (supabase as unknown as {
+    from: (t: string) => {
+      insert: (v: unknown) => {
+        select: (s: string) => {
+          single: () => Promise<{
+            data: { id: string } | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  })
+    .from("collection_orders")
+    .insert({
+      source: "manuel",
+      statut: "En cours",
+      client_name: clientName,
+      ref: input.ref?.trim() || null,
+      atelier: input.atelier?.trim() || null,
+      description: input.description?.trim() || null,
+      fournisseur: input.fournisseur?.trim() || null,
+      date_commande: input.date_commande || null,
+      date_butoir: input.date_butoir || null,
+      commentaire: input.commentaire?.trim() || null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "Échec de la création." };
+  }
+  revalidate();
+  return { ok: true, id: data.id };
+}
+
+/**
+ * Suppression. Réservée aux commandes saisies à la main : celles nées d'un
+ * devis doivent suivre le sort de leur ligne de dossier, pas disparaître
+ * du suivi d'un clic.
+ */
+export async function deleteCollectionOrderAction(id: string): Promise<Result> {
   const guard = await assertStaff();
   if (!guard.ok) return guard;
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("dossier_items")
-    .update({ sav_comment: comment.trim() || null })
-    .eq("id", itemId);
+  const { data: row } = await (supabase as unknown as {
+    from: (t: string) => {
+      select: (s: string) => {
+        eq: (c: string, v: string) => {
+          maybeSingle: () => Promise<{ data: { source: string } | null }>;
+        };
+      };
+    };
+  })
+    .from("collection_orders")
+    .select("source")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (row?.source === "devis") {
+    return {
+      ok: false,
+      message:
+        "Cette commande vient d'un devis accepté : elle se supprime depuis le dossier, pas d'ici.",
+    };
+  }
+
+  const { error } = await (supabase as unknown as {
+    from: (t: string) => {
+      delete: () => {
+        eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+  })
+    .from("collection_orders")
+    .delete()
+    .eq("id", id);
+
   if (error) return { ok: false, message: error.message };
   revalidate();
   return { ok: true };

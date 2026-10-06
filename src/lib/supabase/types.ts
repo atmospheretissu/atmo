@@ -864,6 +864,87 @@ export interface Database {
         };
         Relationships: [];
       };
+      collection_orders: {
+        Row: {
+          id: string;
+          dossier_item_id: string | null;
+          dossier_id: string | null;
+          devis_id: string | null;
+          client_id: string | null;
+          source: string;
+          statut: string;
+          ref: string | null;
+          client_name: string;
+          date_commande: string | null;
+          atelier: string | null;
+          description: string | null;
+          fournisseur: string | null;
+          date_envoi: string | null;
+          date_prevue: string | null;
+          date_butoir: string | null;
+          retard_source: string | null;
+          date_reception: string | null;
+          date_reception_tissu: string | null;
+          date_expedition_usine: string | null;
+          commentaire: string | null;
+          commentaire_sav: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          dossier_item_id?: string | null;
+          dossier_id?: string | null;
+          devis_id?: string | null;
+          client_id?: string | null;
+          source?: string;
+          statut?: string;
+          ref?: string | null;
+          client_name: string;
+          date_commande?: string | null;
+          atelier?: string | null;
+          description?: string | null;
+          fournisseur?: string | null;
+          date_envoi?: string | null;
+          date_prevue?: string | null;
+          date_butoir?: string | null;
+          retard_source?: string | null;
+          date_reception?: string | null;
+          date_reception_tissu?: string | null;
+          date_expedition_usine?: string | null;
+          commentaire?: string | null;
+          commentaire_sav?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          dossier_item_id?: string | null;
+          dossier_id?: string | null;
+          devis_id?: string | null;
+          client_id?: string | null;
+          source?: string;
+          statut?: string;
+          ref?: string | null;
+          client_name?: string;
+          date_commande?: string | null;
+          atelier?: string | null;
+          description?: string | null;
+          fournisseur?: string | null;
+          date_envoi?: string | null;
+          date_prevue?: string | null;
+          date_butoir?: string | null;
+          retard_source?: string | null;
+          date_reception?: string | null;
+          date_reception_tissu?: string | null;
+          date_expedition_usine?: string | null;
+          commentaire?: string | null;
+          commentaire_sav?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       couturieres: {
         Row: {
           id: string;
@@ -930,6 +1011,10 @@ export interface Database {
           signature_token: string | null;
           acompte_ttc: number | null;
           legacy_number: string | null;
+          subtotal_ht: number | null;
+          discount_kind: string;
+          discount_value: number;
+          discount_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -966,6 +1051,10 @@ export interface Database {
           signature_token?: string | null;
           acompte_ttc?: number | null;
           legacy_number?: string | null;
+          subtotal_ht?: number | null;
+          discount_kind?: string;
+          discount_value?: number;
+          discount_reason?: string | null;
         };
         Update: {
           id?: string;
@@ -1002,6 +1091,10 @@ export interface Database {
           signature_token?: string | null;
           acompte_ttc?: number | null;
           legacy_number?: string | null;
+          subtotal_ht?: number | null;
+          discount_kind?: string;
+          discount_value?: number;
+          discount_reason?: string | null;
         };
         Relationships: [];
       };
@@ -1110,9 +1203,6 @@ export interface Database {
           atelier_id: string | null;
           atelier_sent_at: string | null;
           needs_confection: boolean;
-          collection_tissu_recu_at: string | null;
-          collection_expedie_at: string | null;
-          sav_comment: string | null;
         };
         Insert: {
           id?: string;
@@ -1137,9 +1227,6 @@ export interface Database {
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
           needs_confection?: boolean;
-          collection_tissu_recu_at?: string | null;
-          collection_expedie_at?: string | null;
-          sav_comment?: string | null;
         };
         Update: {
           id?: string;
@@ -1164,9 +1251,6 @@ export interface Database {
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
           needs_confection?: boolean;
-          collection_tissu_recu_at?: string | null;
-          collection_expedie_at?: string | null;
-          sav_comment?: string | null;
         };
         Relationships: [];
       };

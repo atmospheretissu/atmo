@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { eur } from "@/lib/formatters";
 import type { CollectionProduct } from "@/lib/db/collection";
 import type { CollectionOrder } from "@/lib/collection/order-model";
-import { joursDeRetard } from "@/lib/collection/order-model";
+import { collectionStats } from "@/lib/collection/order-model";
 import { CollectionOrdersTab } from "./collection-orders-tab";
 
 type Props = {
@@ -64,10 +64,7 @@ export default function CollectionClient({ products, categories, orders }: Props
 
   const allCategories = ["Tout", ...categories];
 
-  const enCours = orders.filter(
-    (o) => o.statut === "En attente" || o.statut === "En confection",
-  ).length;
-  const enRetard = orders.filter((o) => joursDeRetard(o)).length;
+  const stats = collectionStats(orders);
 
   return (
     <>
@@ -84,14 +81,14 @@ export default function CollectionClient({ products, categories, orders }: Props
             <TabsTrigger value="commandes">
               <Factory className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" strokeWidth={2.2} />
               Suivi des commandes
-              {enCours > 0 && (
+              {stats.enCours > 0 && (
                 <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-violet-soft text-[10.5px] font-semibold tabular-nums text-violet-strong">
-                  {enCours}
+                  {stats.enCours}
                 </span>
               )}
-              {enRetard > 0 && (
+              {stats.enRetard > 0 && (
                 <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-soft text-[10.5px] font-semibold tabular-nums text-red">
-                  {enRetard} en retard
+                  {stats.enRetard} en retard
                 </span>
               )}
             </TabsTrigger>

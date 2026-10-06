@@ -251,6 +251,22 @@ export async function createDossierFromDevis(
     console.warn("autoCreateBcsForDossier failed:", err);
   }
 
+  // 6. Suivi Collection Atmosphère : les articles de la Collection doivent
+  //    apparaître dans l'onglet dédié dès l'acceptation du devis, aux côtés
+  //    des commandes reprises du suivi existant. Best-effort également —
+  //    un échec ici ne doit pas empêcher l'encaissement d'un acompte.
+  try {
+    const { createCollectionOrdersForDossier } = await import(
+      "@/lib/db/collection-orders"
+    );
+    await createCollectionOrdersForDossier(
+      dossier.id,
+      supabase as unknown as Parameters<typeof createCollectionOrdersForDossier>[1],
+    );
+  } catch (err) {
+    console.warn("createCollectionOrdersForDossier failed:", err);
+  }
+
   return { ok: true, dossierId: dossier.id, created: true };
 }
 

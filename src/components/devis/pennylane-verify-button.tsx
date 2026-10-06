@@ -72,9 +72,17 @@ export function PennylaneVerifyButton({ devisId }: { devisId: string }) {
             )}
 
             {result && !pending && "disabled" in result && result.disabled && (
-              <div className="rounded-md bg-amber-soft/40 border border-amber/30 p-3 text-[12.5px] text-ink-2">
+              <div className="rounded-md bg-amber-soft/40 border border-amber/30 p-3 text-[12.5px] text-ink-2 leading-relaxed">
                 <AlertCircle className="h-4 w-4 text-amber inline-block mr-1.5 -mt-0.5" />
                 {result.message}
+                {"settingsHint" in result && result.settingsHint && (
+                  <a
+                    href="/parametres?tab=integrations"
+                    className="block mt-2 font-semibold text-violet-strong hover:underline"
+                  >
+                    Activer la synchronisation dans les paramètres →
+                  </a>
+                )}
               </div>
             )}
 
