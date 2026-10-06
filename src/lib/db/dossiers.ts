@@ -58,7 +58,7 @@ function inferItemType(meta: Record<string, unknown> | null | undefined): Dossie
     ta === "rideau_tissu_confection" ||
     ta === "store_tissu_confection" ||
     ta === "store_enrouleur_tissu" ||
-    ta === "collection_atmosphere"
+    isCollectionMarker(ta)
   )
     return "tissu";
   if (ta === "rail") return "rail";
@@ -76,6 +76,23 @@ function inferItemType(meta: Record<string, unknown> | null | undefined): Dossie
 }
 
 /**
+ * Une ligne vient-elle de la Collection Atmosphère ?
+ *
+ * Deux marqueurs coexistent : `collection_atmosphere`, posé par l'ancien
+ * formulaire, et `new_collection_atmosphere`, posé par celui de la
+ * boutique aujourd'hui (article-new-collection-form.tsx). Seul le premier
+ * était reconnu : les articles vendus depuis le formulaire actuel
+ * n'étaient donc jamais marqués `collection`, et n'apparaissaient pas
+ * dans l'onglet Collection — le défaut signalé le 06/10/2026.
+ */
+function isCollectionMarker(typeArticle: string): boolean {
+  return (
+    typeArticle === "collection_atmosphere" ||
+    typeArticle === "new_collection_atmosphere"
+  );
+}
+
+/**
  * Une ligne de devis couvre-t-elle à la fois la matière et sa confection ?
  * Seuls les rideaux et stores bateau sur mesure sont dans ce cas : leur
  * meta porte `prixTissu` ET `prixConfection` séparément. Le store
@@ -87,7 +104,13 @@ function isTissuConfectionLine(
 ): boolean {
   if (!meta) return false;
   const ta = String(meta["typeArticle"] ?? meta["type"] ?? "");
-  return ta === "rideau_tissu_confection" || ta === "store_tissu_confection";
+  return (
+    ta === "rideau_tissu_confection" ||
+    ta === "store_tissu_confection" ||
+    // La Collection Atmosphère est confectionnée à l'usine : recevoir le
+    // tissu d'éditeur ne termine pas la ligne.
+    isCollectionMarker(ta)
+  );
 }
 
 /**
@@ -181,9 +204,14 @@ export async function createDossierFromDevis(
       const itemType = inferItemType(meta);
       const isCollection =
         meta["collection"] === true ||
-        String(meta["typeArticle"]) === "collection_atmosphere";
+        isCollectionMarker(String(meta["typeArticle"] ?? meta["type"] ?? ""));
+      // Le formulaire Collection nomme le tissu `tissu`, l'ancien `matiere`.
       const matiere =
-        typeof meta["matiere"] === "string" ? (meta["matiere"] as string) : null;
+        typeof meta["matiere"] === "string"
+          ? (meta["matiere"] as string)
+          : typeof meta["tissu"] === "string"
+            ? (meta["tissu"] as string)
+            : null;
       return {
         dossier_id: dossier.id,
         type: itemType,

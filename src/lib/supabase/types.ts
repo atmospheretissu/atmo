@@ -131,6 +131,9 @@ export interface Database {
           notes: string | null;
           created_at: string;
           updated_at: string;
+          paused_at: string | null;
+          paused_reason: string | null;
+          consecutive_failures: number | null;
         };
         Insert: {
           id?: boolean;
@@ -142,6 +145,9 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          paused_at?: string | null;
+          paused_reason?: string | null;
+          consecutive_failures?: number | null;
         };
         Update: {
           id?: boolean;
@@ -153,6 +159,9 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+          paused_at?: string | null;
+          paused_reason?: string | null;
+          consecutive_failures?: number | null;
         };
         Relationships: [];
       };
@@ -171,6 +180,8 @@ export interface Database {
           worker_version: string | null;
           logs: Json | null;
           created_at: string;
+          screenshot_path: string | null;
+          trace_path: string | null;
         };
         Insert: {
           id?: string;
@@ -186,6 +197,8 @@ export interface Database {
           worker_version?: string | null;
           logs?: Json | null;
           created_at?: string;
+          screenshot_path?: string | null;
+          trace_path?: string | null;
         };
         Update: {
           id?: string;
@@ -201,6 +214,8 @@ export interface Database {
           worker_version?: string | null;
           logs?: Json | null;
           created_at?: string;
+          screenshot_path?: string | null;
+          trace_path?: string | null;
         };
         Relationships: [];
       };
@@ -1094,6 +1109,10 @@ export interface Database {
           matiere: string | null;
           atelier_id: string | null;
           atelier_sent_at: string | null;
+          needs_confection: boolean;
+          collection_tissu_recu_at: string | null;
+          collection_expedie_at: string | null;
+          sav_comment: string | null;
         };
         Insert: {
           id?: string;
@@ -1117,6 +1136,10 @@ export interface Database {
           matiere?: string | null;
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
+          needs_confection?: boolean;
+          collection_tissu_recu_at?: string | null;
+          collection_expedie_at?: string | null;
+          sav_comment?: string | null;
         };
         Update: {
           id?: string;
@@ -1140,6 +1163,10 @@ export interface Database {
           matiere?: string | null;
           atelier_id?: string | null;
           atelier_sent_at?: string | null;
+          needs_confection?: boolean;
+          collection_tissu_recu_at?: string | null;
+          collection_expedie_at?: string | null;
+          sav_comment?: string | null;
         };
         Relationships: [];
       };

@@ -7,21 +7,38 @@ import {
   Search,
   Plus,
   Truck,
+  Factory,
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { eur } from "@/lib/formatters";
 import type { CollectionProduct } from "@/lib/db/collection";
+import type { CollectionOrder } from "@/lib/collection/order-model";
+import { joursDeRetard } from "@/lib/collection/order-model";
+import { CollectionOrdersTab } from "./collection-orders-tab";
 
 type Props = {
   products: CollectionProduct[];
   categories: string[];
+  orders: CollectionOrder[];
 };
 
-export default function CollectionClient({ products, categories }: Props) {
+/**
+ * L'onglet Collection porte deux choses distinctes, d'où les sous-onglets
+ * (même parti pris que la Comptabilité) :
+ *
+ *   • « Suivi des commandes » — ce que David a demandé le 06/10/2026 :
+ *     les articles Collection des devis acceptés, dans un tableau partagé
+ *     avec l'usine. C'est l'onglet par défaut, c'est le travail du jour.
+ *   • « Catalogue » — la vue existante des produits semi-finis et des
+ *     stocks Pologne / Ukraine, conservée telle quelle.
+ */
+export default function CollectionClient({ products, categories, orders }: Props) {
+  const [tab, setTab] = useState<"commandes" | "catalogue">("commandes");
   const [category, setCategory] = useState<string>("Tout");
   const [query, setQuery] = useState("");
 
@@ -47,15 +64,66 @@ export default function CollectionClient({ products, categories }: Props) {
 
   const allCategories = ["Tout", ...categories];
 
+  const enCours = orders.filter(
+    (o) => o.statut === "En attente" || o.statut === "En confection",
+  ).length;
+  const enRetard = orders.filter((o) => joursDeRetard(o)).length;
+
   return (
     <>
       <Topbar
         breadcrumb={[
           { label: "Atmosphère" },
-          { label: "Collection · Leroy Merlin" },
+          { label: "Collection Atmosphère" },
         ]}
       />
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <div className="sticky top-14 z-20 bg-canvas border-b border-line px-8 pt-3">
+          <TabsList className="border-b-0">
+            <TabsTrigger value="commandes">
+              <Factory className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" strokeWidth={2.2} />
+              Suivi des commandes
+              {enCours > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-violet-soft text-[10.5px] font-semibold tabular-nums text-violet-strong">
+                  {enCours}
+                </span>
+              )}
+              {enRetard > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-soft text-[10.5px] font-semibold tabular-nums text-red">
+                  {enRetard} en retard
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="catalogue">
+              <Library className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" strokeWidth={2.2} />
+              Catalogue
+              <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-canvas-2 text-[10.5px] font-semibold tabular-nums text-muted">
+                {products.length}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+      <TabsContent value="commandes">
+        <div className="flex-1 overflow-auto">
+          <section className="px-8 pt-8 pb-5">
+            <p className="eyebrow mb-2">Production · usine partenaire</p>
+            <h1 className="text-[28px] font-semibold tracking-tight text-ink leading-[1.1]">
+              Suivi des commandes Collection
+            </h1>
+            <p className="text-[13.5px] text-muted mt-2 max-w-2xl">
+              Chaque article de la Collection Atmosphère arrive ici dès que le
+              client accepte son devis. L&apos;usine renseigne l&apos;arrivée du
+              tissu et le départ des confections ; Atmosphère constate la
+              réception et signale les SAV.
+            </p>
+          </section>
+          <CollectionOrdersTab orders={orders} />
+        </div>
+      </TabsContent>
+
+      <TabsContent value="catalogue">
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
           <p className="eyebrow mb-3">Module · Collection Atmosphère & Leroy Merlin</p>
@@ -238,6 +306,8 @@ export default function CollectionClient({ products, categories }: Props) {
           </Card>
         </section>
       </div>
+      </TabsContent>
+      </Tabs>
     </>
   );
 }
