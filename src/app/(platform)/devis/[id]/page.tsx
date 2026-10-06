@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Topbar } from "@/components/shell/topbar";
 import { Card } from "@/components/ui/card";
+import { RemiseBox } from "@/components/devis/remise-box";
+import { parseDiscountKind, remiseLabel } from "@/lib/devis/remise";
 import { StatusPill, ColorChip } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
 import { MarkAcompteButton } from "@/components/devis/mark-acompte-button";
@@ -71,6 +73,22 @@ export default async function DevisDetailPage({
   const channel = devis.channel as Channel;
   const totalHT = Number(devis.total_ht ?? 0);
   const totalTTC = Number(devis.total_ttc ?? 0);
+
+  // Remise globale. `subtotal_ht` est le brut, `total_ht` le net : les devis
+  // antérieurs à la migration 20261006160000 n'ont pas de brut, on retombe
+  // alors sur le net, ce qui revient au même en l'absence de remise.
+  const discountKind = parseDiscountKind(
+    (devis as { discount_kind?: string | null }).discount_kind,
+  );
+  const discountValue = Number(
+    (devis as { discount_value?: number | null }).discount_value ?? 0,
+  );
+  const discountReason =
+    (devis as { discount_reason?: string | null }).discount_reason ?? null;
+  const subtotalHT = Number(
+    (devis as { subtotal_ht?: number | null }).subtotal_ht ?? totalHT,
+  );
+  const discountHt = Math.round((subtotalHT - totalHT) * 100) / 100;
   const tva = totalTTC - totalHT;
   const acomptePct = Number((devis as { acompte_pct?: number }).acompte_pct ?? 50);
   const acompte = Number(devis.acompte_ttc ?? (totalTTC * acomptePct) / 100);
@@ -325,8 +343,43 @@ export default async function DevisDetailPage({
               <div className="bg-canvas-2/30">
                 <div className="px-5 py-2.5 flex items-center justify-between text-[12.5px]">
                   <span className="text-muted">Sous-total HT</span>
-                  <span className="text-ink-2 tabular-nums">{eur(totalHT)}</span>
+                  <span className="text-ink-2 tabular-nums">{eur(subtotalHT)}</span>
                 </div>
+
+                {/* Remise globale — demandée par Pauline et Pierre-Edouard
+                    le 06/10/2026. L'encadré n'apparaît en entier qu'une fois
+                    une remise posée ; sinon il se réduit à un lien. */}
+                <RemiseBox
+                  devisId={devis.id}
+                  subtotalHt={subtotalHT}
+                  tvaRate={Number(devis.tva_rate ?? 20)}
+                  initialKind={discountKind}
+                  initialValue={discountValue}
+                  initialReason={discountReason}
+                  locked={devis.status === "acompte_recu" || devis.status === "solde_recu"}
+                />
+
+                {discountHt > 0 && (
+                  <div className="px-5 py-2.5 flex items-center justify-between text-[12.5px] border-t border-line">
+                    <span className="text-violet-strong font-medium">
+                      {remiseLabel(discountKind, discountValue)}
+                      {discountReason && (
+                        <span className="text-muted-2 font-normal"> · {discountReason}</span>
+                      )}
+                    </span>
+                    <span className="text-violet-strong font-medium tabular-nums">
+                      −{eur(discountHt)}
+                    </span>
+                  </div>
+                )}
+
+                {discountHt > 0 && (
+                  <div className="px-5 py-2.5 flex items-center justify-between text-[12.5px] border-t border-line">
+                    <span className="text-muted">Total HT après remise</span>
+                    <span className="text-ink-2 tabular-nums">{eur(totalHT)}</span>
+                  </div>
+                )}
+
                 <div className="px-5 py-2.5 flex items-center justify-between text-[12.5px] border-t border-line">
                   <span className="text-muted">TVA {Number(devis.tva_rate ?? 20)} %</span>
                   <span className="text-muted tabular-nums">{eur(tva)}</span>

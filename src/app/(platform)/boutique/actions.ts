@@ -147,6 +147,9 @@ export async function createBoutiqueDevisAction(
       product_summary: productSummary,
       product_detail: productDetail,
       qty: lines.reduce((acc, l) => acc + Math.ceil(l.qty), 0),
+      // Pas de remise à la création : le brut égale le net. La remise se
+      // pose ensuite depuis la fiche devis.
+      subtotal_ht: totalHt,
       total_ht: totalHt,
       total_ttc: totalTtc,
       tva_rate: input.tvaRate,

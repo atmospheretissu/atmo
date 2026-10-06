@@ -529,10 +529,10 @@ export async function updateDevisLinesAction(
     return { ok: false, errors: {}, message: "Le devis doit avoir au moins une ligne." };
   }
 
-  // 1. Récupère le tva_rate du devis pour recalculer le total
+  // 1. Récupère le tva_rate ET la remise du devis pour recalculer le total
   const { data: devis, error: e0 } = await supabase
     .from("devis")
-    .select("tva_rate")
+    .select("tva_rate, discount_kind, discount_value")
     .eq("id", devisId)
     .maybeSingle();
   if (e0) return { ok: false, errors: {}, message: e0.message };
@@ -540,11 +540,21 @@ export async function updateDevisLinesAction(
 
   const tvaRate = Number(devis.tva_rate ?? 20);
 
-  // Recalcule les totaux
-  const total_ht = Math.round(
-    lines.reduce((s, l) => s + l.qty * l.unit_price_ht * 100, 0),
-  ) / 100;
-  const total_ttc = Math.round(total_ht * (1 + tvaRate / 100) * 100) / 100;
+  // Recalcule les totaux. `subtotal_ht` est le brut, `total_ht` le net après
+  // remise : tout ce qui consomme déjà total_ht (acompte, Stripe, facture,
+  // export comptable) voit donc le bon montant sans rien changer.
+  const { computeRemise, parseDiscountKind, sumLinesHt } = await import(
+    "@/lib/devis/remise"
+  );
+  const subtotal_ht = sumLinesHt(lines);
+  const remise = computeRemise(
+    subtotal_ht,
+    parseDiscountKind((devis as { discount_kind?: string | null }).discount_kind),
+    Number((devis as { discount_value?: number | null }).discount_value ?? 0),
+    tvaRate,
+  );
+  const total_ht = remise.totalHt;
+  const total_ttc = remise.totalTtc;
   const qty_total = lines.reduce((s, l) => s + Math.ceil(l.qty), 0);
 
   // 2. Delete les anciennes lignes
@@ -571,6 +581,7 @@ export async function updateDevisLinesAction(
 
   // 4. Update les totaux + version du devis (+ décoratrice si fournie)
   const updatePayload: Record<string, unknown> = {
+    subtotal_ht,
     total_ht,
     total_ttc,
     qty: qty_total,
@@ -615,4 +626,100 @@ export async function deleteDevisAction(devisId: string): Promise<DevisFormState
   }
   revalidatePath("/devis");
   redirect("/devis");
+}
+
+/* ═══════════════════════════ REMISE GLOBALE ═══════════════════════════ */
+
+/**
+ * Pose, modifie ou retire la remise globale d'un devis.
+ *
+ * Demandée le 06/10/2026 par Pauline et Pierre-Edouard. Le devis n'avait
+ * aucun champ de remise et l'éditeur refusait les prix négatifs : accorder
+ * un geste commercial obligeait à bidouiller les prix unitaires, ce qui
+ * fausse les tarifs montrés au client et la traçabilité face aux grilles.
+ *
+ * Le total est recalculé ici, serveur, à partir des lignes : on ne fait
+ * jamais confiance à un sous-total venu du navigateur.
+ */
+export async function setDevisDiscountAction(
+  devisId: string,
+  input: {
+    kind: "none" | "pct" | "amount";
+    value: number;
+    reason?: string | null;
+  },
+): Promise<{ ok: true; totalHt: number; totalTtc: number; discountHt: number }
+  | { ok: false; message: string }> {
+  const supabase = await createClient();
+
+  const { computeRemise, parseDiscountKind, sumLinesHt } = await import(
+    "@/lib/devis/remise"
+  );
+  const kind = parseDiscountKind(input.kind);
+  const value = kind === "none" ? 0 : Math.max(0, Number(input.value) || 0);
+  if (kind === "pct" && value > 100) {
+    return { ok: false, message: "Une remise en pourcentage ne peut pas dépasser 100 %." };
+  }
+
+  const { data: devis, error: e0 } = await supabase
+    .from("devis")
+    .select("tva_rate, status")
+    .eq("id", devisId)
+    .maybeSingle();
+  if (e0) return { ok: false, message: e0.message };
+  if (!devis) return { ok: false, message: "Devis introuvable." };
+
+  // Un devis déjà réglé ne doit plus bouger : le montant encaissé, la
+  // facture et l'écriture comptable sont partis sur l'ancien total.
+  const status = (devis as { status?: string | null }).status;
+  if (status === "acompte_recu" || status === "solde_recu") {
+    return {
+      ok: false,
+      message:
+        "Ce devis est déjà réglé : modifier la remise changerait un montant déjà encaissé et facturé.",
+    };
+  }
+
+  const { data: lines, error: e1 } = await supabase
+    .from("devis_lines")
+    .select("qty, unit_price_ht")
+    .eq("devis_id", devisId);
+  if (e1) return { ok: false, message: e1.message };
+
+  const subtotalHt = sumLinesHt(
+    (lines ?? []).map((l) => ({
+      qty: Number(l.qty),
+      unit_price_ht: Number(l.unit_price_ht),
+    })),
+  );
+  const tvaRate = Number((devis as { tva_rate?: number | null }).tva_rate ?? 20);
+  const remise = computeRemise(subtotalHt, kind, value, tvaRate);
+
+  const { error: e2 } = await (supabase as unknown as {
+    from: (t: string) => {
+      update: (v: unknown) => {
+        eq: (c: string, v: string) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+  })
+    .from("devis")
+    .update({
+      discount_kind: kind,
+      discount_value: value,
+      discount_reason: kind === "none" ? null : input.reason?.trim() || null,
+      subtotal_ht: remise.subtotalHt,
+      total_ht: remise.totalHt,
+      total_ttc: remise.totalTtc,
+    })
+    .eq("id", devisId);
+  if (e2) return { ok: false, message: e2.message };
+
+  revalidatePath("/devis");
+  revalidatePath(`/devis/${devisId}`);
+  return {
+    ok: true,
+    totalHt: remise.totalHt,
+    totalTtc: remise.totalTtc,
+    discountHt: remise.discountHt,
+  };
 }

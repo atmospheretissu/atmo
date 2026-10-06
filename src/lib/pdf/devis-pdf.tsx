@@ -415,6 +415,22 @@ export function DevisPDF({
 }) {
   const totalHt = Number(devis.total_ht ?? 0);
   const totalTtc = Number(devis.total_ttc ?? 0);
+
+  // Remise globale : `subtotal_ht` porte le brut, `total_ht` le net. Les
+  // devis antérieurs à la migration 20261006160000 n'ont pas de brut — on
+  // retombe sur le net, ce qui revient au même sans remise.
+  const subtotalHt = Number(
+    (devis as { subtotal_ht?: number | null }).subtotal_ht ?? totalHt,
+  );
+  const discountHt = Math.round((subtotalHt - totalHt) * 100) / 100;
+  const discountKind = (devis as { discount_kind?: string | null }).discount_kind;
+  const discountValue = Number(
+    (devis as { discount_value?: number | null }).discount_value ?? 0,
+  );
+  const discountReason =
+    (devis as { discount_reason?: string | null }).discount_reason ?? null;
+  const discountLabel =
+    discountKind === "pct" ? `Remise ${discountValue} %` : "Remise";
   const tva = totalTtc - totalHt;
   const acomptePct = Number((devis as { acompte_pct?: number }).acompte_pct ?? 50);
   const acompte = Number(devis.acompte_ttc ?? (totalTtc * acomptePct) / 100);
@@ -554,8 +570,23 @@ export function DevisPDF({
         <View style={styles.totals}>
           <View style={styles.tot}>
             <Text style={styles.totLabel}>Sous-total HT</Text>
-            <Text>{eur(totalHt)}</Text>
+            <Text>{eur(subtotalHt)}</Text>
           </View>
+          {discountHt > 0 && (
+            <>
+              <View style={styles.tot}>
+                <Text style={styles.totLabel}>
+                  {discountLabel}
+                  {discountReason ? ` — ${discountReason}` : ""}
+                </Text>
+                <Text>-{eur(discountHt)}</Text>
+              </View>
+              <View style={styles.tot}>
+                <Text style={styles.totLabel}>Total HT après remise</Text>
+                <Text>{eur(totalHt)}</Text>
+              </View>
+            </>
+          )}
           <View style={styles.tot}>
             <Text style={styles.totLabel}>TVA {Number(devis.tva_rate ?? 20)} %</Text>
             <Text>{eur(tva)}</Text>
