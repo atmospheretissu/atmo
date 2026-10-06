@@ -2388,7 +2388,7 @@ export interface Database {
       sav_priority: "normale" | "haute" | "urgente";
       sav_status: "nouveau" | "en_cours" | "resolu" | "annule";
       supplier_type: "tissu" | "rail" | "accessoire" | "couture" | "autre";
-      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice" | "consultation_lm" | "resp_magasin" | "couturiere_externe" | "poseur_externe";
+      user_role: "admin" | "commercial" | "resp_confection" | "couturiere" | "poseur" | "decoratrice" | "consultation_lm" | "resp_magasin" | "couturiere_externe" | "poseur_externe" | "collection_atmosphere";
     };
     CompositeTypes: Record<string, Record<string, unknown>>;
   };

@@ -6,11 +6,45 @@ import type { CollectionStatut } from "@/lib/collection/order-model";
 
 type Result = { ok: true } | { ok: false; message: string };
 
-/** Garde-fou : le suivi de production est réservé au staff connecté. */
-async function assertStaff(): Promise<Result> {
+/**
+ * Champs que le rôle usine (`collection_atmosphere`) peut renseigner.
+ *
+ * Ce compte est extérieur à l'entreprise : il ne doit ni changer un statut,
+ * ni déclarer un SAV, ni toucher au client. Le trigger
+ * `guard_collection_viewer_update` pose la même limite côté base — ce
+ * contrôle-ci existe pour rendre un message clair plutôt qu'une erreur SQL.
+ */
+const USINE_FIELDS = new Set<EditableField>([
+  "date_reception_tissu",
+  "date_expedition_usine",
+]);
+
+type Guard =
+  | { ok: true; isUsine: boolean }
+  | { ok: false; message: string };
+
+/** Garde-fou : le suivi de production est réservé aux comptes connectés. */
+async function assertAccess(): Promise<Guard> {
   const { getEffectiveProfile } = await import("@/lib/db/impersonation");
   const profile = await getEffectiveProfile();
   if (!profile) return { ok: false, message: "Session expirée." };
+  return {
+    ok: true,
+    isUsine: profile.effectiveRole === "collection_atmosphere",
+  };
+}
+
+/** Les actions réservées au staff : création, suppression, statut, SAV. */
+async function assertStaff(): Promise<Result> {
+  const guard = await assertAccess();
+  if (!guard.ok) return guard;
+  if (guard.isUsine) {
+    return {
+      ok: false,
+      message:
+        "Votre accès permet de renseigner la réception du tissu et l'expédition des confections, rien d'autre.",
+    };
+  }
   return { ok: true };
 }
 
@@ -44,14 +78,22 @@ const EDITABLE = {
 
 export type EditableField = keyof typeof EDITABLE;
 
+
 export async function updateCollectionOrderAction(
   id: string,
   field: EditableField,
   value: string | null,
 ): Promise<Result> {
-  const guard = await assertStaff();
+  const guard = await assertAccess();
   if (!guard.ok) return guard;
   if (!(field in EDITABLE)) return { ok: false, message: "Champ non modifiable." };
+  if (guard.isUsine && !USINE_FIELDS.has(field)) {
+    return {
+      ok: false,
+      message:
+        "Votre accès permet de renseigner la réception du tissu et l'expédition des confections, rien d'autre.",
+    };
+  }
 
   const supabase = await createClient();
   const patch: Record<string, string | null> = {

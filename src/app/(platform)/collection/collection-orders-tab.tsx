@@ -49,7 +49,14 @@ const STATUT_TONE: Record<CollectionStatut, StatusTone> = {
 
 type Filter = CollectionStatut | "Tous" | "En retard";
 
-export function CollectionOrdersTab({ orders }: { orders: CollectionOrder[] }) {
+export function CollectionOrdersTab({
+  orders,
+  usineOnly = false,
+}: {
+  orders: CollectionOrder[];
+  /** Rôle usine : lecture seule, sauf ses deux dates. */
+  usineOnly?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("Tous");
   const [atelier, setAtelier] = useState<string>("Tous");
@@ -147,9 +154,11 @@ export function CollectionOrdersTab({ orders }: { orders: CollectionOrder[] }) {
               className="pl-8 w-52"
             />
           </div>
-          <Button variant="primary" size="sm" onClick={() => setShowForm(true)}>
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouvelle commande
-          </Button>
+          {!usineOnly && (
+            <Button variant="primary" size="sm" onClick={() => setShowForm(true)}>
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} /> Nouvelle commande
+            </Button>
+          )}
         </div>
       </section>
 
@@ -172,6 +181,7 @@ export function CollectionOrdersTab({ orders }: { orders: CollectionOrder[] }) {
           <OrderRow
             key={o.id}
             order={o}
+            usineOnly={usineOnly}
             open={openId === o.id}
             onToggle={() => setOpenId(openId === o.id ? null : o.id)}
           />
@@ -224,10 +234,12 @@ export function CollectionOrdersTab({ orders }: { orders: CollectionOrder[] }) {
 
 function OrderRow({
   order,
+  usineOnly,
   open,
   onToggle,
 }: {
   order: CollectionOrder;
+  usineOnly: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -279,6 +291,9 @@ function OrderRow({
               statut === "Annulé" && "bg-muted-2",
             )}
           />
+          {usineOnly ? (
+            <span className="truncate text-[12px] font-medium text-ink-2">{statut}</span>
+          ) : (
           <select
             value={statut}
             disabled={pending}
@@ -299,6 +314,7 @@ function OrderRow({
               </option>
             ))}
           </select>
+          )}
         </div>
 
         <span className="truncate text-[11.5px] font-mono text-muted-2" title={o.ref ?? ""}>
@@ -407,7 +423,8 @@ function OrderRow({
                   <input
                     type="date"
                     value={o.dateReception ?? ""}
-                    disabled={pending}
+                    readOnly={usineOnly}
+                    disabled={pending || usineOnly}
                     onChange={(e) => void patch("date_reception", e.target.value || null)}
                     aria-label="Date de réception — archive la commande"
                     className="h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-[12.5px] text-ink tabular-nums outline-none focus:border-emerald disabled:opacity-50"
@@ -454,9 +471,15 @@ function OrderRow({
           </div>
 
           {/* Zone SAV */}
-          <SavZone order={o} statut={statut} pending={pending} patch={patch} />
+          <SavZone
+            order={o}
+            statut={statut}
+            pending={pending}
+            readOnly={usineOnly}
+            patch={patch}
+          />
 
-          {o.source !== "devis" && (
+          {!usineOnly && o.source !== "devis" && (
             <DeleteRow id={o.id} label={o.clientName} />
           )}
         </div>
@@ -491,11 +514,14 @@ function SavZone({
   order,
   statut,
   pending,
+  readOnly,
   patch,
 }: {
   order: CollectionOrder;
   statut: CollectionStatut;
   pending: boolean;
+  /** L'usine doit LIRE le problème signalé, pas le déclarer ni le clore. */
+  readOnly: boolean;
   patch: (f: EditableField, v: string | null) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(order.commentaireSav ?? "");
@@ -527,18 +553,20 @@ function SavZone({
         >
           SAV — problème sur la commande
         </p>
-        <button
-          disabled={pending}
-          onClick={() => void patch("statut", isSav ? "En cours" : "SAV")}
-          className={cn(
-            "ml-auto h-7 px-3 rounded-full text-[11.5px] font-semibold transition-colors disabled:opacity-50",
-            isSav
-              ? "bg-red text-white hover:bg-red/90"
-              : "border border-line bg-surface text-ink hover:bg-canvas-2",
-          )}
-        >
-          {isSav ? "Clôturer le SAV" : "Passer en SAV"}
-        </button>
+        {!readOnly && (
+          <button
+            disabled={pending}
+            onClick={() => void patch("statut", isSav ? "En cours" : "SAV")}
+            className={cn(
+              "ml-auto h-7 px-3 rounded-full text-[11.5px] font-semibold transition-colors disabled:opacity-50",
+              isSav
+                ? "bg-red text-white hover:bg-red/90"
+                : "border border-line bg-surface text-ink hover:bg-canvas-2",
+            )}
+          >
+            {isSav ? "Clôturer le SAV" : "Passer en SAV"}
+          </button>
+        )}
       </div>
       {isSav && (
         <div className="px-4 py-4">
@@ -549,7 +577,8 @@ function SavZone({
             id={`sav-${order.id}`}
             value={draft}
             rows={3}
-            disabled={pending}
+            readOnly={readOnly}
+            disabled={pending || readOnly}
             onChange={(e) => {
               setDraft(e.target.value);
               setSaved(false);

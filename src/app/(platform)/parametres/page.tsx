@@ -53,6 +53,7 @@ export default async function ParametresPage() {
     poseur_externe: 0,
     decoratrice: 0,
     consultation_lm: 0,
+    collection_atmosphere: 0,
   };
   for (const p of profiles) {
     if (p.active !== false) roleCounts[p.role] += 1;

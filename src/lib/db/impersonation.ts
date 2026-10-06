@@ -33,6 +33,7 @@ const VALID_ROLES: UserRole[] = [
   "decoratrice",
   "consultation_lm",
   "resp_magasin",
+  "collection_atmosphere",
 ];
 
 const ROLE_LABELS_FR: Record<UserRole, string> = {
@@ -46,6 +47,7 @@ const ROLE_LABELS_FR: Record<UserRole, string> = {
   poseur_externe: "Poseur externe",
   decoratrice: "Décoratrice",
   consultation_lm: "Consultation LM",
+  collection_atmosphere: "Collection Atmosphère (usine)",
 };
 
 /**

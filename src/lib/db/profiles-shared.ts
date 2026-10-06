@@ -15,6 +15,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   poseur_externe: "Poseur externe",
   decoratrice: "Décoratrice",
   consultation_lm: "Consultation Leroy Merlin",
+  collection_atmosphere: "Collection Atmosphère · usine",
 };
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
@@ -28,6 +29,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   poseur_externe: ["Ses interventions de pose uniquement", "Confirmation pose (externe à l'entreprise)"],
   decoratrice: ["Ses rendez-vous", "Fiches clients", "Historique", "Consultation Atmoleads"],
   consultation_lm: ["Tableau de bord", "Atmoleads", "Activité", "Templates", "Architecture"],
+  collection_atmosphere: [
+    "Suivi des commandes Collection (lecture)",
+    "Réception du tissu et expédition des confections",
+    "Aucun accès au reste de l'outil",
+  ],
 };
 
 export const ROLE_COLORS: Record<UserRole, "ink" | "violet" | "orange" | "pink" | "emerald" | "blue" | "amber"> = {
@@ -41,6 +47,7 @@ export const ROLE_COLORS: Record<UserRole, "ink" | "violet" | "orange" | "pink" 
   poseur_externe: "emerald",
   decoratrice: "blue",
   consultation_lm: "amber",
+  collection_atmosphere: "amber",
 };
 
 /**
@@ -125,6 +132,15 @@ export const ROLE_ROUTES: Record<UserRole, RouteAccess> = {
   consultation_lm: {
     allowed: ["/dashboard", "/leads-lm", "/feed", "/templates", "/architecture"],
     homeRoute: "/dashboard",
+  },
+  // Usine partenaire (Alliance Confection). Une seule route, et c'est
+  // voulu : ce compte est extérieur à l'entreprise, il ne doit voir ni les
+  // devis, ni les clients, ni les marges. Les politiques RLS posées par la
+  // migration 20261006200000 doublent cette restriction côté base — une
+  // faille d'interface ne suffirait pas à lui ouvrir une autre table.
+  collection_atmosphere: {
+    allowed: ["/collection"],
+    homeRoute: "/collection",
   },
 };
 

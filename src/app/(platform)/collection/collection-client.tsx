@@ -25,6 +25,8 @@ type Props = {
   products: CollectionProduct[];
   categories: string[];
   orders: CollectionOrder[];
+  /** Rôle usine : accès au seul suivi, et en lecture sauf ses deux dates. */
+  usineOnly?: boolean;
 };
 
 /**
@@ -37,7 +39,12 @@ type Props = {
  *   • « Catalogue » — la vue existante des produits semi-finis et des
  *     stocks Pologne / Ukraine, conservée telle quelle.
  */
-export default function CollectionClient({ products, categories, orders }: Props) {
+export default function CollectionClient({
+  products,
+  categories,
+  orders,
+  usineOnly = false,
+}: Props) {
   const [tab, setTab] = useState<"commandes" | "catalogue">("commandes");
   const [category, setCategory] = useState<string>("Tout");
   const [query, setQuery] = useState("");
@@ -92,6 +99,7 @@ export default function CollectionClient({ products, categories, orders }: Props
                 </span>
               )}
             </TabsTrigger>
+            {!usineOnly && (
             <TabsTrigger value="catalogue">
               <Library className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" strokeWidth={2.2} />
               Catalogue
@@ -99,6 +107,7 @@ export default function CollectionClient({ products, categories, orders }: Props
                 {products.length}
               </span>
             </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -116,10 +125,11 @@ export default function CollectionClient({ products, categories, orders }: Props
               réception et signale les SAV.
             </p>
           </section>
-          <CollectionOrdersTab orders={orders} />
+          <CollectionOrdersTab orders={orders} usineOnly={usineOnly} />
         </div>
       </TabsContent>
 
+      {!usineOnly && (
       <TabsContent value="catalogue">
       <div className="flex-1 overflow-auto">
         <section className="px-8 pt-10 pb-6">
@@ -304,6 +314,7 @@ export default function CollectionClient({ products, categories, orders }: Props
         </section>
       </div>
       </TabsContent>
+      )}
       </Tabs>
     </>
   );

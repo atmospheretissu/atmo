@@ -28,6 +28,7 @@ export async function getRoleCounts(): Promise<Record<UserRole, number>> {
     poseur_externe: 0,
     decoratrice: 0,
     consultation_lm: 0,
+    collection_atmosphere: 0,
   };
   for (const p of profiles) {
     if (p.active !== false) counts[p.role] += 1;
